@@ -1,0 +1,29 @@
+{
+  "pack_id": "lighting-inspection",
+  "version": "0.1.0-example",
+  "domain_owner": "M08",
+  "tenant_id": "hengjian",
+  "product_family": "led-light",
+  "product_model": "EXAMPLE_ONLY",
+  "fields": [
+    {
+      "id": "power_w",
+      "type": "number",
+      "label": "输入功率 W"
+    },
+    {
+      "id": "cct_k",
+      "type": "number",
+      "label": "色温 K"
+    },
+    {
+      "id": "appearance",
+      "type": "enum",
+      "options": [
+        "pass",
+        "fail"
+      ]
+    }
+  ],
+  "status": "DRAFT_UNAPPROVED"
+}
