@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info:
+  title: POMS BFF (proposal only)
+  version: 2.3.0-draft
+  description: Interface candidates; owner API review required before production.
+servers:
+  - url: /poms/v1
+paths:
+  /me/manifest:
+    get:
+      summary: Assemble capabilities for authenticated actor
+      responses:
+        '200': {description: UI manifest for authorized roles}
+        '401': {description: Not authenticated}
+  /me/actions:
+    get:
+      summary: Fetch DEH actions for actor
+      responses:
+        '200': {description: Authorized Action references}
+  /captures:
+    post:
+      summary: Capture mobile evidence with server-side authorization
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: {type: string}
+      responses:
+        '202': {description: Pending review}
+        '403': {description: Permission denied}
+        '409': {description: Conflict}
+  /agents:
+    get:
+      summary: Get authorized Hub agent references
+      responses:
+        '200': {description: Agents including connection status}
+  /agents/{agentId}/sessions:
+    post:
+      summary: Open a Hub session through server adapter
+      parameters:
+        - {in: path, name: agentId, required: true, schema: {type: string}}
+      responses:
+        '201': {description: Hub session created}
+        '503': {description: Hub unavailable; no fake success}
