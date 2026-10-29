@@ -1,0 +1,29 @@
+# AEOS AI 录入服务依赖
+# 说明：模型依赖较重，可分批安装；未安装时服务自动降级为 MOCK 结果。
+
+# 基础服务
+fastapi
+uvicorn[standard]
+python-multipart
+
+# A. OCR + 表格/版面（PaddleOCR / PP-Structure）
+paddlepaddle
+paddleocr
+paddlex          # PP-Structure 新版依赖
+pillow
+numpy
+
+# D. 中文语音转写（FunASR / Paraformer）
+funasr
+modelscope
+
+# C. 多模态视觉理解（Qwen2.5-VL）
+torch
+transformers
+accelerate
+qwen-vl-utils
+
+# 工序工具：DXF 图纸解析
+ezdxf
+
+# 说明：模型权重会自动下载，或手动下载后通过环境变量指定本地路径。

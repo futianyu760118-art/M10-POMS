@@ -1,0 +1,8 @@
+{
+  "tenant_id": "hengjian",
+  "name": "恒剑照明",
+  "product_family": "led-light",
+  "positions": ["质检员", "研发工程师", "销售专员"],
+  "policy_revision": "r3",
+  "note": "企业配置仅放 tenant/权限/组织/流程/接口映射，不含产品参数。"
+}

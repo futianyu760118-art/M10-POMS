@@ -1,0 +1,8 @@
+{
+  "tenant_id": "zhenguan",
+  "name": "贞观电子",
+  "product_family": "timer",
+  "positions": ["质检员", "研发工程师"],
+  "policy_revision": "r2",
+  "note": "企业配置仅放 tenant/权限/组织/流程/接口映射，不含产品参数。"
+}

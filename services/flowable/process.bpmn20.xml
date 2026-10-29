@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://hjgd.com/plm/process">
+  <process id="processRoute" name="模具开发工序流转" isExecutable="true">
+    <startEvent id="start" name="开始"/>
+    <userTask id="t1" name="工序1：结构设计" flowable:assignee="${rdEngineer}"/>
+    <userTask id="t2" name="工序2：模具结构确认" flowable:assignee="${rdEngineer}"/>
+    <userTask id="t3" name="工序3：模具加工" flowable:assignee="${outsource}"/>
+    <userTask id="t4" name="工序4：试模验证" flowable:assignee="${rdEngineer}"/>
+    <userTask id="t5" name="工序5：量产放行" flowable:assignee="${rdLead}"/>
+    <exclusiveGateway id="gw" name="试模是否通过"/>
+    <userTask id="t6" name="工序6：修模整改" flowable:assignee="${rdEngineer}"/>
+    <endEvent id="end" name="完成"/>
+    <sequenceFlow id="f1" sourceRef="start" targetRef="t1"/>
+    <sequenceFlow id="f2" sourceRef="t1" targetRef="t2"/>
+    <sequenceFlow id="f3" sourceRef="t2" targetRef="t3"/>
+    <sequenceFlow id="f4" sourceRef="t3" targetRef="t4"/>
+    <sequenceFlow id="f5" sourceRef="t4" targetRef="gw"/>
+    <sequenceFlow id="f6" sourceRef="gw" targetRef="t6" name="不通过">
+      <conditionExpression xsi:type="tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${pass == 'N'}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f7" sourceRef="gw" targetRef="t5" name="通过">
+      <conditionExpression xsi:type="tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${pass == 'Y'}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f8" sourceRef="t6" targetRef="t4"/>
+    <sequenceFlow id="f9" sourceRef="t5" targetRef="end"/>
+  </process>
+</definitions>

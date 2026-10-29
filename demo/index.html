@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AEOS M10 POMS · 岗位自动装配（公司/部门/岗位）</title>
+<style>
+:root{
+  --bg:#eef2f8; --card:#fff; --ink:#16283f; --muted:#7b8aa0; --line:#e2e8f1;
+  --brand:#0f2744; --accent:#2f6fbd; --pale:#edf4ff; --ok:#1c9a66; --warn:#d98a14; --red:#d64545;
+  --shadow:0 4px 18px rgba(15,39,68,.07);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{font-family:system-ui,"Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+.shell{max-width:960px;margin:0 auto;min-height:100vh;background:var(--bg)}
+.topbar{background:linear-gradient(135deg,#0f2744,#1b3d63);color:#fff;padding:18px 20px 16px}
+.topbar h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.3px}
+.topbar .sub{font-size:12px;opacity:.72;margin-top:3px}
+.topbar .tenant{display:inline-block;margin-top:8px;font-size:11px;background:rgba(255,255,255,.12);padding:3px 10px;border-radius:20px}
+/* 装配区 */
+.assemble{background:var(--card);border-radius:16px;box-shadow:var(--shadow);margin:14px 16px;padding:18px}
+.assemble h2{font-size:15px;margin:0 0 14px;color:var(--brand)}
+.cascade{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.field select{width:100%;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:#fbfcfe}
+.field select:focus{outline:2px solid #bcd7f2;border-color:var(--accent)}
+.field select:disabled{opacity:.5}
+.stepper{margin-top:14px;font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.stepper .n{width:22px;height:22px;border-radius:50%;background:var(--pale);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.stepper .arrow{color:#c3d0e0}
+/* 结果区 */
+.result{padding:0 16px 40px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:1fr 1fr}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+.card h3{font-size:14px;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center;color:var(--brand)}
+.card h3 .cnt{font-size:11px;color:var(--muted);font-weight:400}
+.duty{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #eef2f7;font-size:13.5px}
+.duty:last-child{border:0}
+.duty .i{color:var(--accent);font-weight:700;flex:none}
+.task{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid #eef2f7}
+.task:last-child{border:0}
+.task .bd{flex:1;min-width:0}
+.task .tt{font-size:13.5px;font-weight:600}
+.task .mt{font-size:12px;color:var(--muted);margin-top:2px}
+.badge{font-size:10.5px;padding:2px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
+.badge.blue{background:var(--pale);color:#24508f}.badge.green{background:#eaf7f0;color:var(--ok)}
+.badge.orange{background:#fdf3e0;color:var(--warn)}.badge.gray{background:#eef1f5;color:#6b788d}
+.task .btn{font-size:12px;padding:5px 10px;border:1px solid #cbd7e7;border-radius:8px;background:#fff;cursor:pointer;color:#23415e;font-weight:600}
+.task .btn.done{background:#eaf7f0;color:var(--ok);border-color:#bfe3d2}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:12px;background:var(--pale);color:#24508f;border:1px solid #d7e5f6;border-radius:20px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px}
+.manifest{font-size:11px;color:var(--muted);background:#f8fafc;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-top:14px;word-break:break-all}
+.empty{text-align:center;color:var(--muted);padding:50px 16px}
+.empty .big{font-size:40px;margin-bottom:10px}
+.notice{background:#fff8e5;border:1px solid #f0d48b;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5b12;margin:12px 16px 0}
+@media(max-width:640px){.cascade{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.topbar h1{font-size:16px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <h1>M10 POMS · 岗位自动装配</h1>
+    <div class="sub">选择公司 → 部门 → 岗位，系统自动装配相应职责与任务项</div>
+    <span class="tenant" id="tenantLabel">宁波恒剑光电科技有限公司</span>
+  </div>
+
+  <div class="assemble">
+    <h2>岗位装配输入</h2>
+    <div class="cascade">
+      <div class="field"><label>① 公司</label><select id="company"></select></div>
+      <div class="field"><label>② 部门</label><select id="department" disabled><option>请先选公司</option></select></div>
+      <div class="field"><label>③ 岗位</label><select id="position" disabled><option>请先选部门</option></select></div>
+    </div>
+    <div class="stepper" id="stepper"></div>
+  </div>
+
+  <div class="notice" id="tip">演示数据来自《AEOS_M07_M10_可开发资料包 V1.0》与 V2.3 能力包；岗位职责与任务项为本地模拟，未连接生产接口。</div>
+
+  <div class="result" id="result">
+    <div class="empty"><div class="big">🧩</div>请先选择公司与岗位，自动装配职责与任务项</div>
+  </div>
+</div>
+
+<script>
+const API = '/api/v1/org';
+let doneSet = new Set();          // 本地“声明完成”的任务（模拟）
+
+async function get(path){ const r = await fetch(API+path); if(!r.ok) throw new Error(r.status); return r.json(); }
+
+async function init(){
+  const { companies } = await get('/companies');
+  const sel = document.getElementById('company');
+  sel.innerHTML = '';
+  companies.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.short+' · '+c.name; sel.add(o); });
+  await loadDepartments();
+}
+
+async function loadDepartments(){
+  const cid = document.getElementById('company').value;
+  const { departments } = await get('/departments?company='+cid);
+  const sel = document.getElementById('department');
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">请选择部门</option>';
+  departments.forEach(d=>{ const o=document.createElement('option'); o.value=d; o.textContent=d; sel.add(o); });
+  document.getElementById('position').innerHTML = '<option>请先选部门</option>';
+  document.getElementById('position').disabled = true;
+  const comp = await get('/companies');
+  const c = comp.companies.find(x=>x.id===cid);
+  document.getElementById('tenantLabel').textContent = c.name;
+  clearResult();
+}
+
+async function loadPositions(){
+  const cid = document.getElementById('company').value;
+  const dep = document.getElementById('department').value;
+  if(!dep){ document.getElementById('position').disabled=true; clearResult(); return; }
+  const { positions } = await get('/positions?company='+cid+'&department='+encodeURIComponent(dep));
+  const sel = document.getElementById('position');
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">请选择岗位</option>';
+  positions.forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; sel.add(o); });
+  clearResult();
+}
+
+async function assemble(){
+  const cid = document.getElementById('company').value;
+  const dep = document.getElementById('department').value;
+  const pos = document.getElementById('position').value;
+  if(!pos){ clearResult(); return; }
+  const data = await get('/assemble?company='+cid+'&department='+encodeURIComponent(dep)+'&position='+encodeURIComponent(pos));
+  doneSet.clear();
+  render(data);
+}
+
+function clearResult(){ document.getElementById('result').innerHTML = '<div class="empty"><div class="big">🧩</div>请先选择公司与岗位</div>'; }
+
+function render(d){
+  // stepper
+  document.getElementById('stepper').innerHTML =
+    `<span class="n">1</span>${d.company.short}<span class="arrow">→</span><span class="n">2</span>${d.department}<span class="arrow">→</span><span class="n">3</span>${d.position}`;
+
+  // 能力包 chips
+  const chips = d.packs.map(p=>`<span class="chip">${p.name}</span>`).join('');
+
+  // 职责
+  const duties = d.duties.map((x,i)=>`<div class="duty"><span class="i">${i+1}.</span><span>${esc(x)}</span></div>`).join('');
+
+  // 任务项
+  const tasks = d.tasks.map((t,i)=>{
+    const done = doneSet.has(i);
+    return `<div class="task">
+      <div class="bd"><div class="tt">${esc(t.t)}</div><div class="mt"><span class="badge blue">${esc(t.kind)}</span> · 截止 ${esc(t.due)}</div></div>
+      <button class="btn ${done?'done':''}" onclick="toggleTask(${i},this)">${done?'已声明完成':'声明完成'}</button>
+    </div>`;
+  }).join('');
+
+  document.getElementById('result').innerHTML = `
+    <div class="grid g2">
+      <div class="card">
+        <h3>岗位职责 <span class="cnt">${d.duties.length} 项</span></h3>
+        ${duties}
+      </div>
+      <div class="card">
+        <h3>任务项 · 未来待办 <span class="cnt">${d.tasks.length} 项</span></h3>
+        ${tasks}
+        <div class="notice" style="margin:12px 0 0">声明完成 ≠ 验证通过（done ≠ verified），执行结果须经授权验证者确认。</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>能力包 <span class="cnt">由岗位自动装配</span></h3>
+      <div class="chips">${chips}</div>
+      <div class="manifest">manifest_id：${d.manifest.manifest_id} · industry_pack_ref：${d.manifest.industry_pack_ref} · 权限由 M01 服务端签发，UI 隐藏 ≠ 授权</div>
+    </div>`;
+}
+
+function toggleTask(i, btn){
+  if(doneSet.has(i)){ doneSet.delete(i); btn.classList.remove('done'); btn.textContent='声明完成'; }
+  else { doneSet.add(i); btn.classList.add('done'); btn.textContent='已声明完成'; }
+}
+
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+document.getElementById('company').onchange = loadDepartments;
+document.getElementById('department').onchange = loadPositions;
+document.getElementById('position').onchange = assemble;
+
+init().catch(e=>{
+  document.getElementById('result').innerHTML = '<div class="empty"><div class="big">⚠️</div>无法连接装配服务（'+e.message+'）<br><span style="font-size:12px">请通过 npm start 启动 BFF 后访问 http://localhost:4173/</span></div>';
+});
+</script>
+</body>
+</html>

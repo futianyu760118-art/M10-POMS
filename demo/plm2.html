@@ -1,0 +1,1982 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>恒剑 PLM 中台 V4.0 · 研发工作台（POMS 接入）</title>
+<style>
+:root{
+  --bg:#f4f6fa; --ink:#17243b; --muted:#6b788d; --line:#e2e8f0;
+  --blue:#1767c9; --pale:#eaf2fe; --green:#11836b; --orange:#db8328; --red:#c33a4e;
+  --nav:#10233b; --white:#fff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{font-family:Inter,"Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.side{background:var(--nav);color:#c6d4e5;padding:18px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{color:#fff;font-size:16px;font-weight:800;padding:2px 10px 8px}
+.brand small{display:block;color:#94adca;font-size:10px;font-weight:500;margin-top:4px}
+.navlabel{font-size:10px;color:#87a1be;letter-spacing:1.3px;padding:16px 12px 8px}
+.navitem{display:block;width:100%;background:transparent;border:0;text-align:left;color:#bed0e2;padding:10px 12px;border-radius:9px;margin:2px 0;font-size:13px;cursor:pointer}
+.navitem.active{background:#244e7e;color:#fff;font-weight:700}
+.navitem:hover{background:#203b59}
+.main{padding:18px 24px 56px;min-width:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.title{font-size:21px;font-weight:800;margin:0}
+.topright{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pill{background:#fff;border:1px solid var(--line);border-radius:99px;padding:6px 11px;font-size:12px;color:#52647b}
+.pill select{border:0;background:none;font:inherit;color:#23415e;font-weight:700;outline:none}
+.btn{border:1px solid #cbd7e7;border-radius:9px;background:#fff;color:#23415e;padding:8px 12px;font-size:13px;font-weight:680;cursor:pointer}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.danger{color:var(--red);border-color:#f0c9cf}
+.btn.small{padding:5px 9px;font-size:12px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+.panel h2{font-size:15px;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center}
+.panel h2 .tag{font-size:11px;color:var(--muted);font-weight:400}
+.grid{display:grid;gap:12px}
+.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:1fr 1fr}
+.metric{border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:#fbfcfe}
+.metric span{font-size:11px;color:var(--muted)}.metric b{display:block;font-size:23px;font-weight:800;margin:3px 0}
+.metric .m{font-size:11px;color:var(--muted)}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
+.tag.green{background:#e7f5ef;color:var(--green)}.tag.orange{background:#fdf2e2;color:var(--orange)}
+.tag.red{background:#fdeaea;color:var(--red)}.tag.blue{background:var(--pale);color:#24508f}.tag.gray{background:#eef1f5;color:#6b788d}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #eef2f7;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
+.stepper{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.step{font-size:11px;padding:5px 10px;border-radius:20px;background:#eef1f5;color:#6b788d;white-space:nowrap}
+.step.done{background:#e7f5ef;color:var(--green)}
+.step.now{background:var(--pale);color:var(--blue);font-weight:700}
+.step.bad{background:#fdeaea;color:var(--red)}
+.duty{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #eef2f7;font-size:13.5px}
+.duty:last-child{border:0}
+.duty .i{color:var(--blue);font-weight:700;flex:none}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{font-size:12px;background:var(--pale);color:#24508f;border:1px solid #d7e5f6;border-radius:20px;padding:5px 11px}
+.chip.lock{background:#f1f3f6;color:#8a95a5;border-color:#e2e6ec}
+.notice{background:#fff8e5;border:1px solid #f0d48b;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5b12;margin-bottom:14px}
+.empty{text-align:center;color:var(--muted);padding:40px 16px}
+.footer{margin-top:16px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:820px){.shell{display:block}.side{display:none}.g4,.g3,.g2{grid-template-columns:1fr 1fr}.main{padding:12px}}
+/* 文件上传 / 预览 / 编辑 */
+.dropzone{border:2px dashed #c3d4e8;border-radius:14px;padding:22px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s;background:#fbfcfe;margin:12px 0}
+.dropzone.drag{border-color:var(--blue);background:var(--pale);color:var(--blue)}
+.dropzone .big{font-size:30px}
+.files{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.filerow{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fbfcfe}
+.filerow .fic{width:40px;height:40px;border-radius:8px;background:#eef3fb;display:flex;align-items:center;justify-content:center;font-size:20px;flex:none;overflow:hidden}
+.filerow .fic img{width:100%;height:100%;object-fit:cover}
+.filerow .bd{flex:1;min-width:0}
+.filerow .bd b{font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filerow .bd small{font-size:11px;color:var(--muted)}
+.filerow .ops{display:flex;gap:6px;flex:none}
+.modal{position:fixed;inset:0;background:rgba(15,39,68,.55);z-index:50;display:flex;align-items:center;justify-content:center;padding:14px}
+#mkModal{z-index:60}#ndModal{z-index:62}#wsModal{z-index:61}#prjModal,#matModal{z-index:63}
+#fileModal{z-index:70}#loginOverlay{z-index:80}
+.modal[hidden]{display:none}
+.modalbox{background:#fff;border-radius:16px;width:100%;max-width:min(1180px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.modalhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.modalhead b{font-size:14px}
+.modalhead .ops{display:flex;gap:8px}
+.modalbody{flex:1;overflow:auto;padding:14px;background:#f6f8fb}
+.modalbody img.preview{max-width:100%;max-height:62vh;border-radius:8px;display:block;margin:0 auto}
+.modalbody textarea.editor{width:100%;height:56vh;font-family:Consolas,monospace;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:12px;resize:none}
+.modalbody iframe.pdf{width:100%;height:74vh;border:0;border-radius:8px}
+/* 文件预览：大画布 + 缩放/平移 */
+.zbar{gap:6px;margin-bottom:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.zbar .zbtn{min-width:34px}
+.pwrap{overflow:auto;background:#223247;border-radius:10px;min-height:320px;max-height:74vh;display:flex;align-items:flex-start;justify-content:center;cursor:grab}
+.pwrap:active{cursor:grabbing}
+.pwrap img{display:block;max-width:100%;max-height:74vh;transform-origin:top left;user-select:none;-webkit-user-drag:none}
+.pwrap img.nat{max-width:none;max-height:none}
+/* Excel 预览 */
+.xlsx-wrap{max-height:68vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px}
+table.xlsx{border-collapse:collapse;font-size:12px;white-space:nowrap}
+table.xlsx th{position:sticky;top:0;background:#f0f5fb;border:1px solid #e2e9f2;padding:4px 8px;color:#33465f;font-weight:600;z-index:1}
+table.xlsx td{border:1px solid #edf1f7;padding:3px 8px;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+table.xlsx td[contenteditable]{cursor:text;min-width:40px}
+table.xlsx td[contenteditable]:focus{outline:2px solid #1767c9;background:#f7fbff;border-radius:2px}
+table.xlsx tr.xnew td{background:#fffbe8}
+.iframebox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.toolbar .cbtn{width:26px;height:26px;border-radius:6px;border:1px solid #cbd7e7;cursor:pointer}
+.toolbar .cbtn.on{outline:2px solid var(--blue)}
+canvas.editor{background:#fff;border:1px solid var(--line);border-radius:8px;max-width:100%;touch-action:none}
+.filemeta{display:flex;flex-direction:column;gap:8px}
+.filemeta .kv{display:flex;gap:12px;font-size:13px;border-bottom:1px solid #eef2f7;padding:6px 0}
+.filemeta .kv span{color:var(--muted);min-width:80px}
+table.csvtable{border-collapse:collapse;font-size:12px;background:#fff}
+table.csvtable td,table.csvtable th{border:1px solid #e2e8f1;padding:4px 8px;max-width:200px;word-break:break-all}
+.todoitem{display:flex;gap:8px;align-items:center;padding:8px 6px;border-bottom:1px solid #eef2f7;cursor:pointer;border-radius:6px}
+.todoitem:hover{background:#f4f8fd}
+.todoitem .t-ico{width:16px;text-align:center;color:#1767c9}
+.todoitem .t-body{flex:1;min-width:0;display:flex;flex-direction:column}
+.todo-col{display:flex;flex-direction:column}
+details.panel summary{list-style:none}
+details.panel summary::-webkit-details-marker{display:none}
+details.panel summary::before{content:'▸ '}
+details.panel[open] summary::before{content:'▾ '}
+/* 资料预览（文档样式，可直接修改） */
+.pv-doc{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:0 2px 10px rgba(15,39,68,.05)}
+.pv-doc h3{margin:0 0 4px;font-size:16px}
+.pv-doc .pv-sub{font-size:11px;color:var(--muted);margin-bottom:12px;border-bottom:2px solid #1767c9;padding-bottom:8px}
+.pv-doc table{width:100%;border-collapse:collapse}
+.pv-doc th{background:#f4f8fd;font-size:12px;color:#33465f;font-weight:600}
+.pv-doc td{border:1px solid #e4ebf4;font-size:13px;padding:4px 8px}
+.pv-doc input{border:0;border-bottom:1px dashed #cfdcea;background:transparent;width:100%;padding:2px 4px;font-size:13px}
+.pv-doc input:focus{border-bottom:1.5px solid #1767c9;outline:none;background:#f7fbff}
+.pv-doc select{border:0;border-bottom:1px dashed #cfdcea;background:transparent;width:100%;font-size:13px}
+.pv-tip{font-size:10.5px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">PLM 中台 <span style="color:#62a7ff">V4.0</span><small>恒剑光电 · 研发中心工作台</small></div>
+    <div class="navlabel">工作台</div>
+    <div id="nav"></div>
+    <div class="navlabel" style="padding-top:20px;border-top:1px solid #243a56">说明</div>
+    <div style="font-size:10px;color:#90a4bd;padding:8px 12px;line-height:1.7">数据来源：PLM2 仓库 database/*.sql<br>六大固定角色 + 研发/供应链主管<br>PartNo 全局唯一主键<br>ECN 三级审批 · 工序自动化流转<br>全部为 L0 模拟，未接生产库</div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div class="title" id="pageTitle">我的待办</div>
+      <div class="topright">
+        <span class="pill">宁波恒剑光电科技有限公司</span>
+        <span class="pill" id="sessChip">未登录</span>
+        <button class="btn small" id="logoutBtn" style="display:none" onclick="doLogout()">退出</button>
+      </div>
+    </div>
+    <div class="notice" id="roleNotice"></div>
+    <div id="content"><div class="empty">加载中…</div></div>
+    <div class="footer">PLM 中台 V4.0 · HJ-PLM-V4.0-20260704 · 与 AEOS M10 POMS 集成演示 · 岗位装配 / 待办 / 状态机均为候选，未连接真实 M01/M02/PLM 数据库。</div>
+  </main>
+</div>
+
+<div class="modal" id="fileModal" hidden>
+  <div class="modalbox">
+    <div class="modalhead">
+      <b id="fileModalTitle">文件预览</b>
+      <div class="ops">
+        <button class="btn small" id="btnWatermark" onclick="watermarkFile()" hidden>💧 加水印</button>
+        <button class="btn small" id="btnEdit" onclick="startEdit()">✏️ 编辑</button>
+        <button class="btn small primary" id="btnSave" onclick="saveEdit()" hidden>💾 保存</button>
+        <button class="btn small danger" id="btnCancel" onclick="cancelEdit()" hidden>取消</button>
+        <button class="btn small" onclick="closeFileModal()">关闭</button>
+      </div>
+    </div>
+    <div class="modalbody" id="fileModalContent"></div>
+  </div>
+</div>
+
+<div class="modal" id="wsModal" hidden>
+  <div class="modalbox" style="max-width:560px">
+    <div class="modalhead">
+      <b id="wsTitle">工作表填报</b>
+      <div class="ops">
+        <button class="btn small primary" onclick="wsSubmit()">提交并联动节点</button>
+        <button class="btn small" onclick="document.getElementById('wsModal').hidden=true">关闭</button>
+      </div>
+    </div>
+    <div class="modalbody" id="wsBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="ndModal" hidden>
+  <div class="modalbox" style="max-width:520px">
+    <div class="modalhead">
+      <b id="ndTitle">节点编辑</b>
+      <div class="ops">
+        <button class="btn small primary" onclick="ndSave()">保存节点</button>
+        <button class="btn small" onclick="document.getElementById('ndModal').hidden=true">关闭</button>
+      </div>
+    </div>
+    <div class="modalbody" id="ndBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="prjModal" hidden>
+  <div class="modalbox" style="max-width:520px">
+    <div class="modalhead">
+      <b id="prjTitle">编辑项目</b>
+      <div class="ops">
+        <button class="btn small primary" onclick="prjSave()">保存</button>
+        <button class="btn small" onclick="document.getElementById('prjModal').hidden=true">关闭</button>
+      </div>
+    </div>
+    <div class="modalbody" id="prjBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="matModal" hidden>
+  <div class="modalbox" style="max-width:520px">
+    <div class="modalhead">
+      <b id="matTitle">编辑物料</b>
+      <div class="ops">
+        <button class="btn small primary" onclick="matSave()">保存</button>
+        <button class="btn small" onclick="document.getElementById('matModal').hidden=true">关闭</button>
+      </div>
+    </div>
+    <div class="modalbody" id="matBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="loginOverlay" hidden>
+  <div class="modalbox" style="max-width:380px">
+    <div class="modalhead"><b>登录 · 与 PLM(M04) 同一账号</b></div>
+    <div class="modalbody">
+      <label class="field" style="margin-bottom:10px"><span>用户名</span><input id="lgUser" placeholder="PLM 账号（如 admin）" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px"></label>
+      <label class="field" style="margin-bottom:10px"><span>密码</span><input id="lgPass" type="password" placeholder="PLM 密码" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px" onkeydown="if(event.key==='Enter')doLogin()"></label>
+      <button class="btn primary block" onclick="doLogin()">登录</button>
+      <div class="muted" style="font-size:11px;margin-top:10px">统一认证：登录即使用 PLM(M04) 真实账号与角色，权限由服务端从令牌派生；本令牌同样适用于 PLM 界面。</div>
+      <div class="notice warn" id="lgErr" style="display:none;margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mkModal" hidden>
+  <div class="modalbox" style="max-width:760px">
+    <div class="modalhead">
+      <b id="mkTitle">资料制作</b>
+      <div class="ops">
+        <button class="btn small" id="mkTabEdit" onclick="mkToggle('edit')">📝 编辑</button>
+        <button class="btn small" id="mkTabPrev" onclick="mkToggle('preview')">👁 预览</button>
+        <button class="btn small" id="mkBtnDraft" onclick="mkSave('draft')">保存草稿</button>
+        <button class="btn small primary" id="mkBtnSubmit" onclick="mkSave('submit')">提交上级审批</button>
+        <button class="btn small" onclick="document.getElementById('mkModal').hidden=true">关闭</button>
+      </div>
+    </div>
+    <div class="modalbody" id="mkBody"></div>
+  </div>
+</div>
+
+<script>
+const API = '/api/v1/plm2';
+const NAV = [['todos','我的待办'],['capture','采集录入'],['ecn','ECN 变更审批'],['material','物料生命周期'],['project','研发项目'],['process','工序流转'],['tools','工序工具'],['agent','我的智能体'],['role','权限与职责']];
+let state = { role:'ENGINEER', person:null, page:'todos', roles:[], people:[], dicts:{}, lifecycle:[] };
+
+async function get(path){
+  const h = {};
+  if (localStorage.getItem('plm_token')) h.Authorization = 'Bearer ' + localStorage.getItem('plm_token');
+  const r = await fetch(API+path, { headers: h });
+  if (r.status === 401) { showLogin(); throw new Error(401); }
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+async function postJson(path, body){
+  const h = { 'Content-Type': 'application/json' };
+  if (localStorage.getItem('plm_token')) h.Authorization = 'Bearer ' + localStorage.getItem('plm_token');
+  const r = await fetch(API+path, { method:'POST', headers: h, body: JSON.stringify(body) });
+  const j = await r.json().catch(()=>({}));
+  if (r.status === 401) { showLogin(); throw new Error(j.error || 401); }
+  return { ok: r.ok, status: r.status, data: j };
+}
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function stTag(s, map){ const g=['EFFECTIVE','RELEASED','IN_PRODUCTION','DONE','APPROVED']; const r=['REJECTED','VOID','OBSOLETE','ESCALATED']; const o=['PENDING_L1','PENDING_L2','REVIEWING','CHANGING']; const c = g.includes(s)?'green':r.includes(s)?'red':o.includes(s)?'orange':'blue'; return `<span class="tag ${c}">${map[s]||s}</span>`; }
+function badge(p){ const c = p<=1?'red':p<=2?'orange':'blue'; return `<span class="tag ${c}">P${p}</span>`; }
+
+function nav(){ document.getElementById('nav').innerHTML = NAV.map(([k,v])=>`<button class="navitem ${state.page===k?'active':''}" onclick="go('${k}')">${v}</button>`).join(''); }
+function go(k){ state.page=k; render(); }
+
+async function init(){
+  // 统一认证：优先用本地令牌经 /auth/me 校验（M04 同一账号）
+  try{
+    const tok = localStorage.getItem('plm_token');
+    if (tok){
+      const r = await fetch(API+'/auth/me', { headers:{ Authorization:'Bearer '+tok } });
+      if (r.ok){
+        const me = await r.json();
+        state.auth = me;
+        state.role = me.role;
+        state.person = me.personId;
+      } else { localStorage.removeItem('plm_token'); }
+    }
+  }catch(e){}
+  const p = await get('/people');
+  state.people = p.people;
+  if (!state.auth){ showLogin(); return; }
+  await bootAfterLogin();
+}
+function showLogin(){
+  document.getElementById('loginOverlay').hidden = false;
+}
+async function doLogin(){
+  const u = document.getElementById('lgUser').value.trim();
+  const pw = document.getElementById('lgPass').value;
+  const err = document.getElementById('lgErr');
+  err.style.display = 'none';
+  try{
+    const r = await postJson('/auth/login', { username: u, password: pw });
+    if (!r.ok) throw new Error(r.data.error || r.status);
+    localStorage.setItem('plm_token', r.data.token);
+    state.auth = r.data;
+    state.role = r.data.role;
+    state.person = r.data.personId;
+    document.getElementById('loginOverlay').hidden = true;
+    await bootAfterLogin();
+  }catch(e){
+    err.textContent = '登录失败：' + e.message;
+    err.style.display = 'block';
+  }
+}
+function doLogout(){
+  localStorage.removeItem('plm_token');
+  state.auth = null;
+  location.reload();
+}
+async function bootAfterLogin(){
+  const { roles } = await get('/roles');
+  state.roles = roles;
+  const d = await get('/dicts'); state.dicts = d.dicts; state.lifecycle = d.lifecycle;
+  try { const wt = await get('/ws-templates'); state.wsTplCache = wt.templates; state.wsNodeMap = wt.nodeMap; } catch(e) { state.wsTplCache = {}; state.wsNodeMap = {}; }
+  await loadPeople();
+  if (!state.auth) { showLogin(); return; }   // 未登录：只弹登录，不呈现工作台内容
+  if (!NAV.some(x=>x[0]===state.page)) state.page = 'todos'; // 登录即进入用户对应界面（我的待办）
+  render();
+}
+async function loadPeople(){
+  const { people } = await get('/people?role='+state.role);
+  state.people = people;
+  if(!people.length) return;
+  if (!state.auth) state.person = people[0].id; // 未登录（L0）才默认第一个
+}
+async function switchRole(){
+  state.role = document.getElementById('roleSel').value;
+  await loadPeople();
+  render();
+}
+function switchPerson(){ state.person = Number(document.getElementById('personSel').value); render(); }
+function curRole(){ return state.roles.find(r=>r.code===state.role); }
+function curPerson(){ return state.people.find(p=>p.id===state.person); }
+function curUser(){ return state.person; }
+
+async function render(){
+  nav();
+  const name = NAV.find(x=>x[0]===state.page)[1];
+  document.getElementById('pageTitle').textContent = name;
+  const r = curRole();
+  const p = curPerson();
+  const chip = document.getElementById('sessChip');
+  const lo = document.getElementById('logoutBtn');
+  if (state.auth){
+    const rls = state.auth.roles || [state.role];
+    const rl = rls.map(c => (state.roles.find(x=>x.code===c)||{}).name || c).join(' / ');
+    chip.innerHTML = `<b>${esc(state.auth.realName)}</b>（${esc(rl)}${rls.length>1?' · 兼岗':''}）· PLM 统一认证`;
+    chip.title = '账号 ' + state.auth.username + ' · 角色码 ' + (state.auth.roleCode||'');
+    lo.style.display = '';
+  } else { chip.textContent = '未登录'; lo.style.display = 'none'; }
+  const rls2 = state.auth ? (state.auth.roles || [state.role]) : [state.role];
+  const rl2 = rls2.map(c => (state.roles.find(x=>x.code===c)||{}).name || c).join(' / ');
+  document.getElementById('roleNotice').innerHTML = `<b>${state.auth?esc(state.auth.realName):''}</b>${p?`（${esc(p.deptName||'')}）`:''} · 角色 <b>${rl2}</b>${rls2.length>1?`（兼岗 ${rls2.length} 个）`:''} · 权限由服务端从 PLM 令牌派生（与 M04 一致）；UI 仅投影。`;
+  try { await pages[state.page](); }
+  catch(e){ document.getElementById('content').innerHTML = `<div class="empty">加载失败（${e.message}），请确认 BFF 已启动。</div>`; }
+}
+
+const pages = {
+  async todos(){
+    const uid = curUser();
+    const t = await get('/me/todos?user='+uid);
+    state.todosData = [
+      ...(t.overdue||[]).map(r=>({...r, cat:'逾期'})),
+      ...(t.todo||[]).map(r=>({...r, cat:'待办'})),
+      ...(t.done||[]).map(r=>({...r, cat:'已完成'})),
+      ...(t.none||[]).map(r=>({...r, cat:'无节点'}))
+    ];
+    // 异常专区数据：逾期 + ESCALATED 工序 + 阻塞工序
+    state.anomalies = [...(t.overdue||[]).map(r=>({...r, anomalyType:'逾期', action:'editNode'}))];
+    try{
+      const routes = (await get('/process-routes')).routes || [];
+      routes.forEach(rt=>{
+        if(rt.status==='RUNNING'){
+          rt.steps.forEach(s=>{
+            if(s.status==='ACTIVE'){
+              state.anomalies.push({ projectNo:rt.refId||rt.routeNo, projectName:rt.name, nodeCode:'PROCESS', nodeName:s.name, planDate:null, status:'ACTIVE', anomalyType:'工序进行中', action:'goProcess' });
+            }
+          });
+        }
+      });
+    }catch(e){}
+    state.wsApprovals = [];
+    if (['RD_LEAD','ADMIN'].includes(state.role) || (state.auth&&state.auth.roles||[]).some(r=>['RD_LEAD','ADMIN'].includes(r))) {
+      try { state.wsApprovals = (await get('/ws-v2?approvals=1')).items; } catch(e){}
+    }
+    renderTodosView();
+  },
+  async ecn(){
+    const { ecns } = await get('/ecns');
+    const r = curRole();
+    document.getElementById('content').innerHTML =
+      tblRender('ecn', {
+        rows: ecns,
+        searchKeys: ['ecnNo', 'name', 'partNo', 'applicant', 'reason'],
+        filters: [{k:'statusLabel',label:'状态'},{k:'changeTypeLabel',label:'类型'},{k:'applicant',label:'申请人'}],
+        cols: [
+          {k:'ecnNo', label:'ECN 单号'},
+          {k:'name', label:'物料', html:e=>`${esc(e.name)}<br><span class="muted" style="font-size:11px">${e.partNo}</span>`},
+          {k:'changeTypeLabel', label:'类型'},
+          {k:'_ver', label:'版本', sortFn:(a,b)=>String(a.versionAfter).localeCompare(String(b.versionAfter)), html:e=>`${e.versionBefore} → ${e.versionAfter}`},
+          {k:'_flow', label:'审批流', sort:false, html:e=>{const flow=e.flow;const idx=flowIdx(e.status);return `<div class="stepper" style="margin:0">${flow.map((f,i)=>`<span class="step ${i<idx?'done':i===idx?(e.status==='REJECTED'?'bad':'now'):''}">${i+1}.${f}</span>`).join('')}</div>`;}},
+          {k:'statusLabel', label:'状态', html:e=>stTag(e.status, state.dicts.ecn_status)},
+          {k:'_act', label:'操作', sort:false, html:e=>`${ecnActions(e,r)}${['DRAFT','REJECTED'].includes(e.status)&&['ADMIN','ENGINEER'].includes(r.code)?`<button class="btn small danger" onclick="actEcn('${e.ecnNo}','void')">作废</button>`:''}`}
+        ],
+        rerender: ()=>{ pages.ecn(); }
+      }) + `<div class="notice">ECN 三级审批：提交 → 研发主管一审 → 供应链总监二审 → 生效（生效自动升级物料版本）；草稿/驳回可作废。</div>`;
+  },
+  async capture(){
+    const { captureTypes } = await get('/capture-types?role='+state.role);
+    const { materials } = await get('/materials');
+    const { captures } = await get('/captures');
+    state.captureTypes = captureTypes;
+    if(!captureTypes.length){
+      document.getElementById('content').innerHTML = `<div class="notice warn">当前岗位（${curRole().name}）无采集录入权限，已严格屏蔽采集类型。请切换岗位。</div>`;
+      return;
+    }
+    document.getElementById('content').innerHTML = `
+      <div class="grid g2">
+        <div class="panel">
+          <h2>数据采集与录入 <span class="tag">微系统核心</span></h2>
+          <div class="row" style="margin-bottom:10px">
+            <span class="pill">采集对象（扫码/选择料号）</span>
+            <select id="capPartNo" onchange="renderCapFields()">${materials.map(m=>`<option value="${m.partNo}">${m.partNo} · ${esc(m.name)}</option>`).join('')}</select>
+          </div>
+          <div class="row" style="margin-bottom:10px">
+            <span class="pill">采集类型</span>
+            <select id="capType" onchange="renderCapFields()">${captureTypes.map(t=>`<option value="${t.code}">${t.name}</option>`).join('')}</select>
+          </div>
+          <div id="capFields"></div>
+          <div class="row" style="margin:12px 0">
+            <button class="btn small" onclick="capPhoto()">📷 拍照取证</button>
+            <button class="btn small" id="capVoiceBtn" onclick="capVoice()">🎤 语音备注</button>
+            <span class="muted" id="capEvidence" style="font-size:12px">未采集附件</span>
+          </div>
+          <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+            <div class="big">📁</div>
+            <div>拖入文件到此处，或点击导入</div>
+            <div class="muted" style="font-size:11px">支持图片 / PDF / 文本 / CSV / Markdown 等，可预览与编辑</div>
+          </div>
+          <input type="file" id="fileInput" multiple hidden accept="image/*,.pdf,.txt,.md,.csv,.json,.js,.css,.html,.xml,.log">
+          <div class="files" id="fileList"></div>
+          <button class="btn primary" onclick="capSubmit()">预览提交（进入待审核）</button>
+        </div>
+        <div class="panel">
+          <h2>采集记录 <span class="tag">pending-review · done≠verified</span></h2>
+          ${captures.length?captures.map(c=>`<div class="task"><div class="body"><strong>${esc(c.materialName)} · ${esc(c.captureTypeName)}</strong><small>${c.captureId} · 操作 ${esc(c.operator)} · 证据 ${c.evidence.length} 项</small></div><span class="tag orange">待审核</span></div>`).join(''):'<p class="muted">暂无采集记录</p>'}
+        </div>
+      </div>
+      <div class="panel">
+        <h2>AI 智能录入 <span class="tag" id="aiEngine">PaddleOCR · FunASR · Qwen2.5-VL</span></h2>
+        <div class="row" style="margin-bottom:10px">
+          <input type="file" id="aiFile" accept="image/*,audio/*,.wav,.mp3,.m4a,.amr">
+          <span class="muted" style="font-size:12px">选图片（OCR/表格/理解）或音频（语音转写），再点下方按钮</span>
+        </div>
+        <div class="row">
+          <button class="btn small" onclick="aiRun('ocr')">① OCR 文字识别</button>
+          <button class="btn small" onclick="aiRun('table')">② 表格识别</button>
+          <button class="btn small" onclick="aiRun('asr')">③ 语音转文字</button>
+          <button class="btn small" onclick="aiRun('vl')">④ 智能理解</button>
+        </div>
+        <div id="aiResult" style="margin-top:12px"></div>
+      </div>
+      <div class="notice">采集 → 专业源业务系统人机审核 → M02 EDP 清洗/校验 → 归档 Result/Evidence；未经验证的数据标识 pending。</div>`;
+    renderCapFields();
+    renderFileList();
+    setupUpload();
+  },
+  async ecn(){
+    const { ecns } = await get('/ecns');
+    const r = curRole();
+    document.getElementById('content').innerHTML =
+      tblRender('ecn', {
+        rows: ecns,
+        searchKeys: ['ecnNo', 'name', 'partNo', 'applicant', 'reason'],
+        filters: [{k:'statusLabel',label:'状态'},{k:'changeTypeLabel',label:'类型'},{k:'applicant',label:'申请人'}],
+        cols: [
+          {k:'ecnNo', label:'ECN 单号'},
+          {k:'name', label:'物料', html:e=>`${esc(e.name)}<br><span class="muted" style="font-size:11px">${e.partNo}</span>`},
+          {k:'changeTypeLabel', label:'类型'},
+          {k:'_ver', label:'版本', sortFn:(a,b)=>String(a.versionAfter).localeCompare(String(b.versionAfter)), html:e=>`${e.versionBefore} → ${e.versionAfter}`},
+          {k:'_flow', label:'审批流', sort:false, html:e=>{const flow=e.flow;const idx=flowIdx(e.status);return `<div class="stepper" style="margin:0">${flow.map((f,i)=>`<span class="step ${i<idx?'done':i===idx?(e.status==='REJECTED'?'bad':'now'):''}">${i+1}.${f}</span>`).join('')}</div>`;}},
+          {k:'statusLabel', label:'状态', html:e=>stTag(e.status, state.dicts.ecn_status)},
+          {k:'_act', label:'操作', sort:false, html:e=>`${ecnActions(e,r)}${['DRAFT','REJECTED'].includes(e.status)&&['ADMIN','ENGINEER'].includes(r.code)?`<button class="btn small danger" onclick="actEcn('${e.ecnNo}','void')">作废</button>`:''}`}
+        ],
+        rerender: ()=>{ pages.ecn(); }
+      }) + `<div class="notice">ECN 三级审批：提交 → 研发主管一审 → 供应链总监二审 → 生效（生效自动升级物料版本）；草稿/驳回可作废。</div>`;
+  },
+  async material(){
+    const { materials } = await get('/materials');
+    state._matsCache = materials;
+    const r = curRole();
+    document.getElementById('content').innerHTML =
+      tblRender('mat', {
+        rows: materials,
+        searchKeys: ['partNo', 'name', 'series', 'owner'],
+        filters: [{k:'typeLabel',label:'类型'},{k:'statusLabel',label:'状态'},{k:'phaseLabel',label:'阶段'},{k:'owner',label:'创建人'}],
+        cols: [
+          {k:'partNo', label:'料号 PartNo'},
+          {k:'name', label:'名称'},
+          {k:'typeLabel', label:'类型'},
+          {k:'version', label:'版本'},
+          {k:'phaseLabel', label:'阶段'},
+          {k:'owner', label:'创建人'},
+          {k:'statusLabel', label:'状态', html:m=>stTag(m.status, state.dicts.material_status)},
+          {k:'_act', label:'操作', sort:false, html:m=>`${['ADMIN','RD_LEAD','ENGINEER'].includes(r.code)?`<button class="btn small" onclick="openMatEdit('${m.partNo}')">编辑</button>`:''}${matActions(m,r)}`}
+        ],
+        rerender: ()=>{ pages.material(); }
+      }) + `<div class="notice">物料状态：草稿 → 评审中 → 正式发布 → 量产在用 / 变更中 / 作废(停用) / 封存；发布后基础信息锁定，修改必须走 ECN。</div>`;
+  },
+  async process(){
+    const { routes } = await get('/process-routes');
+    const meName = curPerson() ? curPerson().name : '';
+    document.getElementById('content').innerHTML = routes.map(rt=>{
+      const steps = rt.steps.map((s,i)=>{
+        const mine = s.owner === meName;
+        const cls = s.status==='DONE'?'done':s.status==='ACTIVE'?'now':'';
+        const stateTxt = s.status==='DONE'?(s.remark?('已完成·'+esc(s.remark)):'已完成'):s.status==='ACTIVE'?'进行中':'待激活';
+        const act = s.status==='ACTIVE'
+          ? (mine ? `<button class="btn small primary" style="margin-top:6px" onclick="completeStep('${rt.routeNo}',${s.order})">完成本道</button>`
+                  : `<div class="muted" style="font-size:10px;margin-top:5px">等待 ${esc(s.owner)}</div>`)
+          : '';
+        const mineTag = mine ? ' <span class="tag blue" style="margin-left:4px">我的</span>' : '';
+        return `<span class="step ${cls}" style="${mine?'outline:2px solid #1767c9;padding:6px 12px':''}">${i+1}. ${esc(s.name)}${mineTag}<br><small>${esc(s.owner)} · ${s.slaHours}h · ${stateTxt}</small>${act}</span>`;
+      }).join('<span style="color:#c3d0e0;font-size:16px">→</span>');
+      const myCount = rt.steps.filter(s=>s.owner===meName).length;
+      return `<div class="panel"><h2>工序路线 ${rt.routeNo} <span class="tag">${esc(rt.name)}</span> <span class="tag ${rt.status==='COMPLETED'?'green':'blue'}">${rt.status}</span>${meName?`<span class="tag">当前人员：${esc(meName)} · 我的工序 ${myCount} 道（蓝框高亮）</span>`:''}</h2>
+        <div class="stepper">${steps}</div>
+        <div class="notice" style="margin:0">仅本道负责人可完成；完成后自动激活下一道并推送待办（PROCESS_STEP_PUSHED），末道完成自动闭环（PROCESS_ROUTE_COMPLETED）。切换顶部「人员」查看各自工序。</div></div>`;
+    }).join('');
+  },
+  async project(){
+    const { projects } = await get('/projects');
+    state._projectsCache = projects;
+    const r = curRole();
+    document.getElementById('content').innerHTML =
+      tblRender('prj', {
+        rows: projects,
+        searchKeys: ['projectNo', 'name', 'owner', 'customer'],
+        filters: [{k:'gate',label:'门'},{k:'statusLabel',label:'状态'},{k:'owner',label:'负责人'}],
+        cols: [
+          {k:'projectNo', label:'项目号'},
+          {k:'name', label:'名称'},
+          {k:'owner', label:'负责人'},
+          {k:'gate', label:'门', html:p=>`<span class="tag blue">${p.gate} ${esc(p.gateName)}</span>`},
+          {k:'statusLabel', label:'状态', html:p=>`<span class="tag ${p.status==='ACTIVE'?'blue':'gray'}">${esc(p.statusLabel)}</span>`},
+          {k:'_done', label:'进度', sortFn:(a,b)=>a.summary.done-b.summary.done, html:p=>{const pct=Math.round(p.summary.done/p.summary.total*100);return `<div style="width:110px;height:6px;background:#eef1f5;border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${pct===100?'#11836b':'#1767c9'}"></div></div><span class="muted" style="font-size:11px">${p.summary.done}/${p.summary.total}</span>`;}},
+          {k:'_act', label:'操作', sort:false, html:p=>`${['ADMIN','RD_LEAD'].includes(r.code)?prjActions(p):''}${['ADMIN','RD_LEAD'].includes(r.code)?`<button class="btn small" onclick="openPrjEdit('${p.projectNo}')">编辑</button>`:''}<button class="btn small" onclick="showProject('${p.projectNo}')">22节点</button>`}
+        ],
+        rerender: ()=>{ pages.project(); }
+      }) + '<div id="projDetail"></div>';
+  },
+  async role(){
+    const man = await get('/me/manifest?role='+state.role);
+    document.getElementById('content').innerHTML = `
+      <div class="panel"><h2>当前岗位 <span class="tag">${man.role.code}</span></h2>
+        <div class="chips">${man.duties.map(d=>`<span class="chip">${esc(d)}</span>`).join('')}</div></div>
+      <div class="panel"><h2>模块权限矩阵 <span class="tag">六大角色</span></h2>
+        <table><thead><tr><th>模块</th>${state.roles.map(r=>`<th>${r.name}</th>`).join('')}</tr></thead><tbody>
+        ${allModules().map(m=>`<tr><td><b>${m.name}</b></td>${state.roles.map(r=>{ const on = hasModule(r.code, m.code); return `<td>${on?'<span class="tag green">✓</span>':'<span class="tag gray">✕</span>'}</td>`; }).join('')}</tr>`).join('')}
+        </tbody></table></div>`;
+  },
+  async agent(){
+    const roleStr = state.auth ? (state.auth.roles||[state.role]).join(',') : state.role;
+    const man = await get('/me/manifest?role='+encodeURIComponent(roleStr));
+    let hubAgents = {agents:[],hub_connected:false};
+    try{ hubAgents = await get('/poms/v1/agents'); }catch(e){}
+    const connected = hubAgents.hub_connected || false;
+    const agents = [
+      { name:'岗位主 Agent', icon:'🤖', desc:'个人对话 · 任务拆解 · 对象查询 · Guard 前置校验', skills:['任务拆解','对象查询','证据整理'], autonomy:'assist' },
+      { name:'品质检验子 Agent', icon:'🔍', desc:'检验模板加载 · 测量记录 · 结果汇总', skills:['IQC/IPQC','规格参数','判定'], autonomy:'assist' },
+      { name:'研发资料子 Agent', icon:'📐', desc:'工作表填写 · 模板匹配 · 历史版本', skills:['规格书','配置表','试产报告'], autonomy:'assist' },
+      { name:'销售开发子 Agent', icon:'📈', desc:'公开线索检索 · 线索评分 · 跟进记录', skills:['线索','报价','客户'], autonomy:'supervised' }
+    ];
+    document.getElementById('content').innerHTML = `
+      <div class="notice warn" style="margin-bottom:14px">${connected?'✅ Hub 已连接，会话可经 M11 授权 Adapter 打开。':'⚠️ 模拟模式：Hub 未连接，回复为本地规则模拟，不调用真实 AI。设置 HUB_CONNECTED=1 并启动 Hub 后自动切换。'}</div>
+      <div class="grid g2">
+        <div class="panel">
+          <h2>我的智能体 <span class="tag ${connected?'green':'orange'}">${connected?'connected':'simulated'}</span></h2>
+          ${agents.map(a=>`<div class="task" style="padding:10px 0;border-bottom:1px solid #eef2f7">
+            <div class="body"><strong>${a.icon} ${a.name}</strong>
+              <small>${a.desc}</small>
+              <div class="chips" style="margin-top:4px">${a.skills.map(s=>`<span class="chip" style="padding:2px 8px;font-size:11px">${s}</span>`).join('')}</div>
+            </div>
+            <span class="tag ${connected?'green':'orange'}" style="flex:none">${connected?'已连接':'模拟'}</span>
+          </div>`).join('')}
+          <div class="notice" style="margin-top:10px">高风险动作（录用/离职/调薪/权限变更/量产放行）一律人工确认，Agent 审批建议不得直接转执行令。</div>
+        </div>
+        <div class="panel">
+          <h2>对话 <span class="tag ${connected?'green':'orange'}">${connected?'真实':'本地模拟'}</span></h2>
+          <div id="agentChat" style="min-height:200px;max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;background:#fbfcfe">
+            <div style="max-width:85%;padding:8px 12px;border-radius:12px;font-size:13px;margin:6px 0;background:#eef3fb">我是模拟岗位智能体。可结合本人岗位（${man.roles?man.roles.map(r=>r.name).join('/'):man.role.name}）、当前待办和权限给出建议。</div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input id="agentQ" placeholder="试问：帮我整理待办 / 该节点做什么资料 / 分析逾期原因" style="flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px" onkeydown="if(event.key==='Enter')agentAsk()">
+            <button class="btn primary" onclick="agentAsk()">发送</button>
+          </div>
+        </div>
+      </div>`;
+  },
+  async tools(){
+    const { tools } = await get('/tools');
+    const typeTag = t => t==='embed' ? '<span class="tag green">内嵌 JS</span>' : t==='desktop' ? '<span class="tag blue">本地桌面</span>' : '<span class="tag orange">服务端</span>';
+    const cats = {};
+    tools.forEach(t=>{ (cats[t.category]=cats[t.category]||[]).push(t); });
+    const cards = Object.keys(cats).map(cat=>`
+      <div class="panel"><h2>${cat} <span class="tag">${cats[cat].length} 项</span></h2>
+        <table><thead><tr><th>工具</th><th>仓库</th><th>类型</th><th>对应工序节点</th><th>集成方式</th></tr></thead><tbody>
+        ${cats[cat].map(t=>`<tr><td><b>${t.name}</b><br><span class="muted" style="font-size:11px">${esc(t.lang)}</span></td><td><code style="font-size:11px">${t.repo}</code></td><td>${typeTag(t.type)}</td><td>${t.nodes.map(n=>`<span class="chip" style="padding:2px 8px">${n}</span>`).join(' ')}</td><td style="font-size:12px">${esc(t.integrate)}</td></tr>`).join('')}
+        </tbody></table></div>`).join('');
+    document.getElementById('content').innerHTML = cards + `
+      <div class="panel"><h2>内嵌工具实时演示 <span class="tag">按需加载 CDN，需联网</span></h2>
+        <div class="row">
+          <button class="btn" onclick="demoMermaid()">Mermaid 流程图</button>
+          <button class="btn" onclick="demoGantt()">frappe-gantt 甘特图</button>
+          <button class="btn" onclick="demoExcel()">SheetJS 导出 BOM Excel</button>
+          <button class="btn" onclick="demoBpmn()">bpmn-js 流程查看器</button>
+        </div>
+        <div id="toolDemo" style="margin-top:12px"></div>
+      </div>
+      <div class="panel"><h2>DXF 图纸解析 <span class="tag">ezdxf · 已接入服务端(8002)</span></h2>
+        <div class="row">
+          <input type="file" id="dxfFile" accept=".dxf">
+          <button class="btn primary" onclick="parseDxf()">解析 DXF 图纸</button>
+          <a class="btn" href="/demo/sample-gk200.dxf" download>下载样例图纸</a>
+        </div>
+        <div id="dxfResult" style="margin-top:12px"></div>
+      </div>
+      <div class="panel"><h2>本地桌面工具启动 <span class="tag">需本机安装</span></h2>
+        <div class="row">
+          <button class="btn" onclick="launchTool('freecad','FreeCAD')">启动 FreeCAD</button>
+          <button class="btn" onclick="launchTool('librecad','LibreCAD')">启动 LibreCAD</button>
+          <button class="btn" onclick="launchTool('kicad','KiCad')">启动 KiCad</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:8px">经服务端直接启动本机已安装的桌面软件（KiCad/FreeCAD/LibreCAD）；未安装会明确提示。</div>
+      </div>`;
+  }
+};
+
+/* ---- 内嵌工具演示（CDN 按需加载） ---- */
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('加载失败')); document.head.appendChild(s); }); }
+const LIB_SOURCES = {
+  XLSX: ['/vendor/xlsx.full.min.js','https://registry.npmmirror.com/xlsx/0.18.5/files/dist/xlsx.full.min.js','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js','https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js']
+};
+async function loadLib(key){
+  if (window[key]) return;
+  let lastErr = null;
+  for (const src of (LIB_SOURCES[key]||[])) {
+    try { await loadScript(src); if (window[key]) return; } catch(e){ lastErr = e; }
+  }
+  throw new Error('资源加载失败（已尝试本地+CDN）' + (lastErr?(': '+lastErr.message):''));
+}
+async function demoMermaid(){
+  const box=document.getElementById('toolDemo'); box.innerHTML='<div class="muted">加载 Mermaid…</div>';
+  try{
+    if(!window.mermaid){ await loadScript('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js'); }
+    mermaid.initialize({ startOnLoad:false, theme:'default' });
+    const code = `flowchart LR
+  A[工程师提交 ECN] --> B{研发主管一审}
+  B --通过--> C{供应链总监二审}
+  B --驳回--> A
+  C --通过--> D[生效并升级版本]
+  C --驳回--> A`;
+    const { svg } = await mermaid.render('mmd1', code);
+    box.innerHTML = `<div class="iframebox">${svg}</div><div class="muted" style="font-size:11px">Mermaid 渲染 ECN 三级审批流程</div>`;
+  }catch(e){ box.innerHTML = `<div class="notice warn">Mermaid 加载失败（${e.message}），需联网访问 CDN。</div>`; }
+}
+async function demoGantt(){
+  const box=document.getElementById('toolDemo'); box.innerHTML='<div class="muted">加载 frappe-gantt…</div>';
+  try{
+    if(!window.Gantt){ await loadScript('https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js'); }
+    const css = document.createElement('link'); css.rel='stylesheet'; css.href='https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css'; document.head.appendChild(css);
+    const tasks = [
+      { id:'1', name:'结构设计', start:'2026-10-01', end:'2026-10-08', progress:100 },
+      { id:'2', name:'模具开发', start:'2026-10-08', end:'2026-10-20', progress:60 },
+      { id:'3', name:'试模验证', start:'2026-10-20', end:'2026-10-28', progress:20 },
+      { id:'4', name:'量产放行', start:'2026-10-28', end:'2026-11-02', progress:0 }
+    ];
+    box.innerHTML = '<svg id="gantt1" style="width:100%;height:220px"></svg><div class="muted" style="font-size:11px">frappe-gantt 渲染面板灯 40W 计划表</div>';
+    const gantt = new Gantt('#gantt1', tasks, { view_mode:'Day' });
+    gantt.change_view_mode('Week');
+  }catch(e){ box.innerHTML = `<div class="notice warn">frappe-gantt 加载失败（${e.message}），需联网访问 CDN。</div>`; }
+}
+async function demoExcel(){
+  const box=document.getElementById('toolDemo'); box.innerHTML='<div class="muted">加载 SheetJS…</div>';
+  try{
+    if(!window.XLSX){ await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'); }
+    const rows = [['料号','名称','类型','版本','状态'],['HJ202607010001','工矿灯 200W','成品','V1.2','量产在用'],['HJ202607040012','散热壳体','塑胶件','V1.0','正式发布'],['HJ202607100003','面板灯 40W','成品','V1.1','变更中']];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '基础BOM');
+    XLSX.writeFile(wb, '基础BOM_导出.xlsx');
+    box.innerHTML = '<div class="notice" style="border-color:#cde9db;background:#eefaf4;color:#13724e">已通过 SheetJS 导出「基础BOM_导出.xlsx」，请在下载中查看。</div>';
+  }catch(e){ box.innerHTML = `<div class="notice warn">SheetJS 加载失败（${e.message}），需联网访问 CDN。</div>`; }
+}
+async function demoBpmn(){
+  const box=document.getElementById('toolDemo'); box.innerHTML='<div class="muted">加载 bpmn-js…</div>';
+  try{
+    if(!window.BpmnViewer){ await loadScript('https://unpkg.com/bpmn-js@14/dist/bpmn-viewer.development.js'); }
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="defs" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="process" isExecutable="false">
+    <bpmn:startEvent id="s" name="开始"/>
+    <bpmn:userTask id="t1" name="工序1：结构设计"/>
+    <bpmn:userTask id="t2" name="工序2：模具开发"/>
+    <bpmn:exclusiveGateway id="g1"/>
+    <bpmn:userTask id="t3" name="工序3：试模验证"/>
+    <bpmn:endEvent id="e" name="完成"/>
+    <bpmn:sequenceFlow id="f1" sourceRef="s" targetRef="t1"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="t1" targetRef="t2"/>
+    <bpmn:sequenceFlow id="f3" sourceRef="t2" targetRef="g1"/>
+    <bpmn:sequenceFlow id="f4" sourceRef="g1" targetRef="t3"/>
+    <bpmn:sequenceFlow id="f5" sourceRef="t3" targetRef="e"/>
+  </bpmn:process>
+</bpmn:definitions>`;
+    box.innerHTML = '<div id="bpmnCanvas" style="height:260px;background:#fff;border:1px solid var(--line);border-radius:8px"></div><div class="muted" style="font-size:11px">bpmn-js 渲染工序流转 BPMN 流程</div>';
+    const viewer = new BpmnViewer({ container: '#bpmnCanvas' });
+    await viewer.importXML(xml);
+    viewer.get('canvas').zoom('fit-viewport');
+  }catch(e){ box.innerHTML = `<div class="notice warn">bpmn-js 加载失败（${e.message}），需联网访问 CDN。</div>`; }
+}
+async function launchTool(id, name){
+  try{
+    const r = await postJson(`/tools/${id}/launch`, {});
+    if(!r.ok) throw new Error(r.data.error || r.status);
+    toast2(name + ' 已启动（pid ' + r.data.pid + '）');
+    return true;
+  }catch(e){
+    alert(name + ' 启动失败：' + e.message + '（请先安装对应桌面软件，再从工序节点调用）');
+    return false;
+  }
+}
+
+/* ---- DXF 图纸解析（ezdxf 服务端 8002） ---- */
+const AI_DXF = 'http://' + location.hostname + ':8002';
+async function parseDxf(){
+  const f = document.getElementById('dxfFile').files[0];
+  const box = document.getElementById('dxfResult');
+  if(!f){ alert('请先选择 .dxf 图纸文件（或点击「下载样例图纸」）'); return; }
+  box.innerHTML = '<div class="muted">解析中…</div>';
+  try{
+    const fd = new FormData();
+    fd.append('file', f);
+    const r = await fetch(AI_DXF + '/dxf', { method:'POST', body: fd });
+    if(!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    const isMock = (d.engine||'').indexOf('mock') === 0;
+    const tag = isMock ? '<span class="tag orange">模拟解析</span>' : '<span class="tag green">'+esc(d.engine)+'</span>';
+    const ents = Object.entries(d.entities||{}).map(([k,v])=>`<span class="chip">${esc(k)} × ${v}</span>`).join(' ');
+    const layers = (d.layers||[]).map(l=>`<span class="chip">${esc(l)}</span>`).join(' ');
+    box.innerHTML = `<div class="row" style="margin-bottom:8px">${tag} <span class="muted" style="font-size:12px">${esc(d.filename||'')}</span></div>
+      <div style="font-size:13px;margin-bottom:6px"><b>图层（${(d.layers||[]).length}）</b></div>
+      <div class="chips" style="margin-bottom:10px">${layers||'—'}</div>
+      <div style="font-size:13px;margin-bottom:6px"><b>实体统计</b></div>
+      <div class="chips">${ents||'—'}</div>`;
+  }catch(e){
+    box.innerHTML = `<div class="notice warn">DXF 解析服务不可用（${e.message}）。请启动：cd services/ai-entry &amp;&amp; uvicorn app:app --host 0.0.0.0 --port 8002（ezdxf 已安装）</div>`;
+  }
+}
+
+function allModules(){ return state._mods || []; }
+function hasModule(roleCode, mod){
+  if(roleCode==='ADMIN') return true;
+  const perms = state._rolePerms?.[roleCode] || [];
+  return perms.some(p => p === mod || p.startsWith(mod+':'));
+}
+
+function flowIdx(status){ return { DRAFT:0, PENDING_L1:1, PENDING_L2:2, APPROVED:3, EFFECTIVE:4, REJECTED:1, VOID:0 }[status] ?? 0; }
+function ecnActions(e, r){
+  const a=[];
+  if(e.status==='PENDING_L1' && (r.code==='RD_LEAD'||r.code==='ADMIN')) a.push(`<button class="btn small primary" onclick="actEcn('${e.ecnNo}','review1')">一审通过</button>`);
+  if(e.status==='PENDING_L2' && (r.code==='SCM_LEAD'||r.code==='ADMIN')) a.push(`<button class="btn small primary" onclick="actEcn('${e.ecnNo}','review2')">二审通过</button>`);
+  if(e.status==='APPROVED' && (r.code==='ADMIN'||r.code==='RD_LEAD'||r.code==='SCM_LEAD')) a.push(`<button class="btn small primary" onclick="actEcn('${e.ecnNo}','effect')">生效</button>`);
+  if((e.status==='PENDING_L1'||e.status==='PENDING_L2') && (r.code==='RD_LEAD'||r.code==='SCM_LEAD'||r.code==='ADMIN')) a.push(`<button class="btn small danger" onclick="actEcn('${e.ecnNo}','reject')">驳回</button>`);
+  return a.join(' ');
+}
+function matActions(m, r){
+  const a=[];
+  const ts = state.lifecycle.filter(t=>t.from===m.status);
+  ts.forEach(t=>{ if(t.roles.includes(r.code)) a.push(`<button class="btn small" onclick="actMat('${m.partNo}','${t.action}')">${t.action==='obsolete'?'停用':t.label}</button>`); });
+  return a.join(' ');
+}
+
+/* ---- 通用表格：搜索 / 筛选 / 排序 / 行操作 ---- */
+state.tbl = {};
+function tblState(id){ return state.tbl[id] || (state.tbl[id] = {q:'', f:{}, sk:null, sd:1, cfg:null}); }
+function tblRender(id, cfg){
+  const st = tblState(id); st.cfg = cfg;
+  const rows = cfg.rows.filter(r=>{
+    if(st.q){ const q=st.q.toLowerCase(); if(!(cfg.searchKeys||[]).some(k=>String(r[k]??'').toLowerCase().includes(q))) return false; }
+    for(const k in st.f){ if(st.f[k] && String(r[k]??'')!==st.f[k]) return false; }
+    return true;
+  });
+  if(st.sk){
+    const col = cfg.cols.find(c=>c.k===st.sk), dir = st.sd;
+    rows.sort((a,b)=> col&&col.sortFn ? col.sortFn(a,b)*dir
+      : (typeof a[st.sk]==='number' && typeof b[st.sk]==='number' ? (a[st.sk]-b[st.sk])*dir : String(a[st.sk]??'').localeCompare(String(b[st.sk]??''),'zh')*dir));
+  }
+  const filters = (cfg.filters||[]).map(f=>{
+    const opts = [...new Set(cfg.rows.map(r=>String(r[f.k]??'')))].filter(v=>v&&v!=='null'&&v!=='undefined').sort((a,b)=>a.localeCompare(b,'zh'));
+    return `<select onchange="tblFilter('${id}','${f.k}',this.value)" style="padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12px">
+      <option value="">${f.label}：全部</option>${opts.map(o=>`<option ${st.f[f.k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+  }).join(' ');
+  const head = cfg.cols.map(c=>`<th ${c.sort!==false?`style="cursor:pointer;user-select:none" onclick="tblSort('${id}','${c.k}')"`:''}>${c.label}${st.sk===c.k?(st.sd>0?' ▲':' ▼'):''}</th>`).join('');
+  const body = rows.map(r=>`<tr>${cfg.cols.map(c=>`<td>${c.html?c.html(r):(r[c.k]??'—')}</td>`).join('')}</tr>`).join('');
+  return `<div class="panel"><div class="row" style="margin-bottom:10px;gap:8px;align-items:center">
+      <input id="tblq-${id}" placeholder="🔍 搜索…" value="${esc(st.q)}" oninput="tblSearch('${id}',this.value)" style="max-width:220px;padding:7px 11px;border:1px solid var(--line);border-radius:8px">
+      ${filters}
+      <span class="muted" style="font-size:11px;margin-left:auto">${rows.length}/${cfg.rows.length} 条 · 点表头排序</span>
+    </div>
+    <table><thead><tr>${head}</tr></thead><tbody>${body||'<tr><td colspan="'+cfg.cols.length+'" class="empty">无匹配记录</td></tr>'}</tbody></table></div>`;
+}
+function tblRefresh(id){
+  const st = tblState(id);
+  if(st.cfg && st.cfg.rerender) st.cfg.rerender();
+  const inp = document.getElementById('tblq-'+id);
+  if(inp && st.q){ inp.focus(); try{ inp.setSelectionRange(inp.value.length, inp.value.length); }catch(e){} }
+}
+function tblSearch(id,v){ tblState(id).q = v; tblRefresh(id); }
+function tblFilter(id,k,v){ const st=tblState(id); st.f[k]=v; tblRefresh(id); }
+function tblSort(id,k){ const st=tblState(id); if(st.sk===k) st.sd=-st.sd; else { st.sk=k; st.sd=1; } tblRefresh(id); }
+
+/* 项目停用/启用/取消 */
+function prjActions(p){
+  const a=[];
+  if(p.status==='ACTIVE'){ a.push(`<button class="btn small" onclick="prjStatus('${p.projectNo}','ON_HOLD')">停用</button>`,`<button class="btn small danger" onclick="prjStatus('${p.projectNo}','CANCELLED')">取消</button>`); }
+  if(p.status==='ON_HOLD'){ a.push(`<button class="btn small primary" onclick="prjStatus('${p.projectNo}','ACTIVE')">启用</button>`); }
+  return a.join(' ');
+}
+async function prjStatus(no, status){
+  try{
+    const r = await fetch(`${API}/projects/${no}/status`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status, role: state.role }) });
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    render();
+  }catch(e){ alert('被拒绝：'+e.message); }
+}
+
+/* ---- 我的待办（复刻 Multica My Issues：范围 + 视图 + 分组 + 行开抽屉编辑） ---- */
+const TODO_NODE_ST = { DONE:['green','已完成'], IN_PROGRESS:['orange','进行中'], PLANNED:['blue','已计划'], PENDING:['gray','待定'], FAILED:['red','未完成'], NOT_SET:['gray','未设置'], NONE:['gray','无节点'] };
+const TODO_GROUPS = ['逾期','待办','已完成','无节点'];
+function seg(id, opts, cur, cb){ return `<div class="row" style="gap:4px">${opts.map(o=>`<button class="btn small ${cur===o.v?'primary':''}" onclick="${cb}('${o.v}')">${o.l}</button>`).join('')}</div>`; }
+function setTodoScope(v){ state.todoScope = v; renderTodosView(); }
+function setTodoView(v){ state.todoView = v; renderTodosView(); }
+function scopeRows(){ const r = state.todosData || []; if(state.todoScope==='assigned') return r.filter(x=>x.assigned); if(state.todoScope==='owned') return r.filter(x=>!x.assigned); return r; }
+function todoRowHtml(r){
+  const [c,l] = TODO_NODE_ST[r.status] || ['gray', r.status];
+  const mkBtn = ((state.wsNodeMap && state.wsNodeMap[r.nodeCode]) || (NODE_TOOLS[r.nodeCode]&&NODE_TOOLS[r.nodeCode].length)) ? `<button class="btn small" style="flex:none" title="打开该节点对应工具/模板制作" onclick="event.stopPropagation();makeDoc('${r.projectNo}','${r.nodeCode}')">制作</button>` : '';
+  return `<div class="todoitem" onclick="editNode('${r.projectNo}','${r.nodeCode}')" title="点击编辑">
+    <span class="tag ${r.cat==='逾期'?'red':r.cat==='已完成'?'green':r.cat==='无节点'?'gray':'blue'}" style="width:54px;text-align:center;flex:none">${r.cat}</span>
+    <span class="t-ico" style="flex:none">${r.key?'★':'◦'}</span>
+    <span class="t-body"><b style="font-size:13px">${esc(r.nodeName)}</b><span class="muted" style="font-size:11px">${esc(r.projectNo)} · ${esc(r.projectName||'')}${r.assigned?' · 指派':''}</span></span>
+    <span class="muted" style="font-size:12px;flex:none;width:82px;text-align:right">${esc(r.planDate||'—')}</span>
+    <span class="tag ${c}" style="flex:none">${l}</span>
+    ${mkBtn}
+  </div>`;
+}
+function renderTodosView(){
+  const rows = scopeRows();
+  const view = state.todoView || 'list';
+  const groups = TODO_GROUPS.map(cat=>({ cat, items: rows.filter(r=>r.cat===cat) }));
+  const scopeSel = seg('ts', [{v:'all',l:'全部'},{v:'assigned',l:'指派给我'},{v:'owned',l:'我负责的项目'}], state.todoScope||'all', 'setTodoScope');
+  const viewSel = seg('tv', [{v:'list',l:'列表'},{v:'board',l:'看板'},{v:'table',l:'表格'}], view, 'setTodoView');
+  let body = '';
+  if(view==='board'){
+    body = `<div class="grid g4" style="align-items:start">${groups.map(g=>`
+      <div class="panel" style="padding:12px;margin:0"><h2 style="font-size:13px">${g.cat} <span class="tag">${g.items.length}</span></h2>
+        <div class="todo-col">${g.items.map(todoRowHtml).join('')||'<div class="muted" style="font-size:11px;padding:8px 0">空</div>'}</div></div>`).join('')}</div>`;
+  } else if(view==='table'){
+    body = `<div class="panel"><table><thead><tr><th>分类</th><th>计划日</th><th>项目</th><th>节点</th><th>状态</th></tr></thead><tbody>
+      ${rows.map(r=>{ const [c,l]=TODO_NODE_ST[r.status]||['gray',r.status]; return `<tr style="cursor:pointer" onclick="editNode('${r.projectNo}','${r.nodeCode}')"><td><span class="tag ${r.cat==='逾期'?'red':r.cat==='已完成'?'green':r.cat==='无节点'?'gray':'blue'}">${r.cat}</span></td><td>${esc(r.planDate||'—')}</td><td>${esc(r.projectNo)}</td><td>${esc(r.nodeName)}</td><td><span class="tag ${c}">${l}</span></td></tr>`; }).join('')}</tbody></table></div>`;
+  } else {
+    body = groups.map(g=>`
+      <details class="panel" style="margin-bottom:10px" ${g.cat!=='已完成'&&g.cat!=='无节点'?'open':''}>
+        <summary style="cursor:pointer;font-weight:600;font-size:14px">${g.cat} <span class="tag">${g.items.length}</span></summary>
+        <div class="todo-col" style="margin-top:8px">${g.items.map(todoRowHtml).join('')||'<div class="muted" style="font-size:12px;padding:6px 0">无</div>'}</div>
+      </details>`).join('');
+  }
+    document.getElementById('content').innerHTML = `
+    ${(state.anomalies&&state.anomalies.length)?`<div class="panel" style="border:2px solid #d64545;background:#fef5f5;margin-bottom:14px">
+      <h2 style="color:#c33a4e">⚠️ 当前异常（${state.anomalies.length}）<span class="tag red">需优先处理</span></h2>
+      ${state.anomalies.slice(0,8).map(a=>`<div class="task" style="padding:8px 0;border-bottom:1px solid #f5d5d5">
+        <div class="body"><strong style="color:#c33a4e">[${esc(a.anomalyType)}]</strong> ${esc(a.nodeName)}<br><small>${esc(a.projectNo)} · ${esc(a.projectName||'')}${a.planDate?(' · 计划 '+esc(a.planDate)):''}</small></div>
+        <div class="row" style="gap:6px">${a.action==='editNode'?`<button class="btn small" onclick="editNode('${a.projectNo}','${a.nodeCode}')">处理</button>`:''}${a.action==='goProcess'?`<button class="btn small" onclick="go('process')">查看工序</button>`:''}</div>
+      </div>`).join('')}
+      ${state.anomalies.length>8?`<div class="muted" style="font-size:11px;padding:6px 0">…另有 ${state.anomalies.length-8} 条，见下方待办列表</div>`:''}
+    </div>`:''}
+    <div class="panel" style="padding:12px 14px">
+      <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div class="row" style="gap:12px;align-items:center">
+          <b style="font-size:14px">我的待办</b>
+          <span class="muted" style="font-size:11px">范围</span>${scopeSel}
+        </div>
+        ${viewSel}
+      </div>
+    </div>
+    ${body}
+    ${(state.wsApprovals&&state.wsApprovals.length)?`<div class="panel"><h2>资料审批 <span class="tag orange">${state.wsApprovals.length} 份待审</span> <span class="tag">批准即归档并同步 PLM</span></h2>
+      ${state.wsApprovals.map(w=>`<div class="task" style="padding:10px 0;border-bottom:1px solid #eef2f7">
+        <div class="body"><b>${esc((mkTplName(w.type)))}</b> · ${esc(w.projectNo)} / ${esc(w.nodeCode)}
+          <small>制作：${esc(w.createdBy)} · 提交：${esc((w.submittedAt||'').slice(0,16).replace('T',' '))} · 关键内容：${esc(wsSummary(w))}</small></div>
+        <div class="row" style="gap:6px"><button class="btn small" onclick='wsView(${JSON.stringify(w).replace(/'/g,"&#39;")})'>查看</button><button class="btn small primary" onclick="wsApprove('${w.id}',true)">批准归档</button><button class="btn small danger" onclick="wsApprove('${w.id}',false)">驳回</button></div>
+      </div>`).join('')}</div>`:''}
+    <div class="notice">复刻 Multica「My Issues」：范围（全部/指派给我/我负责的项目）+ 视图（列表/看板/表格）+ 状态分组计数；点行打开详情抽屉可编辑（状态/计划日/实际日/责任人/交付物），数据口径同 /v1/me/todos。</div>
+      <div class="row" style="margin-top:10px"><button class="btn small" onclick="syncFromPlm()">⟳ 从 PLM 同步（我负责的项目）</button><span class="muted" id="syncInfo" style="font-size:12px"></span></div>`;
+}
+async function syncFromPlm(){
+  const per = curPerson();
+  try{
+    const r = await fetch(API+'/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ person: per?per.name:'' }) });
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    document.getElementById('syncInfo').textContent = `已同步 ${j.pulled}/${j.total} 个项目（失败 ${j.failed}）· ${j.at.slice(11,19)}`;
+    pages.todos();
+  }catch(e){ alert('同步失败：'+e.message); }
+}
+
+/* ---- 项目/物料 编辑 ---- */
+function openPrjEdit(projectNo){
+  const p = state._projectsCache && state._projectsCache.find(x=>x.projectNo===projectNo);
+  if(!p) return;
+  prjCtx.projectNo = projectNo;
+  document.getElementById('prjTitle').textContent = '编辑项目 · ' + projectNo;
+  document.getElementById('prjBody').innerHTML = `
+    <label class="field" style="margin-bottom:10px"><span>项目名称</span><input id="prjName" value="${esc(p.name)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+    <label class="field" style="margin-bottom:10px"><span>负责人</span><input id="prjOwner" value="${esc(p.owner)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+    <label class="field" style="margin-bottom:10px"><span>阶段门</span><select id="prjGate" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px">${Object.entries({G0:'G0 预项目',G1:'G1 方案',G2:'G2 手样',G3:'G3 模具样',G4:'G4 研试',G5:'G5 工试',G6:'G6 生试',G7:'G7 量产',G8:'G8 完成'}).map(([k,v])=>`<option value="${k}" ${p.gate===k?'selected':''}>${v}</option>`).join('')}</select></label>
+    <label class="field" style="margin-bottom:10px"><span>客户</span><input id="prjCustomer" value="${esc(p.customer||'')}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+    <label class="field" style="margin-bottom:10px"><span>风险</span><select id="prjRisk" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px">${['green','yellow','red'].map(x=>`<option value="${x}" ${p.risk===x?'selected':''}>${x==='green'?'低':x==='yellow'?'中':'高'}</option>`).join('')}</select></label>`;
+  document.getElementById('prjModal').hidden = false;
+}
+async function prjSave(){
+  const body = { name: document.getElementById('prjName').value, owner: document.getElementById('prjOwner').value, gate: document.getElementById('prjGate').value, customer: document.getElementById('prjCustomer').value, risk: document.getElementById('prjRisk').value, role: state.role };
+  try{
+    const r = await fetch(`${API}/projects/${encodeURIComponent(prjCtx.projectNo)}/edit`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    document.getElementById('prjModal').hidden = true; render();
+  }catch(e){ alert('被拒：'+e.message); }
+}
+function openMatEdit(partNo){
+  const m = state._matsCache && state._matsCache.find(x=>x.partNo===partNo);
+  if(!m) return;
+  matCtx.partNo = partNo;
+  document.getElementById('matTitle').textContent = '编辑物料 · ' + partNo;
+  document.getElementById('matBody').innerHTML = `
+    <label class="field" style="margin-bottom:10px"><span>物料名称</span><input id="matName" value="${esc(m.name)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+    <label class="field" style="margin-bottom:10px"><span>物料类型</span><select id="matType" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px">${Object.entries(state.dicts.material_type||{}).map(([k,v])=>`<option value="${k}" ${m.type===k?'selected':''}>${v}</option>`).join('')}</select></label>
+    <label class="field" style="margin-bottom:10px"><span>版本</span><input id="matVersion" value="${esc(m.version)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+    <label class="field" style="margin-bottom:10px"><span>产品系列</span><input id="matSeries" value="${esc(m.series||'')}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+    <label class="field" style="margin-bottom:10px"><span>NPI 阶段</span><select id="matPhase" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px">${Object.entries(state.dicts.phase||{}).map(([k,v])=>`<option value="${k}" ${m.phase===k?'selected':''}>${v}</option>`).join('')}</select></label>`;
+  document.getElementById('matModal').hidden = false;
+}
+async function matSave(){
+  const body = { name: document.getElementById('matName').value, type: document.getElementById('matType').value, version: document.getElementById('matVersion').value, series: document.getElementById('matSeries').value, phase: document.getElementById('matPhase').value, role: state.role };
+  try{
+    const r = await fetch(`${API}/materials/${encodeURIComponent(matCtx.partNo)}/edit`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    document.getElementById('matModal').hidden = true; render();
+  }catch(e){ alert('被拒：'+e.message); }
+}
+function wiRow(w){
+  const st = w.status==='DONE'?'done':w.status==='ESCALATED'?'bad':'';
+  return `<div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid #eef2f7">
+    <div style="flex:1;min-width:0"><b>${esc(w.title)}</b><div class="muted" style="font-size:12px">${w.itemNo} · ${esc(w.type)} · ${esc(w.refId)} · SLA ${esc(w.sla)}</div></div>
+    <div style="display:flex;gap:8px;align-items:center">${badge(w.priority)}${stTag(w.status,{OPEN:'待办',ESCALATED:'已升级',DONE:'完成'})}${w.status!=='DONE'?`<button class="btn small" onclick="actWi('${w.itemNo}')">完成</button>`:''}</div></div>`;
+}
+
+async function actMat(partNo, action){ try{ await fetch(`${API}/materials/${partNo}/transition`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, role:state.role}) }); render(); } catch(e){ alert('操作被拒绝（403/409）'); } }
+async function actEcn(ecnNo, action){ try{ await fetch(`${API}/ecns/${ecnNo}/transition`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, role:state.role}) }); render(); } catch(e){ alert('操作被拒绝（403/409）'); } }
+async function actWi(itemNo){ try{ await fetch(`${API}/work-items/${itemNo}/done`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({role:state.role}) }); render(); } catch(e){ alert('操作失败'); } }
+
+function agentAsk(){
+  const q = document.getElementById('agentQ').value.trim(); if(!q) return;
+  const chat = document.getElementById('agentChat');
+  chat.insertAdjacentHTML('beforeend', `<div style="max-width:85%;padding:8px 12px;border-radius:12px;font-size:13px;margin:6px 0 6px auto;background:#1767c9;color:#fff">${esc(q)}</div>`);
+  document.getElementById('agentQ').value = '';
+  const rl = state.auth ? (state.auth.roles||[state.role]).map(c=>(state.roles.find(x=>x.code===c)||{}).name||c).join('/') : '';
+  const replies = [
+    `模拟建议（${rl}）：请核对任务来源(object_ref)、版本与证据。逾期节点建议优先处理——点「处理」打开节点编辑填计划日期并制作资料。`,
+    `模拟建议：该节点应交付资料可查「交付物」列默认值。打开「制作」调用对应模板，导入历史后编辑提交审批，批准后归档并同步 PLM。`,
+    `模拟建议：检查工序是否有 ACTIVE 步骤阻塞。上一道完成自动推送下一道；若需跳过(留痕)或取消路线，走工序流转页。`,
+    `模拟提示：涉及审批须走 M01 Guard 与职责分离。制作→提交→上级审批→归档，全程留痕（WSA 归档号 + PLM 同步状态可查）。`
+  ];
+  const ans = replies[Math.floor(Math.random()*replies.length)];
+  setTimeout(()=>{ chat.insertAdjacentHTML('beforeend', `<div style="max-width:85%;padding:8px 12px;border-radius:12px;font-size:13px;margin:6px 0;background:#eef3fb">${esc(ans)}<br><small style="opacity:.5">⚠️ 本地模拟，未调用 Hub</small></div>`); chat.scrollTop = chat.scrollHeight; }, 300);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+/* ---- 工序流转（按人员联动） ---- */
+async function completeStep(routeNo, order){
+  const p = curPerson();
+  const remark = prompt('完成备注（留痕）','处理完成') || '';
+  try{
+    const r = await fetch(`${API}/process-routes/${routeNo}/steps/${order}/complete`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ operator: p?p.name:'', remark }) });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||r.status);
+    alert(j.routeCompleted ? '末道工序完成，路线已闭环（PROCESS_ROUTE_COMPLETED）' : '已完成，下一道已激活并推送待办给「'+(j.nextOwner||'')+'」（PROCESS_STEP_PUSHED）');
+    render();
+  }catch(e){ alert('被拒绝：'+e.message); }
+}
+
+const NODE_STATUS = { DONE:['green','已完成'], IN_PROGRESS:['orange','进行中'], PLANNED:['blue','已计划'], PENDING:['gray','待定'], FAILED:['red','未完成'], NOT_SET:['gray','未设置'], NONE:['gray','无节点'] };
+const NODE_STATUS_LIST = ['NONE','NOT_SET','PLANNED','IN_PROGRESS','DONE','FAILED','PENDING'];
+const NODE_STATUS_OPTS = { NONE:'无节点', NOT_SET:'未设置', PLANNED:'已计划', IN_PROGRESS:'进行中', DONE:'已完成', FAILED:'未完成', PENDING:'待定' };
+const ONLINE_WS = ['plan','basebom','spec','config','review','trial','test','shipment'];
+let wsCtx = { projectNo:null, nodeCode:null, def:null };
+let ndCtx = { projectNo:null, node:null };
+let prjCtx = { projectNo:null };
+let matCtx = { partNo:null };
+async function showProject(projectNo, fresh){
+  try{
+    const p = await get('/projects/'+projectNo+(fresh?'?fresh=1':''));
+    const today = new Date().toISOString().slice(0,10);
+    const rows = p.nodes.map(n=>{
+      const [c,l] = NODE_STATUS[n.status] || ['gray', n.status];
+      const actualCell = n.actualDate
+        ? `<span style="font-size:12px">${esc(n.actualDate)}</span>`
+        : (n.status!=='DONE' && n.status!=='NONE'
+          ? `<span class="row" style="gap:6px"><span class="muted" style="font-size:12px">${today}</span><button class="btn small" onclick="confirmToday('${p.projectNo}','${n.code}')">✔确认</button></span>`
+          : '<span class="muted">—</span>');
+      return `<tr>
+        <td>${n.seq}</td>
+        <td><b style="font-size:13px">${esc(n.name)}</b>${n.key?' <span class="tag orange">★</span>':''}<br><span class="muted" style="font-size:11px">${n.code}</span></td>
+        <td><span class="tag ${c}">${l}</span></td>
+        <td style="font-size:12px">${esc(n.planDate||'—')}</td>
+        <td>${actualCell}</td>
+        <td style="font-size:12px">${esc(n.owner)}${n.ownerAssigned?' <span class="tag orange" style="font-size:10px">指派</span>':''}</td>
+        <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(n.deliveryDesc)}">${esc(n.deliveryDesc)}</td>
+        <td>${n.ws?`<span class="tag ${n.ws.status==='ARCHIVED'?'green':n.ws.status==='SUBMITTED'?'orange':'gray'}" title="归档号 ${n.ws.archiveRef||''}">${n.ws.statusLabel}</span>`:n.worksheetCount?`<span class="tag blue">${n.worksheetCount}</span>`:'<span class="muted">—</span>'}</td>
+        <td><button class="btn small" onclick="editNode('${p.projectNo}','${n.code}')">编辑</button>${(ONLINE_WS.includes(n.worksheet)||(NODE_TOOLS[n.code]&&NODE_TOOLS[n.code].length))?` <button class="btn small primary" onclick="makeDoc('${p.projectNo}','${n.code}')">制作</button>`:''}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('projDetail').innerHTML = `<div class="panel"><h2>${p.projectNo} · ${esc(p.name)} <span class="tag">${p.gate} ${esc(p.gateName)}</span> <span class="tag">负责人 ${esc(p.owner)} · 进度 ${p.summary.done}/${p.summary.total}</span> <span class="tag green">PLM 实时同步</span> <button class="btn small" onclick="showProject('${p.projectNo}',true)">⟳ 强制从PLM刷新</button></h2>
+      <table><thead><tr><th>#</th><th>节点</th><th>状态</th><th>计划日期</th><th>实际日期</th><th>责任人</th><th>交付物</th><th>资料</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="notice" style="margin:12px 0 0">复刻 PLM「项目明细表」+ 资料制作流程：点「制作」打开该节点真实模板（自动带入项目信息）→ 增删改 → 提交上级审批 → 批准后自动<b>归档并同步 PLM 对应表</b>（/v1/rd/sheets）+ 节点联动；责任人默认项目负责人；实际日期默认当天、点「✔确认」即完成；待办类状态必须填计划日期；「无节点」不计入待办。★=关键节点。</div></div>`;
+    document.getElementById('projDetail').scrollIntoView({behavior:'smooth'});
+  }catch(e){ alert('项目加载失败'); }
+}
+async function editNode(projectNo, nodeCode){
+  try{
+    const p = await get('/projects/'+projectNo);
+    const n = p.nodes.find(x=>x.code===nodeCode);
+    ndCtx = { projectNo, node: n };
+    document.getElementById('ndTitle').textContent = '节点编辑 · ' + n.name + '（' + projectNo + '）';
+    const today = new Date().toISOString().slice(0,10);
+    document.getElementById('ndBody').innerHTML = `
+      <div class="row" style="margin-bottom:12px;padding:8px 10px;background:#eef4fb;border-radius:8px">
+        <button class="btn small primary" onclick="document.getElementById('ndModal').hidden=true;makeDoc('${projectNo}','${nodeCode}')">📂 打开资料制作（真实模板 + 历史带入 + 工具）</button>
+        <span class="muted" style="font-size:11px">制作 → 提交审批 → 归档并同步 PLM 对应表</span>
+      </div>
+      <label class="field" style="margin-bottom:10px"><span>状态</span><select id="ndStatus" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px">${NODE_STATUS_LIST.map(s=>`<option value="${s}" ${n.status===s?'selected':''}>${NODE_STATUS_OPTS[s]}</option>`).join('')}</select></label>
+      <label class="field" style="margin-bottom:10px"><span>计划日期（待办类状态必填）</span><input type="date" id="ndPlan" value="${n.planDate||''}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+      <label class="field" style="margin-bottom:10px"><span>实际日期（完成时缺省当天 ${today}）</span><input type="date" id="ndActual" value="${n.actualDate||''}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+      <label class="field" style="margin-bottom:10px"><span>责任人（默认项目负责人：${esc(n.ownerDefault)}）</span><input id="ndOwner" value="${esc(n.owner)}" placeholder="${esc(n.ownerDefault)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+      <label class="field" style="margin-bottom:10px"><span>交付物（默认该节点应交付资料/表单）</span><input id="ndDelivery" value="${esc(n.deliveryDesc)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+      <label class="field" style="margin-bottom:10px"><span>备注</span><input id="ndRemark" value="${esc(n.remark||'')}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+      <div class="muted" style="font-size:11px">校验：待办类状态（已计划/进行中/待定/未完成）保存时计划日期必填。</div>`;
+    document.getElementById('ndModal').hidden = false;
+  }catch(e){ alert('加载失败：'+e.message); }
+}
+async function ndSave(){
+  const body = {
+    status: document.getElementById('ndStatus').value,
+    planDate: document.getElementById('ndPlan').value || null,
+    actualDate: document.getElementById('ndActual').value || null,
+    owner: document.getElementById('ndOwner').value.trim(),
+    deliveryDesc: document.getElementById('ndDelivery').value,
+    remark: document.getElementById('ndRemark').value
+  };
+  if(['PLANNED','IN_PROGRESS','PENDING','FAILED'].includes(body.status) && !body.planDate){ alert('该状态为待办，计划日期必填'); return; }
+  try{
+    const r = await fetch(`${API}/projects/${encodeURIComponent(ndCtx.projectNo)}/nodes/${ndCtx.node.code}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    document.getElementById('ndModal').hidden = true;
+    showProject(ndCtx.projectNo);
+  }catch(e){ alert('保存被拒：'+e.message); }
+}
+async function confirmToday(projectNo, nodeCode){
+  const today = new Date().toISOString().slice(0,10);
+  try{
+    const r = await fetch(`${API}/projects/${encodeURIComponent(projectNo)}/nodes/${nodeCode}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:'DONE', actualDate: today }) });
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    showProject(projectNo);
+  }catch(e){ alert('被拒：'+e.message); }
+}
+async function fillWorksheet(projectNo, nodeCode){
+  try{
+    const { defs } = await get('/worksheet-types');
+    const p = await get('/projects/'+projectNo);
+    const node = p.nodes.find(n=>n.code===nodeCode);
+    const def = defs.find(d=>d.code===node.worksheet);
+    if(!def){ alert('该节点走档案/专业模块，无在线工作表'); return; }
+    wsCtx = { projectNo, nodeCode, def };
+    document.getElementById('wsTitle').textContent = def.name + ' · ' + node.name + '（' + projectNo + '）';
+    document.getElementById('wsBody').innerHTML = def.fields.map(f=>{
+      if(f.type==='enum') return `<label class="field" style="margin-bottom:10px"><span>${f.label}</span><select data-k="${f.k}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px">${f.options.map(o=>`<option>${o}</option>`).join('')}</select></label>`;
+      return `<label class="field" style="margin-bottom:10px"><span>${f.label}</span><input data-k="${f.k}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>`;
+    }).join('') + `<div class="muted" style="font-size:11px">完成判定：当「${def.doneWhen.field} = ${def.doneWhen.value}」时节点自动置 DONE，否则 IN_PROGRESS。</div>`;
+    document.getElementById('wsModal').hidden = false;
+  }catch(e){ alert('加载失败：'+e.message); }
+}
+async function wsSubmit(){
+  const data = {};
+  document.querySelectorAll('#wsBody [data-k]').forEach(i=>{ if(i.value!=='') data[i.dataset.k]=i.value; });
+  const per = curPerson();
+  try{
+    const r = await fetch(API+'/worksheets', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ projectNo: wsCtx.projectNo, nodeCode: wsCtx.nodeCode, data, operator: per?per.name:curRole().name }) });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||r.status);
+    document.getElementById('wsModal').hidden = true;
+    alert('已提交：节点 ' + wsCtx.nodeCode + ' → ' + (j.nodeDone?'DONE（完成判定通过）':'IN_PROGRESS'));
+    showProject(wsCtx.projectNo);
+  }catch(e){ alert('提交失败：'+e.message); }
+}
+
+/* ---- 资料制作（真实模板 + 项目/历史信息带入 + 工序工具 → 提交审批 → 归档同步） ---- */
+let mkCtx = { projectNo:null, nodeCode:null, type:null, tpl:null, proj:null, node:null, hist:null };
+async function makeDoc(projectNo, nodeCode){
+  try{
+    const [tpls, proj, hist] = await Promise.all([
+      get('/ws-templates'),
+      get('/projects/'+projectNo),
+      get(`/ws-history?projectNo=${encodeURIComponent(projectNo)}&nodeCode=${nodeCode}`)
+    ]);
+    const mapped = tpls.nodeMap[nodeCode];
+    let tpl = mapped ? tpls.templates[mapped] : null;
+    if(tpl) tpl._fromCfg = true;
+    if(!tpl){
+      tpl = { _fromCfg:false, name:'工具成果/资料附档', fields:[
+        { k:'note', label:'成果说明（软件制作/导入解析结果）' },
+        { k:'files', label:'附件清单（文件名，逗号分隔）' },
+        { k:'done', label:'节点完成', type:'enum', options:['否','是'] }
+      ], rows:null, doneWhen:{ field:'done', value:'是' } };
+    }
+    const type = mapped || 'attach';
+    const node = proj.nodes.find(n=>n.code===nodeCode);
+    mkCtx = { projectNo, nodeCode, type, tpl, proj, node, hist };
+    const exist = (await get(`/ws-v2?projectNo=${encodeURIComponent(projectNo)}&nodeCode=${nodeCode}`)).items.find(x=>['DRAFT','REJECTED'].includes(x.status));
+    let f = (exist && exist.fields) || {};
+    let rws = (exist && exist.rows) || (tpl.rows ? [] : null);
+    // 无草稿且有历史 → 用最新历史记录作为模板预填
+    if(!exist && hist.count){
+      const latest = hist.records[0];
+      if(tpl.rows && Array.isArray(latest._items)) rws = latest._items.map(r=>Object.assign({},r));
+      else if(tpl.rows && hist.records.length) rws = hist.records.map(r=>Object.assign({},r));
+      tpl.fields.forEach(fd=>{ if(latest[fd.k]!==undefined && latest[fd.k]!==null && latest[fd.k]!=='') f[fd.k]=String(latest[fd.k]).slice(0,10).length===10&&/\d{4}-\d{2}-\d{2}/.test(String(latest[fd.k]))?String(latest[fd.k]).slice(0,10):latest[fd.k]; });
+    }
+    mkCtx.values = { f, rws };
+    mkCtx.editable = true;
+    mkCtx.files = mkCtx.files || [];
+    mkCtx.existInfo = exist ? { status: exist.statusLabel, reason: exist.rejectReason||'' } : null;
+    mkRenderBody('edit');
+    document.getElementById('mkModal').hidden = false;
+  }catch(e){ alert('打开模板失败：'+e.message); }
+}
+/* 双模式渲染：编辑 = 表单；预览 = 文档样式（均可修改，收集口径一致） */
+function mkRenderBody(mode){
+  const { tpl, proj, node, type } = mkCtx;
+  const f = (mkCtx.values && mkCtx.values.f) || {};
+  const rws = (mkCtx.values && mkCtx.values.rws) || (tpl.rows ? [] : null);
+  const me = state.auth ? state.auth.realName : '演示';
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('mkTitle').textContent = `${tpl.name} · ${node.name}（${mkCtx.projectNo}）`;
+  document.getElementById('mkTabEdit').className = 'btn small' + (mode==='edit'?' primary':'');
+  document.getElementById('mkTabPrev').className = 'btn small' + (mode==='preview'?' primary':'');
+  document.getElementById('mkBtnDraft').style.display = mkCtx.editable ? '' : 'none';
+  document.getElementById('mkBtnSubmit').style.display = mkCtx.editable ? '' : 'none';
+  const headInfo = `项目：<b>${esc(proj.name)}</b>（${mkCtx.projectNo}）· 客户：${esc(proj.customer||'—')} · 负责人：${esc(proj.owner)} · 阶段：${proj.gate} ${esc(proj.gateName)} · 型号/物料：${esc(proj.partNo||proj.name)} · 节点：<b>${esc(node.name)}</b> · 制作：<b>${esc(me)}</b> · ${today}`;
+  let html = '';
+  if(mode==='edit'){
+    html += `<div class="notice" style="margin:0 0 8px">${headInfo}${mkCtx.existInfo?` · 载入${mkCtx.existInfo.status}${mkCtx.existInfo.reason?('（驳回：'+esc(mkCtx.existInfo.reason)+'）'):''}`:''}</div>`;
+    html += mkToolbarHtml(type, tpl);
+    html += `<div id="mkToolsOut" style="margin-bottom:8px"></div>`;
+    if(tpl.rows){
+      html += `<table class="csvtable"><thead><tr>${tpl.rows.columns.map(c=>`<th>${c.label}</th>`).join('')}<th>操作</th></tr></thead><tbody id="mkRows">`;
+      html += (rws||[]).map((r,i)=>mkRow(tpl,i,r)).join('') + `</tbody></table><button class="btn small" style="margin:8px 0" onclick="mkAddRow()">＋ 添加行</button>`;
+    }
+    if(tpl.fields && tpl.fields.length){
+      html += '<div class="grid g2" style="margin-top:8px">' + tpl.fields.map(fd=>mkFieldHtml(fd,f)).join('') + '</div>';
+    }
+    if(tpl.doneWhen) html += `<div class="muted" style="font-size:11px">完成判定：「${tpl.doneWhen.field} = ${tpl.doneWhen.value}」→ 批准归档后节点自动 DONE，否则 IN_PROGRESS。</div>`;
+    html += mkFilesHtml(mode);
+  } else {
+    html += `<div class="pv-doc">
+      <h3>${esc(tpl.name)}</h3>
+      <div class="pv-sub">${headInfo.replace(/<b>|<\/b>/g,'')}${mkCtx.recordBanner?` · <b>${mkCtx.recordBanner}</b>`:''}</div>`;
+    if(tpl.fields && tpl.fields.length){
+      html += `<table><tbody>` + tpl.fields.map(fd=>{
+        const v = f[fd.k]!==undefined?f[fd.k]:'';
+        const ctrl = fd.type==='enum'
+          ? `<select data-f="${fd.k}">${fd.options.map(o=>`<option ${String(v)===o?'selected':''}>${o}</option>`).join('')}</select>`
+          : `<input data-f="${fd.k}" value="${esc(v)}" ${fd.type==='date'?'type="date"':''} ${fd.type==='number'?'type="number"':''}>`;
+        return `<tr><th style="width:150px">${fd.label}</th><td>${ctrl}</td></tr>`;
+      }).join('') + `</tbody></table>`;
+    }
+    if(tpl.rows){
+      html += `<table style="margin-top:10px"><thead><tr>${tpl.rows.columns.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead><tbody id="mkRows">`;
+      html += (rws||[]).map((r,i)=>`<tr>${tpl.rows.columns.map(c=>`<td><input data-r="${i}" data-c="${c.k}" value="${esc(r&&r[c.k]||'')}" ${c.type==='date'?'type="date"':''} ${c.type==='number'?'type="number"':''}></td>`).join('')}</tr>`).join('') + `</tbody></table>
+      <div class="actions"><button class="btn small" onclick="mkAddRowPv()">＋ 添加行</button></div>`;
+    }
+    html += `<div class="pv-tip">👁 预览可直接修改（虚线框即输入位，改动随「保存草稿/提交审批」一并保存）；右上可切回编辑模式。</div></div>`;
+    html += mkFilesHtml('preview');
+  }
+  document.getElementById('mkBody').innerHTML = html;
+}
+/* 附件区：导入的文件挂为附件，点「预览」在系统内查看与编辑（图片标注/文本修改/水印/DXF 解析） */
+function mkFilesHtml(mode){
+  const fs = mkCtx.files || [];
+  return `<div class="panel" style="margin-top:12px;background:#f8fafc;padding:12px 14px">
+    <h2 style="font-size:13px;margin:0 0 8px">📎 附件（${fs.length}）<span class="tag">在系统内打开预览与编辑</span>
+      ${mode==='edit'?`<label class="btn small" style="cursor:pointer">＋ 添加附件<input type="file" hidden multiple accept="image/*,.pdf,.dxf,.xlsx,.xls,.csv,audio/*,.txt,.md,.json" onchange="mkAttachFiles(this)"></label>`:''}</h2>
+    ${fs.length ? `<div class="row" style="gap:8px;flex-wrap:wrap">${fs.map((x,i)=>{
+      const icon = x.kind==='image'?'🖼':x.kind==='pdf'?'📕':x.kind==='dxf'?'📐':x.kind==='audio'?'🎤':x.kind==='text'?'📄':'🗂';
+      const acts = [];
+      if(x.kind==='dxf') acts.push(`<button class="btn small" onclick="mkParseDxf(${i})">解析</button>`);
+      acts.push(`<button class="btn small" onclick="openFilePreview(mkCtx.files[${i}].url, mkCtx.files[${i}].name, mkCtx.files[${i}].kind, ${i})">打开</button>`);
+      if(x.kind==='image'||x.kind==='text') acts.push(`<button class="btn small primary" onclick="openFilePreview(mkCtx.files[${i}].url, mkCtx.files[${i}].name, mkCtx.files[${i}].kind, ${i}, true)">编辑</button>`);
+      if(mode==='edit') acts.push(`<button class="btn small danger" onclick="mkCtx.files.splice(${i},1);mkRenderBody('${mode}')">✕</button>`);
+      return `<span class="row" style="gap:6px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 10px">
+        <span>${icon}</span>
+        <span style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.name)}">${esc(x.name)}</span>
+        ${acts.join('')}
+      </span>`;}).join('')}</div>`
+    : `<div class="muted" style="font-size:12px">暂无附件：经「导入」工具导入的文件会自动挂为附件；也可「＋ 添加附件」。</div>`}
+  </div>`;
+}
+function mkAttachFiles(input){
+  [...input.files].forEach(f=>{
+    const kind = f.type.startsWith('image/')?'image':(f.type==='application/pdf'||/\.pdf$/i.test(f.name))?'pdf':(/\.dxf$/i.test(f.name))?'dxf':(f.type.startsWith('audio/'))?'audio':(/\.(xlsx|xls)$/i.test(f.name))?'xlsx':(/\.(csv|txt|md|json)$/i.test(f.name))?'text':'other';
+    const entry = { name:f.name, kind, url:URL.createObjectURL(f), file:f, content:null };
+    mkCtx.files.push(entry);
+    if(kind==='text'){ const rd=new FileReader(); rd.onload=e=>{ entry.content=e.target.result; }; rd.readAsText(f); }
+  });
+  const names = mkCtx.files.map(x=>x.name).join(',');
+  const el = document.querySelector('#mkBody [data-f="files"]'); if(el) el.value = names;
+  mkRenderBody(document.getElementById('mkTabPrev').classList.contains('primary')?'preview':'edit');
+  toast2('附件已添加 ' + input.files.length + ' 个');
+}
+/* DXF 附件在系统内解析（结果入工具区） */
+async function mkParseDxf(i){
+  const e = (mkCtx.files||[])[i]; if(!e||!e.file){ alert('缺少原始文件'); return; }
+  if(document.getElementById('mkTabPrev').classList.contains('primary')) mkToggle('edit');
+  const out = document.getElementById('mkToolsOut');
+  out.innerHTML = '<div class="muted">DXF 解析中…</div>';
+  try{
+    const fd = new FormData(); fd.append('file', e.file);
+    const r = await fetch(AI_HOST+'/dxf', { method:'POST', body: fd }); const j = await r.json();
+    const ents = Object.entries(j.entities||{}).map(([k,v])=>k+'×'+v).join(' ');
+    out.innerHTML = `<div class="iframebox"><b>DXF 解析（${j.engine}）</b> ${esc(e.name)}<br>图层：${(j.layers||[]).join('、')}<br>实体：${esc(ents)}<div class="actions" style="margin-top:8px"><button class="btn small primary" onclick="mkFillText('DXF:${esc(e.name)} ${esc((j.layers||[]).length)}层 ${esc(ents)}')">附到字段</button></div></div>`;
+  }catch(err){ out.innerHTML = `<div class="notice warn">解析失败：${esc(err.message)}（需 :8002）</div>`; }
+}
+function mkFieldHtml(fd, f){
+  const v = f[fd.k]!==undefined?f[fd.k]:'';
+  if(fd.type==='enum') return `<label class="field" style="margin-bottom:8px"><span>${fd.label}</span><select data-f="${fd.k}" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px">${fd.options.map(o=>`<option ${String(v)===o?'selected':''}>${o}</option>`).join('')}</select></label>`;
+  return `<label class="field" style="margin-bottom:8px"><span>${fd.label}</span><input data-f="${fd.k}" value="${esc(v)}" ${fd.type==='date'?'type="date"':''} ${fd.type==='number'?'type="number"':''} style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px"></label>`;
+}
+function mkToolbarHtml(type, tpl){
+  const hist = mkCtx.hist || { count:0, records:[], source:'local' };
+  const mapped = type !== 'attach';
+  return `<div class="row" style="gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+      <span class="muted" style="font-size:11px">历史模板：${hist.count} 条（${hist.source==='plm'?'PLM 真实表':'本地归档'}）</span>
+      ${hist.records.slice(0,5).map((r,i)=>`<button class="chip" style="cursor:pointer" onclick="mkLoadHist(${i})">载入 ${esc(r._archiveRef||('#'+(hist.count-i)))}</button>`).join('')}
+    </div>
+    <div class="row" style="gap:6px;margin-bottom:4px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:#eef4fb;border-radius:8px">
+      <span class="muted" style="font-size:11px">🛠 ${mapped?'节点对应工具':'该节点工具（制作成果导入后提交审批）'}：</span>
+      ${nodeToolBtns(mkCtx.nodeCode, mapped)}
+      ${mapped?'':'<span class="tag orange">工具型节点：成果经工具制作/导入后归档</span>'}
+    </div>
+    <input type="file" id="imp-excel" hidden accept=".xlsx,.xls,.csv" onchange="mkFile(this,'excel')">
+    <input type="file" id="imp-ocr" hidden accept="image/*" onchange="mkFile(this,'ocr')">
+    <input type="file" id="imp-dxf" hidden accept=".dxf" onchange="mkFile(this,'dxf')">
+    <input type="file" id="imp-asr" hidden accept="audio/*,.wav,.mp3,.m4a,.amr" onchange="mkFile(this,'asr')">
+    <input type="file" id="imp-wm" hidden accept="image/*,.pdf" onchange="mkFile(this,'wm')">`;
+}
+function mkToggle(mode){
+  // 切换前收集当前值，保证两模式互不丢失
+  const fields = {}; document.querySelectorAll('#mkBody [data-f]').forEach(el=>{ if(el.value!=='') fields[el.dataset.f]=el.value; });
+  const rows = []; document.querySelectorAll('#mkRows input[data-r], #mkRows select[data-r]').forEach(el=>{ const i=Number(el.dataset.r); rows[i]=rows[i]||{}; rows[i][el.dataset.c]=el.value; });
+  mkCtx.values = { f: fields, rws: rows.filter(Boolean) };
+  mkRenderBody(mode);
+}
+function mkAddRowPv(){
+  const tb = document.getElementById('mkRows');
+  const i = tb.children.length;
+  tb.insertAdjacentHTML('beforeend', `<tr>${mkCtx.tpl.rows.columns.map(c=>`<td><input data-r="${i}" data-c="${c.k}" value="" ${c.type==='date'?'type="date"':''} ${c.type==='number'?'type="number"':''}></td>`).join('')}</tr>`);
+}
+function mkLoadHist(i){
+  const r = mkCtx.hist.records[i]; if(!r) return;
+  document.querySelectorAll('#mkBody [data-f]').forEach(el=>{
+    const v = r[el.dataset.f];
+    if(v!==undefined && v!==null) el.value = String(v).slice(0,10).match(/\d{4}-\d{2}-\d{2}/) ? String(v).slice(0,10) : v;
+  });
+  if(mkCtx.tpl.rows){
+    const items = r._items || [r];
+    document.getElementById('mkRows').innerHTML = items.map((it,idx)=>mkRow(mkCtx.tpl, idx, it)).join('');
+  }
+  toast2('已载入历史模板 #' + (i+1));
+}
+function toast2(s){ const t=document.getElementById('toast'); if(t){ t.textContent=s; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,2500); } else alert(s); }
+/* 节点 → 对应工具映射（打开的即该节点应用的工具与表格） */
+const NODE_TOOLS = {
+  PLAN:          ['gantt','excel'],
+  BOM:           ['excel'],
+  SPEC:          ['ocr','excel'],
+  CONFIG:        ['excel'],
+  MOLD_DRAWING:  ['librecad','freecad','dxf','wm'],
+  MOLD_REVIEW:   ['excel'],
+  HAND_SAMPLE:   ['ocr','excel'],
+  APPEARANCE:    ['ocr','excel'],
+  STRUCTURE:     ['freecad','excel'],
+  ELECTRONICS:   ['kicad','excel'],
+  MOLD:          ['freecad','dxf','wm'],
+  MOLD_SAMPLE:   ['ocr','excel'],
+  PACKAGING:     ['librecad','dxf','wm'],
+  ELEC_TRIAL:    ['excel'],
+  RD_TRIAL:      ['excel'],
+  ENG_TRIAL:     ['excel'],
+  PROD_TRIAL:    ['excel'],
+  TEST_REPORT:   ['ocr','excel','wm'],
+  TECH_TRANSFER: ['excel'],
+  SHIPMENT:      ['excel','wm'],
+  REVIEW:        ['excel'],
+  OTHER:         []
+};
+const TOOL_META = {
+  freecad:{label:'🖋 FreeCAD 3D',type:'launch'}, librecad:{label:'📏 LibreCAD 2D',type:'launch'}, kicad:{label:'🔌 KiCad',type:'launch'},
+  dxf:{label:'📐 DXF 图纸',type:'import'}, ocr:{label:'🖼 OCR 识别',type:'import'}, asr:{label:'🎤 语音转写',type:'import'},
+  excel:{label:'📥 Excel/CSV',type:'import'}, wm:{label:'💧 水印处理',type:'import'},
+  gantt:{label:'📊 甘特预览',type:'gen'}
+};
+function nodeToolBtns(nodeCode, hasTpl){
+  const ids = (NODE_TOOLS[nodeCode]||[]).filter(id=> hasTpl || TOOL_META[id].type!=='gen' ? true : id==='gantt');
+  const btns = ids.filter(id=>TOOL_META[id]).map(id=>{
+    const m = TOOL_META[id];
+    if(m.type==='launch') return `<button class="btn small" onclick="mkLaunch('${id}')" title="点击打开软件制作">${m.label}</button>`;
+    if(m.type==='import') return `<button class="btn small" onclick="mkImport('${id==='excel'?'excel':id}')" title="导入并回填">${m.label}</button>`;
+    if(id==='gantt') return `<button class="btn small" onclick="mkTools('gantt')">${m.label}</button>`;
+    return '';
+  }).join(' ');
+  const gens = [];
+  if(hasTpl) gens.push(`<button class="btn small" onclick="mkTools('excel')">📤 导出Excel</button>`);
+  gens.push(`<button class="btn small" onclick="mkTools('flow')">🔀 审批流程图</button>`);
+  return btns + (gens.length?`<span style="width:8px"></span>${gens.join(' ')}`:'');
+}
+async function mkLaunch(t){
+  const map = { freecad:['freecad','FreeCAD'], librecad:['librecad','LibreCAD'], kicad:['kicad','KiCad'] };
+  const [proto, name] = map[t] || [t, t];
+  const ok = await launchTool(proto, name);
+  if(ok) toast2(name + ' 已启动；在软件中制作的图纸/模型可经「DXF 图纸」或「OCR 识别」导入回本模板');
+}
+/* 导入入口 */
+function mkImport(kind){ const el = document.getElementById('imp-'+kind); if(el){ el.value=''; el.click(); } }
+async function mkFile(input, kind){
+  const f = input.files && input.files[0]; if(!f) return;
+  const out = document.getElementById('mkToolsOut');
+  mkCtx.files = mkCtx.files || [];
+  const autoAttach = (kind) => {
+    const k = kind==='wm' ? (/pdf$/i.test(f.name)?'pdf':'image') : kind==='ocr'?'image':kind==='dxf'?'dxf':kind==='asr'?'audio':(/\.(xlsx|xls)$/i.test(f.name))?'xlsx':(/\.(csv|txt|md|json)$/i.test(f.name))?'text':'other';
+    if(!mkCtx.files.some(x=>x.name===f.name)){
+      const entry = { name:f.name, kind:k, url:URL.createObjectURL(f), file:f, content:null };
+      mkCtx.files.push(entry);
+      if(k==='text'){ const rd=new FileReader(); rd.onload=e=>{ entry.content=e.target.result; }; rd.readAsText(f); }
+    }
+  };
+  try{
+    if(kind==='excel'){
+      autoAttach(kind);
+      await loadLib('XLSX');
+      const wb = XLSX.read(await f.arrayBuffer());
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'' });
+      const fMap = {}; (mkCtx.tpl.fields||[]).forEach(fd=>fMap[fd.label]=fd.k);
+      const rCols = mkCtx.tpl.rows ? mkCtx.tpl.rows.columns : [];
+      const rMap = {}; rCols.forEach(c=>rMap[c.label]=c.k);
+      let nRows=0, nFields=0;
+      if(rCols.length){
+        for(let i=0;i<aoa.length;i++){
+          const hits = (aoa[i]||[]).filter(v=>rMap[String(v).trim()]).length;
+          if(hits>=2){
+            const idx={}; aoa[i].forEach((v,c)=>{ const k=rMap[String(v).trim()]; if(k) idx[k]=c; });
+            const rows=[];
+            for(let r=i+1;r<aoa.length;r++){ const row=aoa[r]||[]; if(!row.some(v=>String(v).trim()!=='')) break;
+              const o={}; rCols.forEach(c=>{ if(idx[c.k]!==undefined) o[c.k]=String(row[idx[c.k]]??''); }); rows.push(o); }
+            if(rows.length){ document.getElementById('mkRows').innerHTML = rows.map((r,ix)=>mkRow(mkCtx.tpl,ix,r)).join(''); nRows=rows.length; }
+            break;
+          }
+        }
+      }
+      if(!nRows){ aoa.forEach(row=>{ if(row&&row.length>=2){ const k=fMap[String(row[0]).trim()]; const v=String(row[1]??''); if(k){ const el=document.querySelector('#mkBody [data-f="'+k+'"]'); if(el&&v){ el.value=v; nFields++; } } } }); }
+      out.innerHTML = `<div class="notice" style="margin:0;border-color:#cde9db;background:#eefaf4;color:#13724e">📥 Excel 导入完成：字段 ${nFields} 项${nRows?('，行 '+nRows+' 条'):''}（按表头标签自动映射模板），已切换到预览。</div>`;
+      toast2('导入完成，已切换预览');
+      mkToggle('preview');
+    } else if(kind==='ocr'){
+      autoAttach(kind);
+      const fd = new FormData(); fd.append('file', f);
+      const r = await fetch(AI_HOST+'/ocr', { method:'POST', body: fd }); const j = await r.json();
+      const lines = (j.lines||[]).map(l=>l.text).filter(Boolean);
+      out.innerHTML = `<div class="iframebox"><b>OCR 识别（${(j.engine||'').startsWith('mock')?'模拟':'PaddleOCR'}，${lines.length} 行）</b>：点击行尾「填入」回填模板<br>${lines.map((t,i)=>`<div class="row" style="justify-content:space-between;padding:3px 0;border-bottom:1px dashed #eef"><span style="font-size:12px">${esc(t)}</span><button class="btn small" onclick="mkFillText(${JSON.stringify(t).replace(/"/g,'&quot;')})">填入</button></div>`).join('')}</div>`;
+    } else if(kind==='dxf'){
+      autoAttach(kind);
+      const fd = new FormData(); fd.append('file', f);
+      const r = await fetch(AI_HOST+'/dxf', { method:'POST', body: fd }); const j = await r.json();
+      const ents = Object.entries(j.entities||{}).map(([k,v])=>k+'×'+v).join(' ');
+      out.innerHTML = `<div class="iframebox"><b>DXF 解析（${j.engine}）</b> 图层：${(j.layers||[]).join('、')}<br>实体：${ents}<div class="actions" style="margin-top:8px"><button class="btn small primary" onclick="mkFillText('DXF:${esc((j.layers||[]).length)}层 ${esc(ents)}')">附到字段</button></div></div>`;
+    } else if(kind==='asr'){
+      autoAttach(kind);
+      const fd = new FormData(); fd.append('file', f);
+      const r = await fetch(AI_HOST+'/asr', { method:'POST', body: fd }); const j = await r.json();
+      out.innerHTML = `<div class="iframebox"><b>语音转写（${(j.engine||'').startsWith('mock')?'模拟':'FunASR'}）</b>：${esc(j.text||'')}<div class="actions" style="margin-top:8px"><button class="btn small primary" onclick="mkFillText(${JSON.stringify(j.text||'').replace(/"/g,'&quot;')})">填入</button></div></div>`;
+    } else if(kind==='wm'){
+      autoAttach(kind);
+      const isPdf = /pdf$/i.test(f.name) || f.type==='application/pdf';
+      const fd = new FormData(); fd.append('file', f); fd.append('watermark', '恒剑光电 内部资料');
+      const r = await fetch(TOOL_HOST+'/watermark/' + (isPdf?'pdf':'image'), { method:'POST', body: fd });
+      const ct = r.headers.get('content-type')||'';
+      if(ct.indexOf('json')===0){ const j = await r.json(); out.innerHTML = `<div class="notice warn" style="margin:0">水印服务为模拟模式（${j.engine}）。</div>`; return; }
+      const blob = await r.blob(); const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'watermarked_'+f.name; a.click();
+      out.innerHTML = `<div class="notice" style="margin:0;border-color:#cde9db;background:#eefaf4;color:#13724e">💧 水印文件已生成并下载（${f.name}），可作为归档附件。</div>`;
+    }
+  }catch(e){ out.innerHTML = `<div class="notice warn" style="margin:0">导入/调用失败：${esc(e.message)}（OCR/DXF/语音需 :8002，水印需 :8003）</div>`; }
+}
+function mkFillText(t){
+  const els = [...document.querySelectorAll('#mkBody input[data-f]:not([type=date]):not([type=number]), #mkBody textarea[data-f]')];
+  if(!els.length){ toast2('模板无文本字段可填'); return; }
+  const empty = els.find(e=>!e.value);
+  if(empty) empty.value = t; else els[els.length-1].value += (els[els.length-1].value?';':'') + t;
+  toast2('已填入模板字段');
+}
+/* 工序工具（制作窗口内嵌） */
+async function mkTools(kind){
+  const out = document.getElementById('mkToolsOut');
+  const collect = () => {
+    const fields = {}; document.querySelectorAll('#mkBody [data-f]').forEach(el=>{ if(el.value!=='') fields[el.dataset.f]=el.value; });
+    const rows = []; document.querySelectorAll('#mkRows input[data-r]').forEach(el=>{ const i=Number(el.dataset.r); rows[i]=rows[i]||{}; rows[i][el.dataset.c]=el.value; });
+    return { fields, rows: rows.filter(Boolean) };
+  };
+  try{
+    if(kind==='excel'){
+      await loadLib('XLSX');
+      const { fields, rows } = collect();
+      const head = [['项目', mkCtx.proj.name], ['项目号', mkCtx.projectNo], ['节点', mkCtx.node.name], ['类型', mkCtx.tpl.name], ['导出时间', new Date().toLocaleString()]];
+      const aoa = [...head, [], Object.keys(fields), Object.values(fields)];
+      if(mkCtx.tpl.rows && rows.length){ aoa.push([], mkCtx.tpl.rows.columns.map(c=>c.label), ...rows.map(r=>mkCtx.tpl.rows.columns.map(c=>r[c.k]||''))); }
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, mkCtx.tpl.name.slice(0,8));
+      XLSX.writeFile(wb, `${mkCtx.type}_${mkCtx.projectNo}_${mkCtx.nodeCode}.xlsx`);
+      out.innerHTML = '<div class="notice" style="margin:0;border-color:#cde9db;background:#eefaf4;color:#13724e">已导出 Excel（含项目信息+表单+行数据）。</div>';
+    } else if(kind==='gantt'){
+      if(!window.Gantt){ await loadScript('https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js'); }
+      const { rows } = collect();
+      const tasks = (rows.length?rows:[{work_item:'示例条目',plan_start:new Date().toISOString().slice(0,10),plan_end:new Date(Date.now()+7*864e5).toISOString().slice(0,10),owner:mkCtx.proj.owner}])
+        .map((r,i)=>({ id:String(i+1), name:r.work_item||r.stage||('条目'+(i+1)), start:r.plan_start||new Date().toISOString().slice(0,10), end:r.plan_end||new Date(Date.now()+3*864e5).toISOString().slice(0,10), progress:0, custom_class:'' }));
+      out.innerHTML = '<svg id="mkGantt" style="width:100%;height:200px"></svg><div class="muted" style="font-size:11px">frappe-gantt · 当前行数据实时预览（' + tasks.length + ' 条）</div>';
+      const g = new Gantt('#mkGantt', tasks, { view_mode:'Day' }); g.change_view_mode('Week');
+    } else if(kind==='flow'){
+      if(!window.mermaid){ await loadScript('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js'); }
+      mermaid.initialize({ startOnLoad:false });
+      const { svg } = await mermaid.render('mkflow', `flowchart LR
+  A[制作 ${esc(mkCtx.node.name)}] -->|保存| B[(草稿)]
+  B -->|提交| C{上级审批}
+  C -->|批准| D[归档 ${'`'}WSA-x${'`'}]
+  D --> E[(同步 PLM 对应表)]
+  D --> F[节点联动 DONE/IN_PROGRESS]
+  C -->|驳回| B`);
+      out.innerHTML = `<div class="iframebox">${svg}</div><div class="muted" style="font-size:11px">Mermaid · 制作→审批→归档→同步 流程</div>`;
+    }
+  }catch(e){ out.innerHTML = `<div class="notice warn" style="margin:0">工具加载失败（${e.message}），CDN 需联网。</div>`; }
+}
+function mkRow(tpl, i, r){
+  return `<tr>${tpl.rows.columns.map(c=>`<td><input data-r="${i}" data-c="${c.k}" value="${esc(r&&r[c.k]||'')}" ${c.type==='date'?'type="date"':''} ${c.type==='number'?'type="number"':''} style="width:100%;min-width:80px;padding:5px 7px;border:1px solid var(--line);border-radius:6px"></td>`).join('')}<td><button class="btn small danger" onclick="this.closest('tr').remove()">删</button></td></tr>`;
+}
+function mkAddRow(){
+  const tb = document.getElementById('mkRows');
+  const i = tb.children.length;
+  tb.insertAdjacentHTML('beforeend', mkRow(mkCtx.tpl, i, {}));
+}
+async function mkSave(action){
+  const fields = {};
+  document.querySelectorAll('#mkBody [data-f]').forEach(el=>{ if(el.value!=='') fields[el.dataset.f]=el.value; });
+  const rows = [];
+  document.querySelectorAll('#mkBody tr[data]').forEach(()=>{});
+  document.querySelectorAll('#mkRows input[data-r]').forEach(el=>{
+    const i = Number(el.dataset.r); rows[i] = rows[i]||{}; rows[i][el.dataset.c] = el.value;
+  });
+  const me = state.auth ? state.auth.realName : '演示';
+  try{
+    const r = await postJson('/ws-v2', { projectNo: mkCtx.projectNo, nodeCode: mkCtx.nodeCode, fields, rows, actor: me, action });
+    if(!r.ok) throw new Error(r.data.error||r.status);
+    document.getElementById('mkModal').hidden = true;
+    alert(action==='submit' ? `已提交上级审批（${r.data.statusLabel}）。批准后将自动归档并同步 PLM 对应表。` : '草稿已保存，可随时续作。');
+    showProject(mkCtx.projectNo);
+  }catch(e){ alert('保存被拒：'+e.message); }
+}
+async function wsApprove(id, ok){
+  const me = state.auth ? state.auth.realName : '演示';
+  let reason = '';
+  if(!ok){ reason = prompt('驳回理由：','需补充')||''; if(!reason) return; }
+  try{
+    const r = await postJson(`/ws-v2/${id}/${ok?'approve':'reject'}`, { approver: me, reason });
+    if(!r.ok) throw new Error(r.data.error||r.status);
+    alert(ok ? `已批准归档：${r.data.archiveRef}\n节点联动：${r.data.nodeStatus||'—'}\nPLM 同步：${r.data.plmSync&&r.data.plmSync.ok?'成功':(r.data.plmSync&&r.data.plmSync.msg)||'未接'}` : '已驳回（退回草稿可改后重提）');
+    render();
+  }catch(e){ alert('被拒：'+e.message); }
+}
+function mkTplName(type){ const t=(state.wsTplCache||{})[type]; return t?t.name:type; }
+function wsSummary(w){
+  const ks = Object.entries(w.fields||{}).filter(([k,v])=>v&&String(v).trim()!=='').slice(0,3);
+  return ks.map(([k,v])=>k+'='+v).join(' ') + ((w.rows&&w.rows.length)?(' · '+w.rows.length+' 行'):'');
+}
+function wsView(w){
+  // 预览已提交/已归档资料（可编辑预览；仅草稿/驳回可保存）
+  (async () => {
+    try{
+      const [tpls, proj] = await Promise.all([ get('/ws-templates'), get('/projects/'+w.projectNo) ]);
+      const mapped = tpls.nodeMap[w.nodeCode];
+      let tpl = mapped ? tpls.templates[mapped] : null;
+      if(tpl) tpl._fromCfg = true;
+      if(!tpl) tpl = { _fromCfg:false, name:'工具成果/资料附档', fields:[
+          { k:'note', label:'成果说明（软件制作/导入解析结果）' },
+          { k:'files', label:'附件清单（文件名，逗号分隔）' },
+          { k:'done', label:'节点完成', type:'enum', options:['否','是'] }
+        ], rows:null, doneWhen:{ field:'done', value:'是' } };
+      const node = proj.nodes.find(n=>n.code===w.nodeCode) || { name:w.nodeCode };
+      mkCtx = { projectNo:w.projectNo, nodeCode:w.nodeCode, type:w.type, tpl, proj, node,
+        hist:{count:0,records:[],source:'local'},
+        values:{ f: w.fields||{}, rws: w.rows||[] },
+        editable: ['DRAFT','REJECTED'].includes(w.status),
+        recordBanner: `${w.statusLabel}${w.archiveRef?(' · 归档号 '+w.archiveRef):''} · 制作 ${w.createdBy}` };
+      mkRenderBody('preview');
+      document.getElementById('mkModal').hidden = false;
+    }catch(e){ alert('预览失败：'+e.message); }
+  })();
+}
+let capEvidence = [];
+function renderCapFields(){
+  const typeCode = document.getElementById('capType').value;
+  const t = state.captureTypes.find(x=>x.code===typeCode);
+  const box = document.getElementById('capFields');
+  if(!t || !t.fields.length){ box.innerHTML = '<p class="muted">该类型无字段（仅附件拍照/语音）。</p>'; return; }
+  box.innerHTML = t.fields.map(f=>{
+    if(f.type==='textarea') return `<label class="field" style="margin-bottom:8px"><span>${f.label}</span><textarea data-k="${f.k}" rows="2"></textarea></label>`;
+    if(f.type==='enum') return `<label class="field" style="margin-bottom:8px"><span>${f.label}</span><select data-k="${f.k}">${f.options.map(o=>`<option>${o}</option>`).join('')}</select></label>`;
+    return `<label class="field" style="margin-bottom:8px"><span>${f.label}</span><input data-k="${f.k}" type="${f.type==='number'?'number':'text'}"></label>`;
+  }).join('');
+}
+function capPhoto(){ capEvidence.push('📷 照片 '+(capEvidence.filter(x=>x.includes('📷')).length+1)); refreshCapEvidence(); }
+function capVoice(){ const b=document.getElementById('capVoiceBtn'); b.textContent=b.textContent.includes('停止')?'🎤 语音备注':'⏹ 停止录音'; if(b.textContent.includes('停止')){ capEvidence.push('🎤 语音 '+new Date().toLocaleTimeString()); refreshCapEvidence(); } }
+function refreshCapEvidence(){ const el=document.getElementById('capEvidence'); el.textContent = capEvidence.length? capEvidence.join('，') : '未采集附件'; }
+async function capSubmit(){
+  const partNo = document.getElementById('capPartNo').value;
+  const typeCode = document.getElementById('capType').value;
+  const values = {};
+  document.querySelectorAll('#capFields [data-k]').forEach(i=>{ if(i.value!=='') values[i.dataset.k]=i.value; });
+  const p = curPerson();
+  const key = 'ik-'+Math.random().toString(36).slice(2,10);
+  const evidence = [...capEvidence, ...attachFiles.map(f=>f.name)];
+  try{
+    const r = await fetch(`${API}/captures`, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':key}, body: JSON.stringify({ partNo, captureType:typeCode, values, operator:p?p.name:curRole().name, role:state.role, evidence, idempotency_key:key }) });
+    if(!r.ok) throw new Error(r.status);
+    capEvidence = [];
+    attachFiles = [];
+    alert('已提交，状态 pending-review（幂等键 '+key+'）。采集需人机审核，done ≠ verified。');
+    state.page='capture'; render();
+  }catch(e){ alert('提交失败：'+e.message); }
+}
+
+/* ---- 文件上传 / 预览 / 编辑 ---- */
+let attachFiles = [];
+let currentFile = null;
+let drawColor = '#d64545';
+
+function classifyFile(f){
+  const ext = (f.name.split('.').pop()||'').toLowerCase();
+  if(f.type.startsWith('image/')) return 'image';
+  if(f.type === 'application/pdf' || ext === 'pdf') return 'pdf';
+  if(['txt','md','csv','json','js','css','html','xml','log'].includes(ext)) return 'text';
+  return 'other';
+}
+function fileIcon(kind){
+  return { image:'🖼', pdf:'📕', text:'📄', other:'📎' }[kind] || '📎';
+}
+function fmtSize(s){ return s>1048576 ? (s/1048576).toFixed(2)+' MB' : (s/1024).toFixed(1)+' KB'; }
+
+function handleFiles(files){
+  [...files].forEach(f=>{
+    const kind = classifyFile(f);
+    const item = { id:'F'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), name:f.name, size:f.size, type:f.type, kind, url:null, content:null, file:f };
+    if(kind==='image' || kind==='pdf'){ item.url = URL.createObjectURL(f); attachFiles.push(item); renderFileList(); }
+    else if(kind==='text'){ const rd=new FileReader(); rd.onload=e=>{ item.content=e.target.result; attachFiles.push(item); renderFileList(); }; rd.readAsText(f); }
+    else { attachFiles.push(item); renderFileList(); }
+  });
+}
+function renderFileList(){
+  const box = document.getElementById('fileList');
+  if(!box) return;
+  if(!attachFiles.length){ box.innerHTML = '<div class="muted" style="font-size:12px;padding:4px">尚未添加附件（支持拖入/导入）</div>'; return; }
+  box.innerHTML = attachFiles.map(f=>{
+    const thumb = f.kind==='image' ? `<img src="${f.url}">` : fileIcon(f.kind);
+    return `<div class="filerow">
+      <div class="fic">${thumb}</div>
+      <div class="bd"><b>${esc(f.name)}</b><small>${fmtSize(f.size)} · ${f.kind==='image'?'图片':f.kind==='pdf'?'PDF':f.kind==='text'?'文本':'其他'}</small></div>
+      <div class="ops">
+        <button class="btn small" onclick="previewFile('${f.id}')">预览</button>
+        <button class="btn small danger" onclick="removeFile('${f.id}')">移除</button>
+      </div></div>`;
+  }).join('');
+}
+function removeFile(id){ attachFiles = attachFiles.filter(f=>f.id!==id); renderFileList(); }
+
+function previewFile(id){
+  currentFile = attachFiles.find(f=>f.id===id);
+  if(!currentFile) return;
+  const editable = currentFile.kind==='text' || currentFile.kind==='image';
+  document.getElementById('btnEdit').hidden = !editable;
+  document.getElementById('btnSave').hidden = true;
+  document.getElementById('btnCancel').hidden = true;
+  document.getElementById('btnWatermark').hidden = !(currentFile.kind==='image' || currentFile.kind==='pdf');
+  document.getElementById('fileModalTitle').textContent = currentFile.name;
+  document.getElementById('fileModal').hidden = false;
+  renderPreview();
+}
+function closeFileModal(){ document.getElementById('fileModal').hidden = true; currentFile=null; }
+
+let fmScale = 1;
+function fmApply(){
+  const w = document.getElementById('fmZoom'); if(!w) return;
+  w.style.transform = 'scale(' + fmScale + ')';
+  w.style.width = (100/fmScale) + '%';
+  const el = document.getElementById('fmLabel'); if(el) el.textContent = Math.round(fmScale*100) + '%';
+}
+function fmAdj(m){ fmScale = Math.min(4, Math.max(0.25, fmScale*m)); fmApply(); }
+function fmReset(){ fmScale = 1; fmApply(); }
+function renderPreview(f){
+  f = f || currentFile;
+  const c = document.getElementById('fileModalContent');
+  const zoomBar = `<div class="row zbar" style="margin-bottom:8px">
+      <b style="font-size:12px">🔍 页面缩放</b>
+      <button class="btn small zbtn" onclick="fmAdj(1.25)">＋</button>
+      <button class="btn small zbtn" onclick="fmAdj(0.8)">－</button>
+      <button class="btn small" onclick="fmReset()">重置</button>
+      <span class="muted" id="fmLabel" style="font-size:12px;min-width:44px">100%</span>
+      <span class="muted" style="font-size:11px;margin-left:6px">适用于 Excel / 文本 / PDF / 图片等全部预览内容</span>
+    </div><div id="fmZoom" style="transform-origin:top left">`;
+  let inner = '';
+  if(f.kind==='image'){
+    inner = `<div class="row" style="gap:6px;margin-bottom:6px">
+        <span class="muted" style="font-size:11px">图片：滚轮缩放 · 拖拽平移 · 也可用上方页面缩放</span>
+        <span style="flex:1"></span>
+        <button class="btn small" onclick="window.open('${f.url}','_blank')">新窗口打开 ↗</button>
+      </div>
+      <div class="pwrap" id="pwrap"><img id="pimg" src="${f.url}" alt="${esc(f.name)}"></div>`;
+  }
+  else if(f.kind==='pdf') inner = `<div class="row" style="gap:6px;margin-bottom:6px"><span class="muted" style="font-size:12px">PDF 内嵌预览</span><span style="flex:1"></span><button class="btn small" onclick="window.open('${f.url}','_blank')">新窗口打开（可缩放/全屏）↗</button></div><iframe class="pdf" src="${f.url}" title="${esc(f.name)}"></iframe><div class="muted" style="font-size:12px;margin-top:6px">PDF 支持预览与加水印，在线编辑请用本地 PDF 工具；如需修改内容请上传可编辑的文本/图片。</div>`;
+  else if(f.kind==='text') inner = `<div class="iframebox">${renderTextPreview(f)}</div>`;
+  else if(f.kind==='xlsx') inner = `<div id="xlsxBox" class="muted" style="padding:20px;text-align:center">📊 解析 Excel 中…</div>`;
+  else inner = `<div class="filemeta">
+      <div class="kv"><span>文件名</span><b>${esc(f.name)}</b></div>
+      <div class="kv"><span>大小</span>${fmtSize(f.size||0)}</div>
+      <div class="kv"><span>类型</span>${esc(f.type||'未知')}</div>
+      <div class="notice" style="margin-top:12px">该格式（${esc(f.type||'未知')}）暂不支持内联预览，可下载后在本地查看。</div></div>`;
+  c.innerHTML = zoomBar + inner + '</div>';
+  fmScale = 1; fmApply();
+  if(f.kind==='image') zBind();
+  if(f.kind==='xlsx') renderXlsxPreview(f);
+}
+/* 图片缩放/平移 */
+let zScale = 1;
+function zApply(img, label){
+  img.style.transform = 'scale(' + zScale + ')';
+  const el = document.getElementById('zLabel');
+  if(el) el.textContent = Math.round(zScale*100) + '%';
+}
+function zAdj(m){ const img=document.getElementById('pimg'); if(!img) return; zScale=Math.min(8,Math.max(0.1,zScale*m)); img.classList.add('nat'); zApply(img); }
+function zSet(s){ const img=document.getElementById('pimg'); if(!img) return; zScale=s; img.classList.add('nat'); img.style.maxWidth='none'; img.style.maxHeight='none'; zApply(img); }
+function zFit(){ const img=document.getElementById('pimg'); if(!img) return; zScale=1; img.classList.remove('nat'); img.style.transform='none'; img.style.maxWidth='100%'; img.style.maxHeight='74vh'; const el=document.getElementById('zLabel'); if(el) el.textContent='适应'; }
+function zBind(){
+  const wrap=document.getElementById('pwrap'); if(!wrap) return;
+  wrap.addEventListener('wheel', e=>{ e.preventDefault(); zAdj(e.deltaY<0?1.12:0.89); }, {passive:false});
+  let drag=false,sx=0,sy=0,l=0,t=0;
+  wrap.addEventListener('mousedown', e=>{ drag=true; sx=e.clientX-l; sy=e.clientY-t; });
+  window.addEventListener('mousemove', e=>{ if(!drag) return; l=e.clientX-sx; t=e.clientY-sy; wrap.scrollLeft-=l*0; wrap.scrollTo({left:wrap.scrollLeft-(e.clientX-sx-l),top:wrap.scrollTop-(e.clientY-sy-t)}); });
+  window.addEventListener('mouseup', ()=>drag=false);
+}
+/* 附件在系统内打开（预览 + 可编辑），编辑保存后回写附件 */
+let editingAttachIdx = null;
+/* Excel 编辑保存：收集表格 → 写回工作簿 → 生成新文件 → 更新附件 */
+async function xlsxSave(){
+  const f = currentFile;
+  const table = document.querySelector('#xlsxBox table.xlsx tbody');
+  const thead = document.querySelector('#xlsxBox table.xlsx thead tr');
+  if(!table || !thead || !xlsxWb){ toast2('无表格可保存'); return; }
+  const head = [...thead.children].map(th=>th.textContent);
+  const rows = [head, ...[...table.children].map(tr=>[...tr.children].map(td=>td.textContent))];
+  const si = xlsxWb._curSheet || 0;
+  xlsxWb.Sheets[xlsxWb.SheetNames[si]] = XLSX.utils.aoa_to_sheet(rows);
+  const buf = XLSX.write(xlsxWb, { bookType:'xlsx', type:'array' });
+  const nf = new File([buf], f.name, { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(nf);
+  f.url = url; f.file = nf; xlsxWb._src = f.name + '#v' + Date.now();
+  if(editingAttachIdx!==null && mkCtx.files && mkCtx.files[editingAttachIdx]){
+    mkCtx.files[editingAttachIdx].url = url;
+    mkCtx.files[editingAttachIdx].file = nf;
+    if(!document.getElementById('mkModal').hidden){
+      mkToggle(document.getElementById('mkTabPrev').classList.contains('primary')?'preview':'edit');
+    }
+  }
+  toast2('✅ Excel 修改已保存' + (editingAttachIdx!==null?'，附件已更新为新版本':''));
+}
+function xlsxAddRow(){
+  const tb = document.querySelector('#xlsxBox table.xlsx tbody');
+  if(!tb) return;
+  const wide = (document.querySelector('#xlsxBox table.xlsx thead tr')||{children:[]}).children.length || 1;
+  const tr = document.createElement('tr');
+  tr.className = 'xnew';
+  for(let i=0;i<wide;i++){ const td=document.createElement('td'); td.contentEditable='true'; tr.appendChild(td); }
+  tb.appendChild(tr);
+  tr.scrollIntoView({behavior:'smooth', block:'center'});
+}
+let xlsxWb = null;
+async function renderXlsxPreview(f, sheetIdx){
+  const box = document.getElementById('xlsxBox'); if(!box) return;
+  try{
+    if(!window.XLSX) { box.textContent = '加载 SheetJS…'; await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'); }
+    if(!xlsxWb || xlsxWb._src !== f.name){
+      const buf = f.file ? await f.file.arrayBuffer() : await (await fetch(f.url)).arrayBuffer();
+      xlsxWb = XLSX.read(buf, { type:'array' }); xlsxWb._src = f.name;
+    }
+    const names = xlsxWb.SheetNames;
+    const si = (sheetIdx!==undefined) ? sheetIdx : 0;
+    const ws = xlsxWb.Sheets[names[si]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+    const MAX = 200;
+    const rows = aoa.slice(0, MAX);
+    const wide = Math.max(...rows.map(r=>r.length), 1);
+    const head = (rows[0]||[]).map(v=>String(v));
+    const body = rows.slice(1);
+    box.innerHTML = `<div class="row zbar" style="flex-wrap:wrap">
+        ${names.map((n,i)=>`<button class="btn small ${i===si?'primary':''}" onclick="renderXlsxPreview(currentFile,${i})">${esc(n)}</button>`).join('')}
+        <span style="flex:1"></span>
+        <button class="btn small" onclick="xlsxAddRow()">＋ 添加行</button>
+        <button class="btn small primary" onclick="xlsxSave()">💾 保存修改</button>
+        <span class="muted" style="font-size:11px">共 ${aoa.length-1} 数据行 · ${wide} 列 · 单元格点击即可编辑，保存后回写附件</span>
+      </div>
+      <div class="xlsx-wrap"><table class="xlsx">
+        <thead><tr>${Array.from({length:wide},(_,c)=>`<th>${esc(head[c]!==undefined?head[c]:'')}</th>`).join('')}</tr></thead>
+        <tbody>${body.map(r=>`<tr>${Array.from({length:wide},(_,c)=>`<td contenteditable="true">${esc(r[c]!==undefined?String(r[c]):'')}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>
+      <div class="muted" style="font-size:11px;margin-top:6px">📊 Excel 系统内预览+编辑（SheetJS）：点单元格直接改 →「💾 保存修改」生成新文件并更新附件；如需按模板结构化录入，用制作窗口「📥 Excel/CSV」导入。</div>`;
+    xlsxWb._curSheet = si;
+  }catch(e){
+    box.innerHTML = `<div class="notice warn" style="margin:0">Excel 解析失败：${esc(e.message)}</div>`;
+  }
+}
+function openFilePreview(url, name, kind, idx, editNow){
+  const e = (idx!==undefined && idx!==null && mkCtx.files) ? mkCtx.files[idx] : null;
+  editingAttachIdx = e ? idx : null;
+  currentFile = { url, name, kind, size:(e&&e.file&&e.file.size)||0, type:kind, file:e?e.file:null, content:e?e.content:null };
+  document.getElementById('btnSave').hidden = true;
+  document.getElementById('btnCancel').hidden = true;
+  document.getElementById('btnWatermark').hidden = !(kind==='image'||kind==='pdf');
+  const ed = kind==='image'||kind==='text';
+  document.getElementById('btnEdit').hidden = !ed;
+  document.getElementById('fileModalTitle').textContent = name + (editNow?'（编辑）':'');
+  document.getElementById('fileModal').hidden = false;
+  renderPreview();
+  if(editNow && ed) startEdit();
+}
+function renderTextPreview(f){
+  const ext = (f.name.split('.').pop()||'').toLowerCase();
+  const content = f.content || '';
+  if(ext==='csv') return csvToTable(content);
+  if(ext==='json'){ try{ return '<pre>'+esc(JSON.stringify(JSON.parse(content),null,2))+'</pre>'; }catch(e){ return '<pre>'+esc(content)+'</pre>'; } }
+  if(ext==='md') return markdownToHtml(content);
+  return '<pre style="white-space:pre-wrap">'+esc(content)+'</pre>';
+}
+function csvToTable(text){
+  const rows = text.split(/\r?\n/).filter(r=>r.trim()!=='').map(r=>r.split(',').map(c=>c.trim()));
+  if(!rows.length) return '<pre>空 CSV</pre>';
+  const head = rows[0], body = rows.slice(1);
+  return `<table class="csvtable"><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function markdownToHtml(md){
+  let h = md;
+  h = h.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  h = h.replace(/^### (.*)$/gm,'<h4>$1</h4>').replace(/^## (.*)$/gm,'<h3>$1</h3>').replace(/^# (.*)$/gm,'<h2>$1</h2>');
+  h = h.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>');
+  h = h.replace(/^- (.*)$/gm,'<li>$1</li>');
+  return '<div style="line-height:1.7">'+h+'</div>';
+}
+
+function startEdit(){
+  if(!currentFile || currentFile.kind==='other'||currentFile.kind==='xlsx'||currentFile.kind==='audio'){ alert('该格式暂不支持编辑'); return; }
+  document.getElementById('btnEdit').hidden = true;
+  document.getElementById('btnSave').hidden = false;
+  document.getElementById('btnCancel').hidden = false;
+  if(currentFile.kind==='text'){
+    const doRender = () => document.getElementById('fileModalContent').querySelector('#editText') && (document.getElementById('editText').value = currentFile.content||'');
+    document.getElementById('fileModalContent').innerHTML = `<textarea class="editor" id="editText">${esc(currentFile.content||'')}</textarea>`;
+    if((currentFile.content===null||currentFile.content===undefined) && currentFile.file){
+      const rd=new FileReader();
+      rd.onload=e=>{ currentFile.content=e.target.result; const ta=document.getElementById('editText'); if(ta) ta.value=currentFile.content; };
+      rd.readAsText(currentFile.file);
+    }
+  } else if(currentFile.kind==='image'){
+    renderImageEdit();
+  }
+}
+function cancelEdit(){
+  document.getElementById('btnEdit').hidden = false;
+  document.getElementById('btnSave').hidden = true;
+  document.getElementById('btnCancel').hidden = true;
+  renderPreview();
+}
+function saveEdit(){
+  if(currentFile.kind==='text'){
+    const ta = document.getElementById('editText');
+    if(ta) currentFile.content = ta.value;
+  } else if(currentFile.kind==='image'){
+    const cv = document.getElementById('editCanvas');
+    if(cv) currentFile.url = cv.toDataURL('image/png');
+  }
+  // 附件模式：编辑结果回写附件条目并刷新制作窗口附件区
+  if(editingAttachIdx!==null && mkCtx.files && mkCtx.files[editingAttachIdx]){
+    const ent = mkCtx.files[editingAttachIdx];
+    ent.url = currentFile.url; ent.content = currentFile.content;
+    if(!document.getElementById('mkModal').hidden){
+      mkToggle(document.getElementById('mkTabPrev').classList.contains('primary')?'preview':'edit');
+    }
+  }
+  editingAttachIdx = null;
+  cancelEdit();
+  renderFileList();
+}
+
+function renderImageEdit(){
+  document.getElementById('fileModalContent').innerHTML = `
+    <div class="toolbar">
+      <button class="cbtn on" style="background:#d64545" onclick="setColor('#d64545',this)"></button>
+      <button class="cbtn" style="background:#1767c9" onclick="setColor('#1767c9',this)"></button>
+      <button class="cbtn" style="background:#11836b" onclick="setColor('#11836b',this)"></button>
+      <button class="cbtn" style="background:#db8328" onclick="setColor('#db8328',this)"></button>
+      <button class="btn small" onclick="clearCanvas()">清空标注</button>
+      <span class="muted" style="font-size:11px">按住鼠标/手指在图上绘制标注</span>
+    </div>
+    <canvas id="editCanvas" class="editor"></canvas>`;
+  const img = new Image();
+  img.onload = ()=>{
+    const canvas = document.getElementById('editCanvas');
+    const maxW = 820, maxH = 520;
+    const scale = Math.min(maxW/img.naturalWidth, maxH/img.naturalHeight, 1);
+    canvas.width = Math.max(1, Math.round(img.naturalWidth*scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight*scale));
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    setupCanvas(canvas);
+  };
+  img.src = currentFile.url;
+}
+function setColor(c, btn){ drawColor = c; document.querySelectorAll('.toolbar .cbtn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
+function clearCanvas(){ const cv=document.getElementById('editCanvas'); if(cv){ const ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height); } }
+function setupCanvas(canvas){
+  const ctx = canvas.getContext('2d');
+  let drawing=false, lx=0, ly=0;
+  const pos = e => { const r=canvas.getBoundingClientRect(); return { x:(e.clientX-r.left)*(canvas.width/r.width), y:(e.clientY-r.top)*(canvas.height/r.height) }; };
+  const down = e => { drawing=true; const p=pos(e); lx=p.x; ly=p.y; };
+  const move = e => { if(!drawing) return; const p=pos(e); ctx.strokeStyle=drawColor; ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(p.x,p.y); ctx.stroke(); lx=p.x; ly=p.y; };
+  const up = () => drawing=false;
+  canvas.addEventListener('mousedown',down); canvas.addEventListener('mousemove',move); canvas.addEventListener('mouseup',up); canvas.addEventListener('mouseleave',up);
+  canvas.addEventListener('touchstart',e=>{ e.preventDefault(); const t=e.touches[0]; down({clientX:t.clientX,clientY:t.clientY}); },{passive:false});
+  canvas.addEventListener('touchmove',e=>{ e.preventDefault(); const t=e.touches[0]; move({clientX:t.clientX,clientY:t.clientY}); },{passive:false});
+  canvas.addEventListener('touchend',up);
+}
+
+function setupUpload(){
+  const dz = document.getElementById('dropzone');
+  const fi = document.getElementById('fileInput');
+  if(!dz || !fi) return;
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', ()=> dz.classList.remove('drag'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
+  fi.addEventListener('change', e=>{ handleFiles(e.target.files); e.target.value=''; });
+}
+
+/* ---- AI 智能录入（PaddleOCR / FunASR / Qwen2.5-VL） ---- */
+const AI_HOST = 'http://' + location.hostname + ':8002';
+async function aiRun(kind){
+  const f = document.getElementById('aiFile').files[0];
+  if(!f){ alert('请先选择图片或音频文件'); return; }
+  const box = document.getElementById('aiResult');
+  box.innerHTML = '<div class="muted">识别中…（首次加载模型可能较慢）</div>';
+  try{
+    const fd = new FormData();
+    fd.append('file', f);
+    if(kind === 'vl') fd.append('prompt', '请识别图片中的产品名称、型号、额定功率、色温、防护等级等关键参数，以「键：值」逐行输出');
+    const r = await fetch(AI_HOST + '/' + kind, { method:'POST', body: fd });
+    if(!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    box.innerHTML = renderAiResult(kind, data);
+    const isMock = (data.engine||'').indexOf('mock') === 0;
+    document.getElementById('aiEngine').textContent = isMock ? '模拟识别（未安装模型）' : data.engine;
+  }catch(e){
+    box.innerHTML = `<div class="notice warn">AI 服务不可用（${e.message}）。请启动：<code>cd services/ai-entry &amp;&amp; uvicorn app:app --host 0.0.0.0 --port 8001</code>，未装模型时服务会返回模拟结果。</div>`;
+  }
+}
+function renderAiResult(kind, d){
+  const isMock = (d.engine||'').indexOf('mock') === 0;
+  const tag = isMock ? '<span class="tag orange">模拟识别</span>' : '<span class="tag green">'+esc(d.engine)+'</span>';
+  let html = '<div class="row" style="margin-bottom:8px">'+tag+' <span class="muted" style="font-size:12px">'+esc(d.filename||'')+'</span></div>';
+  if(kind === 'ocr'){
+    html += '<div class="iframebox">' + (d.lines||[]).map(l=>`<div style="padding:3px 0">${esc(l.text)} <span class="muted" style="font-size:11px">${((l.conf||0)*100).toFixed(1)}%</span></div>`).join('') + '</div>';
+  } else if(kind === 'table'){
+    html += (d.elements||[]).map(e=> e.type==='table' ? `<div class="iframebox">${e.html||''}</div>` : `<div class="iframebox">${esc(e.text||'')}</div>`).join('');
+  } else if(kind === 'asr'){
+    html += `<div class="iframebox">${esc(d.text||'')}</div><div class="row" style="margin-top:8px"><button class="btn small" onclick="fillAiText('${esc(d.text||'')}')">填入说明</button><button class="btn small" onclick="copyText('${esc(d.text||'')}')">复制</button></div>`;
+  } else if(kind === 'vl'){
+    html += `<div class="iframebox" style="white-space:pre-wrap">${esc(d.answer||'')}</div><div class="row" style="margin-top:8px"><button class="btn small" onclick="copyText('${esc(d.answer||'')}')">复制</button></div>`;
+  }
+  return html;
+}
+function fillAiText(t){
+  const ta = document.querySelector('#capFields textarea');
+  if(ta){ ta.value = t; return; }
+  const inp = document.querySelector('#capFields input');
+  if(inp){ inp.value = t; }
+}
+function copyText(t){
+  const ta = document.createElement('textarea');
+  ta.value = t; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); alert('已复制'); }catch(e){}
+  ta.remove();
+}
+
+/* ---- 水印（tools-node 服务 pdf-lib/sharp） ---- */
+const TOOL_HOST = 'http://' + location.hostname + ':8003';
+async function watermarkFile(){
+  if(!currentFile || !currentFile.file){ alert('请先上传文件'); return; }
+  const kind = currentFile.kind;
+  const fd = new FormData();
+  fd.append('file', currentFile.file);
+  fd.append('watermark', '恒剑光电 内部资料');
+  try{
+    const r = await fetch(TOOL_HOST + '/watermark/' + (kind==='pdf'?'pdf':'image'), { method:'POST', body: fd });
+    if(!r.ok) throw new Error(r.status);
+    const ct = r.headers.get('content-type') || '';
+    if(ct.indexOf('application/json') === 0){
+      const j = await r.json();
+      alert('水印服务为模拟模式（' + j.engine + '）。请安装依赖：cd services/tools-node && npm install');
+      return;
+    }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'watermarked_' + (currentFile.name || 'file');
+    a.click();
+  }catch(e){ alert('水印服务不可用（'+e.message+'），请启动 services/tools-node（端口 8003）'); }
+}
+
+// 预加载模块与权限矩阵用于 role 页
+(async function preload(){ try{ const { roles, modules } = await get('/roles'); state._mods = modules; state._rolePerms = {}; roles.forEach(r=>{ state._rolePerms[r.code] = r.perms; }); }catch(e){} })();
+
+init();
+</script>
+</body>
+</html>
