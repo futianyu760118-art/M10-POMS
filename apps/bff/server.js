@@ -13,6 +13,7 @@ const assembly = require('../../packages/assembly');
 const capture = require('../../packages/capture');
 const m01 = require('../../adapters/m01');
 const m07 = require('../../adapters/m07');
+const hlc = require('../../adapters/hlc');
 const org = require('../../adapters/org');
 const plm2 = require('../../adapters/plm2');
 const plmSync = require('../../adapters/plm2/sync');
@@ -541,7 +542,9 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/v1/poms/me/work-items' && req.method === 'GET') {
       const p = m01.getPerson(q.person_id);
       const isAdmin = p.capabilities.includes('hlc:request:read');
-      const all = m07.listRequests(q);
+      let all, source = 'm07-mock';
+      try { all = await hlc.listRequests({ ...q, requester: q.person_id }, q.person_id); source = 'hlc-rest'; }
+      catch (e) { all = m07.listRequests(q); source = 'm07-mock-fallback'; }
       const items = all
         .filter(r => isAdmin || r.requester === p.person_id || r.assignee === p.person_id)
         .filter(r => ['CLOSED', 'ARCHIVED', 'REJECTED', 'CANCELLED'].indexOf(r.state) < 0)
@@ -554,38 +557,68 @@ const server = http.createServer(async (req, res) => {
           source_object_id: r.id,
           title: r.subject,
           display_status: r.state.toLowerCase(),
-          due_at: r.sla ? '2026-' + r.sla + 'T09:00:00+08:00' : null,
+          due_at: r.sla && /^\d{4}/.test(r.sla) ? r.sla : (r.sla ? '2026-' + r.sla + 'T09:00:00+08:00' : null),
           allowed_action_refs: allowedActions(p, r)
         }));
-      return send(res, 200, { items });
+      return send(res, 200, { items, source });
     }
 
     if (pathname === '/api/v1/poms/me/results' && req.method === 'GET') {
       const p = m01.getPerson(q.person_id);
-      const results = m07.listRequests(q)
+      let all, source = 'm07-mock';
+      try { all = await hlc.listRequests({ ...q, requester: q.person_id }, q.person_id); source = 'hlc-rest'; }
+      catch (e) { all = m07.listRequests(q); source = 'm07-mock-fallback'; }
+      const results = all
         .filter(r => r.state === 'CLOSED' || r.state === 'ARCHIVED')
         .map(r => ({ result_id: r.result_ref || 'res_' + r.id, source_system: 'M07', source_object_id: r.id, verification: r.verified_by ? 'verified' : 'pending', evidence_refs: r.evidence_refs, verified_by: r.verified_by, verified_at: r.verified_at }));
-      return send(res, 200, { results });
+      return send(res, 200, { results, source });
+    }
+
+    if (pathname === '/api/v1/hlc/status' && req.method === 'GET') {
+      return send(res, 200, await hlc.status());
     }
 
     if (pathname === '/api/v1/hlc/people' && req.method === 'GET') {
-      return send(res, 200, { people: m07.getPeople() });
+      const people = m07.getPeople();
+      const st = await hlc.status();
+      // 标注哪些演示演员已映射真实 HLC 账号（未映射的写操作走服务账号）
+      people.forEach(p => { p.hlc_real = !!hlc.ACTORS[p.person_id]; });
+      return send(res, 200, { people, source: st.connected ? 'hlc-rest' : 'm07-mock', hlc: st });
     }
 
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'POST') {
       const body = await readBody(req);
       const idempotency_key = req.headers['idempotency-key'] || body.idempotency_key;
-      const created = m07.createRequest({ ...body, idempotency_key });
-      if (!created.replay) m07.submitRequest(created.id, body.requester);
-      return send(res, created.replay ? 200 : 201, { ...m07.getRequest(created.id), history: undefined, replay: created.replay });
+      try {
+        const created = await hlc.createRequest({ ...body, idempotency_key }); // 真实 HLC：DRAFT
+        if (!created.replay) await hlc.submitRequest(created.id, body.requester);
+        const full = await hlc.getRequest(created.id, body.requester);
+        return send(res, created.replay ? 200 : 201, { ...full, history: undefined, replay: created.replay, source: 'hlc-rest' });
+      } catch (e) {
+        if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e; // 业务错误如实上抛
+        // HLC 不可达 → 降级 mock（与 PLM 读透降级同策略）
+        const created = m07.createRequest({ ...body, idempotency_key });
+        if (!created.replay) m07.submitRequest(created.id, body.requester);
+        return send(res, created.replay ? 200 : 201, { ...m07.getRequest(created.id), history: undefined, replay: created.replay, source: 'm07-mock-fallback', hlc_error: e.message });
+      }
     }
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'GET') {
-      return send(res, 200, { requests: m07.listRequests(q) });
+      try {
+        return send(res, 200, { requests: await hlc.listRequests(q, q.person_id), source: 'hlc-rest' });
+      } catch (e) {
+        if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
+        return send(res, 200, { requests: m07.listRequests(q), source: 'm07-mock-fallback', hlc_error: e.message });
+      }
     }
 
     let srMatch = pathname.match(/^\/api\/v1\/hlc\/service-requests\/([^/]+)$/);
     if (srMatch && req.method === 'GET') {
-      return send(res, 200, m07.getRequest(srMatch[1]));
+      try {
+        return send(res, 200, await hlc.getRequest(srMatch[1], q.person_id));
+      } catch (e) {
+        if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
+        return send(res, 200, m07.getRequest(srMatch[1]));
+      }
     }
 
     let trMatch = pathname.match(/^\/api\/v1\/hlc\/service-requests\/([^/]+)\/transitions$/);
@@ -596,8 +629,14 @@ const server = http.createServer(async (req, res) => {
       // 服务端执行前再鉴权（UI 隐藏 ≠ 权限控制）
       if (['TRIAGED', 'ASSIGNED'].includes(next) && !actor.capabilities.includes('hlc:request:assign')) throw Object.assign(new Error('permission denied'), { status: 403 });
       if (['APPROVED', 'REJECTED', 'POLICY_CHECKED'].includes(next) && !actor.capabilities.includes('hlc:request:approve')) throw Object.assign(new Error('permission denied'), { status: 403 });
-      const updated = m07.transition(trMatch[1], next, { actor: body.actor, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla });
-      return send(res, 200, updated);
+      try {
+        const updated = await hlc.transition(trMatch[1], next, { actor: body.actor, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla, scope: body.scope, expectedVersion: body.expected_version });
+        return send(res, 200, { ...updated, source: 'hlc-rest' });
+      } catch (e) {
+        if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
+        const updated = m07.transition(trMatch[1], next, { actor: body.actor, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla });
+        return send(res, 200, { ...updated, source: 'm07-mock-fallback', hlc_error: e.message });
+      }
     }
 
     if (pathname === '/api/v1/agents/personal/sessions' && req.method === 'POST') {
@@ -613,17 +652,19 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
   const os = require('os');
   const lanIps = Object.values(os.networkInterfaces()).flat()
     .filter(n => n && n.family === 'IPv4' && !n.internal)
     .map(n => n.address);
-  console.log('M10 POMS BFF (L0 mock) 已启动: http://localhost:' + PORT);
+  const hlcSt = await hlc.status().catch(() => ({ connected: false }));
+  console.log('M10 POMS BFF 已启动: http://localhost:' + PORT);
   lanIps.forEach(ip => console.log('  局域网访问:  http://' + ip + ':' + PORT + '/'));
   console.log('  系统门户:   http://localhost:' + PORT + '/');
   console.log('  岗位装配:   http://localhost:' + PORT + '/org');
   console.log('  PLM-2 研发中心: http://localhost:' + PORT + '/plm2');
   console.log('  M07+M10 双端: http://localhost:' + PORT + '/hlc');
+  console.log('  HLC 真实后端: ' + (hlcSt.connected ? '已连接 ' + hlcSt.api + '（/api/v1/hlc/* 走真实接口）' : '未连接（降级 mock，' + (hlcSt.error || 'HLC_API 未配置或不可达') + '）'));
   console.log('  恒剑 M07+M10: http://localhost:' + PORT + '/api/v1/poms/me/workspace?person_id=p-002');
   console.log('  API 示例:   http://localhost:' + PORT + '/poms/v1/me/manifest?actor_id=u-1001&product_family=led-light');
   console.log('  契约测试:   npm test');

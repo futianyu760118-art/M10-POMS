@@ -428,4 +428,44 @@ test('越权采集被拒绝：工程师提交 IQC 返回 403', () => {
   assert.throws(() => plm2.submitCapture({ partNo: 'HJ202607010001', captureType: 'IQC', role: 'ENGINEER', operator: '包跃', idempotency_key: 'ik-iqc-' + Date.now() }), e => e.status === 403);
 });
 
+/* ---------- HLC 真实后端适配（adapters/hlc 纯函数契约） ---------- */
+const hlc = require('../../adapters/hlc');
+
+test('HLC 适配：next_state→action 映射覆盖全部后勤状态', () => {
+  assert.strictEqual(hlc.resolveAction('DRAFT', 'SUBMITTED'), 'submit');
+  assert.strictEqual(hlc.resolveAction('SUBMITTED', 'TRIAGED'), 'triage');
+  assert.strictEqual(hlc.resolveAction('NEEDS_INFO', 'TRIAGED'), 'provide_info');
+  assert.strictEqual(hlc.resolveAction('TRIAGED', 'ASSIGNED'), 'assign');
+  assert.strictEqual(hlc.resolveAction('ASSIGNED', 'ASSIGNED'), 'reassign');
+  assert.strictEqual(hlc.resolveAction('ASSIGNED', 'IN_PROGRESS'), 'start');
+  assert.strictEqual(hlc.resolveAction('IN_PROGRESS', 'AWAITING_ACCEPTANCE'), 'submit_resolution');
+  assert.strictEqual(hlc.resolveAction('AWAITING_ACCEPTANCE', 'CLOSED'), 'close');
+  assert.strictEqual(hlc.resolveAction('IN_PROGRESS', 'NEEDS_INFO'), 'needs_info');
+  assert.strictEqual(hlc.resolveAction('SUBMITTED', 'REJECTED'), 'reject');
+  assert.strictEqual(hlc.resolveAction('SUBMITTED', 'CANCELLED'), 'cancel');
+  assert.strictEqual(hlc.resolveAction('CLOSED', 'REOPENED'), 'reopen');
+});
+
+test('HLC 适配：请假流程（真实 HLC 未实现）返回 422', () => {
+  assert.throws(() => hlc.resolveAction('SUBMITTED', 'POLICY_CHECKED'), e => e.status === 422);
+  assert.throws(() => hlc.resolveAction('APPROVAL_PENDING', 'APPROVED'), e => e.status === 422);
+});
+
+test('HLC 适配：SLA 宽松解析（MM-DD / N天 / ISO）', () => {
+  assert(/\d{4}-\d{2}-\d{2}T09:00:00$/.test(hlc.parseSla('10-17')), 'MM-DD → 今年ISO');
+  assert(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(hlc.parseSla('3 天')), '中文天数 → now+N');
+  assert.strictEqual(hlc.parseSla('2026-11-01T18:00:00'), '2026-11-01T18:00:00', 'ISO 直通');
+  assert(hlc.parseSla('随便写的'), '非法输入兜底 now+3d');
+});
+
+test('HLC 适配：真实响应 camelCase → M10 snake_case 契约', () => {
+  const m = hlc.mapRequest({ id: 'lr-1', requestType: 'logistics_repair', subject: '灯坏', status: 'ASSIGNED', requesterId: 'u-9', requesterName: '张三', assigneeId: 'u-8', slaDueAt: '2026-10-20T09:00:00', stateVersion: 3, evidenceRefs: ['ev-1'], resultRef: null });
+  assert.strictEqual(m.type, 'logistics_repair');
+  assert.strictEqual(m.state, 'ASSIGNED');
+  assert.strictEqual(m.object_version, 3);
+  assert.strictEqual(m.sla, '2026-10-20T09:00:00');
+  assert.deepStrictEqual(m.evidence_refs, ['ev-1']);
+  assert.strictEqual(m.history, undefined, '列表不携带 history');
+});
+
 console.log('\n结果: ' + passed + ' 项通过' + (process.exitCode ? '（存在失败）' : ''));

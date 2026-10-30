@@ -223,6 +223,16 @@
       "states": { "repair": "DRAFT→SUBMITTED→TRIAGED→ASSIGNED→IN_PROGRESS→AWAITING_ACCEPTANCE→CLOSED", "leave": "DRAFT→SUBMITTED→POLICY_CHECKED→APPROVAL_PENDING→APPROVED→APPLIED→ARCHIVED" },
       "constraints": ["执行者不可自验(403)", "处理完成必须留证(422)", "非法跳转(409)"],
       "usage": "M07+M10 双端的标准审批闭环"
+    },
+    {
+      "id": "m10.hlc.real-adapter",
+      "name": "HLC 真实后端接入（对齐 PLM 模式）",
+      "category": "同步",
+      "description": "adapters/hlc 经恒聘通 Flask REST（/api/v1/hlc/service-requests）读写真实 M07 工单；BFF 真实优先、不可达降级 mock",
+      "env": { "HLC_API": "http://localhost:18280", "HLC_USER": "服务账号", "HLC_PASS": "服务账号密码", "HLC_TENANT": "HPT-00000001", "HLC_ACTORS": "person_id→账号 JSON 映射" },
+      "mapping": { "next_state→action": "SUBMITTED→submit, TRIAGED→triage/provide_info, ASSIGNED→assign/reassign, IN_PROGRESS→start, AWAITING_ACCEPTANCE→submit_resolution, CLOSED→close, NEEDS_INFO→needs_info, REJECTED→reject, CANCELLED→cancel, REOPENED→reopen", "camelCase→snake_case": "requestType→type, status→state, stateVersion→object_version, slaDueAt→sla" },
+      "constraints": ["演员令牌各自缓存25min(兼岗互不越权)", "4xx业务错误如实上抛不降级", "网络错误降级m07-mock并带hlc_error", "幂等Key本地记重放", "leave流程真实HLC未实现(422→S6)", "maker-checker由真实HLC终审"],
+      "usage": "M10 双端页面操作真实恒聘通 M07 数据，与 adapters/plm2 同一套接入范式"
     }
   ],
   "plmRealAgents": [

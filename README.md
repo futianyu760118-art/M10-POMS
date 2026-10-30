@@ -115,6 +115,16 @@ GET /api/v1/org/assemble?company=&department=&position=  装配（职责/任务/
 - 后勤维修：`DRAFT → SUBMITTED → TRIAGED → ASSIGNED → IN_PROGRESS → AWAITING_ACCEPTANCE → CLOSED`
 - 请假：`DRAFT → SUBMITTED → POLICY_CHECKED → APPROVAL_PENDING → APPROVED/REJECTED → APPLIED → ARCHIVED`
 
+## HLC 真实后端接入（对齐 PLM-2 模式）
+
+`/api/v1/hlc/*` 不再只走 mock：新增 `adapters/hlc` 经恒聘通 Flask REST（恒剑 HLC 仓库 `backend-python/routes/hlc.py`）读写真实 M07 工单，接入范式与 `adapters/plm2` 一致。
+
+- **配置**：`HLC_API`（默认 http://localhost:18280，恒聘通 Nginx 入口）、`HLC_USER/HLC_PASS`（服务账号兜底）、`HLC_TENANT`、`HLC_ACTORS`（M10 person_id → 真实账号 JSON，默认 p-002=hr_admin、p-003=manager）
+- **映射**：M10 的 next_state（状态目标式）→ HLC 的 action（动作式）；camelCase ↔ snake_case 契约互转；SLA 宽松解析（'10-17'/'2 天'/ISO）
+- **降级**：4xx 业务错误如实上抛（409/403/422 语义与真实 HLC 一致）；网络不可达自动降级 `m07-mock-fallback` 并带 `hlc_error`
+- **观测**：响应带 `source: 'hlc-rest' | 'm07-mock-fallback'`；`GET /api/v1/hlc/status` 查看连接与演员映射；people 列表带 `hlc_real` 标注
+- **范围**：请假流程真实 HLC 暂未实现（返回 422，候选 Backlog S6）；maker-checker/幂等/证据约束由真实 HLC 终审
+
 ## 契约 API（对齐恒剑信息包 03 章）
 
 ```
