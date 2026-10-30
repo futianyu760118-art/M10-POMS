@@ -74,6 +74,11 @@ body{font-family:system-ui,"Microsoft YaHei",sans-serif;background:var(--bg);col
       <div class="field"><label>③ 岗位</label><select id="position" disabled><option>请先选部门</option></select></div>
     </div>
     <div class="stepper" id="stepper"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+      <button id="btnConfirm" class="btn primary" style="display:none" onclick="confirmAssembly()">✔ 确认装配</button>
+      <button id="btnRework" class="btn" style="display:none" onclick="reworkAssembly()">重新装配</button>
+      <span id="confirmInfo" style="font-size:12px;color:var(--muted)"></span>
+    </div>
   </div>
 
   <div class="notice" id="tip">演示数据来自《AEOS_M07_M10_可开发资料包 V1.0》与 V2.3 能力包；岗位职责与任务项为本地模拟，未连接生产接口。</div>
@@ -131,6 +136,13 @@ async function assemble(){
   if(!pos){ clearResult(); return; }
   const data = await get('/assemble?company='+cid+'&department='+encodeURIComponent(dep)+'&position='+encodeURIComponent(pos));
   doneSet.clear();
+  assembled = data;
+  const btn = document.getElementById('btnConfirm');
+  if(btn){
+    btn.style.display = '';
+    document.getElementById('btnRework').style.display = 'none';
+    document.getElementById('confirmInfo').textContent = '';
+  }
   render(data);
 }
 
@@ -185,6 +197,30 @@ function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 document.getElementById('company').onchange = loadDepartments;
 document.getElementById('department').onchange = loadPositions;
 document.getElementById('position').onchange = assemble;
+
+let assembled = null;
+function confirmAssembly(){
+  if(!assembled) return;
+  const btn = document.getElementById('btnConfirm');
+  const rw = document.getElementById('btnRework');
+  const info = document.getElementById('confirmInfo');
+  btn.style.display = 'none';
+  rw.style.display = '';
+  ['company','department','position'].forEach(id => document.getElementById(id).disabled = true);
+  const d = assembled;
+  info.innerHTML = `✅ 已确认装配：<b>${esc(d.company.short)} · ${esc(d.department)} · ${esc(d.position)}</b>（职责 ${d.duties.length} 项 / 任务 ${d.tasks.length} 项 / 能力包 ${d.packs.length} 个 · manifest ${d.manifest.manifest_id}）`;
+  const c = document.getElementById('stepper');
+  if(c) c.insertAdjacentHTML('beforeend', ' <span style="color:#1c9a66;font-weight:700">✔ 已确认</span>');
+}
+function reworkAssembly(){
+  assembled = null;
+  document.getElementById('btnConfirm').style.display = 'none';
+  document.getElementById('btnRework').style.display = 'none';
+  document.getElementById('confirmInfo').textContent = '';
+  ['company','department','position'].forEach(id => document.getElementById(id).disabled = false);
+  clearResult();
+  document.getElementById('stepper').innerHTML = '';
+}
 
 init().catch(e=>{
   document.getElementById('result').innerHTML = '<div class="empty"><div class="big">⚠️</div>无法连接装配服务（'+e.message+'）<br><span style="font-size:12px">请通过 npm start 启动 BFF 后访问 http://localhost:4173/</span></div>';
