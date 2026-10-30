@@ -250,6 +250,7 @@ const server = http.createServer(async (req, res) => {
       const pcbPath = path.join(outDir, base + '.kicad_pcb').replace(/\\/g, '/');
       fs.writeFileSync(schPath, r.sch, 'utf8');
       fs.writeFileSync(pcbPath, r.pcb, 'utf8');
+      fs.writeFileSync(path.join(outDir, base + '.kicad_pro'), JSON.stringify({ board: {}, meta: { filename: base + '.kicad_pro', version: 0 } }, null, 2), 'utf8');
       return send(res, 200, {
         ok: true,
         title: r.circuit.title,
@@ -285,6 +286,7 @@ const server = http.createServer(async (req, res) => {
       const pcbPath = path.join(outDir, base + '.kicad_pcb').replace(/\\/g, '/');
       fs.writeFileSync(schPath, sch, 'utf8');
       fs.writeFileSync(pcbPath, pcb, 'utf8');
+      fs.writeFileSync(path.join(outDir, base + '.kicad_pro'), JSON.stringify({ board: {}, meta: { filename: base + '.kicad_pro', version: 0 } }, null, 2), 'utf8');
       return send(res, 200, {
         ok: true,
         title: structure.title,
@@ -302,9 +304,14 @@ const server = http.createServer(async (req, res) => {
       if (!file.startsWith(outDir)) return send(res, 403, { ok: false, error: '只能打开生成目录内的文件' });
       const bin = (TOOLS.tools.find(t => t.id === 'kicad') || {}).bin;
       if (!bin || !fs.existsSync(bin)) return send(res, 503, { ok: false, error: 'KiCad 未安装' });
-      const child = spawn(bin, [file], { cwd: path.dirname(bin), detached: true, stdio: 'ignore', windowsHide: false });
+      // kicad.exe 是项目管理器：按扩展名路由到对应编辑器（pcb→pcbnew，sch→eeschema）
+      const ext = path.extname(file).toLowerCase();
+      const exe = ext === '.kicad_pcb' ? 'pcbnew.exe' : ext === '.kicad_sch' ? 'eeschema.exe' : path.basename(bin);
+      const binExe = path.join(path.dirname(bin), exe);
+      if (!fs.existsSync(binExe)) return send(res, 500, { ok: false, error: '未找到 ' + exe });
+      const child = spawn(binExe, [file], { cwd: path.dirname(bin), detached: true, stdio: 'ignore', windowsHide: false });
       child.unref();
-      return send(res, 200, { ok: true, file, pid: child.pid });
+      return send(res, 200, { ok: true, file, exe, pid: child.pid });
     }
     const kicadPreview = pathname.match(/^\/api\/v1\/plm2\/tools\/kicad\/preview$/);
     if (kicadPreview && req.method === 'GET') {
