@@ -5,7 +5,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
-const { spawn } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
+const circuit = require('../../packages/circuit');
 
 const ROOT = path.join(__dirname, '..', '..');
 const assembly = require('../../packages/assembly');
@@ -193,7 +194,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, plm2.deptTodos(q.user));
     }
     if (pathname === '/api/v1/plm2/work-items' && req.method === 'GET') {
-      return send(res, 200, { items: plm2.listWorkItems(q.user) });
+      const wsTodos = plm2.listApprovalTodos(q.user).filter(t => t.status === 'OPEN');
+      return send(res, 200, { items: [...wsTodos, ...plm2.listWorkItems(q.user)] });
     }
     if (pathname === '/api/v1/plm2/materials' && req.method === 'GET') {
       return send(res, 200, { materials: plm2.listMaterials(q.role) });
@@ -228,6 +230,117 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: true, id, name: tool.name, pid: child.pid, launched: true });
       } catch (e) {
         return send(res, 500, { ok: false, launched: false, error: '启动失败：' + e.message });
+      }
+    }
+    const kicadGen = pathname.match(/^\/api\/v1\/plm2\/tools\/kicad\/generate$/);
+    if (kicadGen && req.method === 'POST') {
+      const body = await readBody(req);
+      let r;
+      if (body.params && Array.isArray(body.params.components)) {
+        r = circuit.generate({ supply: body.params.supply, components: body.params.components });
+      } else {
+        const text = String(body.text || body.prompt || '').trim();
+        if (!text) return send(res, 422, { ok: false, error: '请输入电路需求描述（通俗语言）或元件参数' });
+        r = circuit.generate(text);
+      }
+      const outDir = process.env.KICAD_OUT_DIR || 'D:/KiCad/generated';
+      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+      const base = 'gen_' + Date.now().toString(36);
+      const schPath = path.join(outDir, base + '.kicad_sch').replace(/\\/g, '/');
+      const pcbPath = path.join(outDir, base + '.kicad_pcb').replace(/\\/g, '/');
+      fs.writeFileSync(schPath, r.sch, 'utf8');
+      fs.writeFileSync(pcbPath, r.pcb, 'utf8');
+      return send(res, 200, {
+        ok: true,
+        title: r.circuit.title,
+        supply: r.circuit.supply,
+        components: r.circuit.components,
+        nets: r.circuit.nets,
+        schPath, pcbPath
+      });
+    }
+    const kicadGenAi = pathname.match(/^\/api\/v1\/plm2\/tools\/kicad\/generate-ai$/);
+    if (kicadGenAi && req.method === 'POST') {
+      const body = await readBody(req);
+      let structure;
+      const deepseek = require('../../packages/circuit/deepseek');
+      const schComplex = require('../../packages/circuit/sch-complex');
+      if (body.structure && Array.isArray(body.structure.components)) {
+        if (body.edit && String(body.edit).trim()) {
+          structure = await deepseek.editStructure(body.structure, body.edit);
+        } else {
+          structure = body.structure;
+        }
+      } else {
+        const text = String(body.text || body.prompt || '').trim();
+        if (!text) return send(res, 422, { ok: false, error: '请输入电路需求/BOM 描述' });
+        structure = await deepseek.analyze(text);
+      }
+      const sch = schComplex.genComplexSch(structure);
+      const pcb = schComplex.genComplexPcb(structure);
+      const outDir = process.env.KICAD_OUT_DIR || 'D:/KiCad/generated';
+      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+      const base = 'ai_' + Date.now().toString(36);
+      const schPath = path.join(outDir, base + '.kicad_sch').replace(/\\/g, '/');
+      const pcbPath = path.join(outDir, base + '.kicad_pcb').replace(/\\/g, '/');
+      fs.writeFileSync(schPath, sch, 'utf8');
+      fs.writeFileSync(pcbPath, pcb, 'utf8');
+      return send(res, 200, {
+        ok: true,
+        title: structure.title,
+        topology: structure.topology,
+        components: structure.components,
+        connections: structure.connections,
+        schPath, pcbPath
+      });
+    }
+    const kicadOpen = pathname.match(/^\/api\/v1\/plm2\/tools\/kicad\/open$/);
+    if (kicadOpen && req.method === 'POST') {
+      const body = await readBody(req);
+      const file = path.normalize(String(body.file || ''));
+      const outDir = path.normalize(process.env.KICAD_OUT_DIR || 'D:/KiCad/generated');
+      if (!file.startsWith(outDir)) return send(res, 403, { ok: false, error: '只能打开生成目录内的文件' });
+      const bin = (TOOLS.tools.find(t => t.id === 'kicad') || {}).bin;
+      if (!bin || !fs.existsSync(bin)) return send(res, 503, { ok: false, error: 'KiCad 未安装' });
+      const child = spawn(bin, [file], { cwd: path.dirname(bin), detached: true, stdio: 'ignore', windowsHide: false });
+      child.unref();
+      return send(res, 200, { ok: true, file, pid: child.pid });
+    }
+    const kicadPreview = pathname.match(/^\/api\/v1\/plm2\/tools\/kicad\/preview$/);
+    if (kicadPreview && req.method === 'GET') {
+      const file = path.normalize(String(q.file || ''));
+      const outDir = path.normalize(process.env.KICAD_OUT_DIR || 'D:/KiCad/generated');
+      if (!file.startsWith(outDir)) return send(res, 403, { ok: false, error: '只能预览生成目录内的文件' });
+      if (!fs.existsSync(file)) return send(res, 404, { ok: false, error: '文件不存在' });
+      const bin = (TOOLS.tools.find(t => t.id === 'kicad') || {}).bin;
+      if (!bin || !fs.existsSync(bin)) return send(res, 503, { ok: false, error: 'KiCad 未安装' });
+      const kicadCli = path.join(path.dirname(bin), 'kicad-cli.exe');
+      const ext = path.extname(file).toLowerCase();
+      const sub = ext === '.kicad_sch' ? 'sch' : 'pcb';
+      const baseDir = fs.mkdtempSync(path.join(path.dirname(file), '_pv_'));
+      const posix = (p) => p.replace(/\\/g, '/');
+      try {
+        let svg;
+        if (sub === 'pcb') {
+          // pcb export svg：-o 是输出文件本身（直接读取该文件）
+          const outFile = path.join(baseDir, 'out.svg');
+          execFileSync(kicadCli, ['pcb', 'export', 'svg', '-l', 'F.Cu,Edge.Cuts,F.SilkS,F.Fab', '-o', posix(outFile), posix(file)], { stdio: 'ignore', timeout: 60000, windowsHide: true });
+          svg = fs.readFileSync(outFile, 'utf8');
+        } else {
+          // sch export svg：-o 是输出目录（kicad 自建并写入 <名>.svg）
+          const outDir2 = path.join(baseDir, 'out');
+          execFileSync(kicadCli, ['sch', 'export', 'svg', '-o', posix(outDir2), posix(file)], { stdio: 'ignore', timeout: 60000, windowsHide: true });
+          const svgFile = fs.readdirSync(outDir2).find(f => f.endsWith('.svg'));
+          if (!svgFile) throw new Error('SVG 导出失败');
+          svg = fs.readFileSync(path.join(outDir2, svgFile), 'utf8');
+        }
+        if (!svg.includes('<svg')) throw new Error('SVG 内容无效');
+        fs.rmSync(baseDir, { recursive: true, force: true });
+        res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(svg);
+      } catch (e) {
+        fs.rmSync(baseDir, { recursive: true, force: true });
+        return send(res, 500, { ok: false, error: '预览生成失败：' + e.message });
       }
     }
     if (pathname === '/api/v1/plm2/worksheet-types' && req.method === 'GET') {

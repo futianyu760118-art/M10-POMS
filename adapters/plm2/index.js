@@ -615,8 +615,33 @@ function makeWorksheet(input) {
       fields: data.fields, rows: data.rows, status: 'DRAFT', createdBy: actor || '—', createdAt: new Date().toISOString() };
     wsV2.unshift(rec);
   } else { rec.fields = data.fields; rec.rows = data.rows; }
-  if (action === 'submit') { rec.status = 'SUBMITTED'; rec.submittedAt = new Date().toISOString(); }
+  if (action === 'submit') {
+    rec.status = 'SUBMITTED'; rec.submittedAt = new Date().toISOString();
+    pushApprovalTodos(rec, tpl, p);   // 推送待审批待办给研发主管（在「我的待办」收到）
+  }
   return { ...rec, statusLabel: WS_STATUS_LABEL[rec.status], template: tpl.name, projectName: p.name };
+}
+
+// 提交 → 给所有研发主管（RD_LEAD）推送「资料待审批」待办（幂等：同一资料仅推一次）
+const wsApprovalTodos = []; // {itemNo, type, subject, status, ownerId, owner, wsV2Id, createdAt}
+function pushApprovalTodos(rec, tpl, p) {
+  if (wsApprovalTodos.some(t => t.wsV2Id === rec.id && t.status === 'OPEN')) return;
+  D.people.filter(x => x.role === 'RD_LEAD').forEach(lead => {
+    wsApprovalTodos.unshift({
+      itemNo: 'WIA' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+      type: 'WS_APPROVAL', subject: `资料待审批：${tpl.name}（${rec.projectNo}）· 提交人 ${rec.createdBy}`,
+      status: 'OPEN', ownerId: lead.id, owner: lead.name,
+      wsV2Id: rec.id, projectName: p.name, createdAt: new Date().toISOString()
+    });
+  });
+}
+// 审批完成/驳回 → 关闭该资料的待办
+function closeApprovalTodos(wsId) {
+  wsApprovalTodos.forEach(t => { if (t.wsV2Id === wsId) t.status = 'DONE'; });
+}
+// 我的待办（含资料审批待办）
+function listApprovalTodos(ownerId) {
+  return wsApprovalTodos.filter(t => !ownerId || t.ownerId === Number(ownerId)).map(t => ({ ...t }));
 }
 
 // 上级审批：批准 → 自动归档 + 节点联动 + 推送 PLM 对应表
@@ -629,6 +654,7 @@ function approveWorksheet(id, opts) {
   if (rec.createdBy === approver) throw Object.assign(new Error('制作人与审批人不能为同一人（职责分离）'), { status: 403 });
   rec.status = 'APPROVED'; rec.approvedBy = approver; rec.approvedAt = new Date().toISOString();
   rec.archiveRef = 'WSA-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+  closeApprovalTodos(id);
   // 归档 → 同步 PLM 对应业务表（携带项目/节点信息）
   const p = projects.find(x => x.projectNo === rec.projectNo);
   const payload = Object.assign({ project_no: rec.projectNo, node_code: rec.nodeCode, created_by: rec.createdBy, _archiveRef: rec.archiveRef }, rec.fields);
@@ -657,6 +683,7 @@ function rejectWorksheet(id, opts) {
   if (!rec) throw Object.assign(new Error('worksheet not found'), { status: 404 });
   if (rec.status !== 'SUBMITTED') throw Object.assign(new Error('仅待审批资料可驳回'), { status: 409 });
   rec.status = 'REJECTED'; rec.rejectReason = reason || ''; rec.approvedBy = approver;
+  closeApprovalTodos(id);
   return { ...rec, statusLabel: WS_STATUS_LABEL[rec.status] };
 }
 
@@ -789,6 +816,7 @@ module.exports = {
   listMaterials, listEcns, listWorkItems, listProcessRoutes,
   getGates, getNodeDefs, listProjects, getProject, createEcn, completeStep,
   getWorksheetDefs, getNodeWorksheetMap, listWorksheets, submitWorksheet,
+  listApprovalTodos,
   updateProjectStatus, updateProject, updateNode, updateMaterial, todosFor, deptTodos, getProjectAsync, flushSync, syncPull, syncStatus, createInitiation, listInitiations, transitionInitiation, getWsTemplates, getWorksheetHistory, makeWorksheet, approveWorksheet, rejectWorksheet, listWorksheetsV2, listWorksheetApprovals, nodeWsStatus,
   getCaptureTypes, submitCapture, listCaptures,
   transitionMaterial, ecnTransition, completeWorkItem, overview, hasPerm, reset

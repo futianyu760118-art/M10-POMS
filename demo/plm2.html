@@ -74,7 +74,7 @@ th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
 .filerow .bd small{font-size:11px;color:var(--muted)}
 .filerow .ops{display:flex;gap:6px;flex:none}
 .modal{position:fixed;inset:0;background:rgba(15,39,68,.55);z-index:50;display:flex;align-items:center;justify-content:center;padding:14px}
-#mkModal{z-index:60}#ndModal{z-index:62}#wsModal{z-index:61}#prjModal,#matModal{z-index:63}
+#mkModal{z-index:60}#ndModal{z-index:62}#wsModal{z-index:61}#prjModal,#matModal{z-index:63}#dwgModal{z-index:64}
 #fileModal{z-index:70}#loginOverlay{z-index:80}
 .modal[hidden]{display:none}
 .modalbox{background:#fff;border-radius:16px;width:100%;max-width:min(1180px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
@@ -254,6 +254,31 @@ details.panel[open] summary::before{content:'▾ '}
   </div>
 </div>
 
+<div class="modal" id="dwgModal" hidden>
+  <div class="modalbox" style="max-width:980px">
+    <div class="modalhead">
+      <b id="dwgTitle">图纸预览</b>
+      <div class="ops">
+        <button class="btn small" onclick="svgViewerZoom('dwgSch',0.8)">＋</button>
+        <button class="btn small" onclick="svgViewerZoom('dwgSch',1.25)">－</button>
+        <button class="btn small" onclick="svgViewerReset('dwgSch')">⟳ 原理图</button>
+        <button class="btn small" onclick="svgViewerZoom('dwgPcb',0.8)">＋</button>
+        <button class="btn small" onclick="svgViewerZoom('dwgPcb',1.25)">－</button>
+        <button class="btn small" onclick="svgViewerReset('dwgPcb')">⟳ PCB</button>
+        <button class="btn small" onclick="document.getElementById('dwgModal').hidden=true">关闭</button>
+      </div>
+    </div>
+    <div class="modalbody">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">原理图（滚轮缩放 · 拖拽平移）</div>
+      <div id="dwgSchViewer" style="border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;max-height:420px"></div>
+      <div id="dwgPcbWrap" style="display:none">
+        <div class="muted" style="font-size:11px;margin:10px 0 4px">PCB 板图（滚轮缩放 · 拖拽平移）</div>
+        <div id="dwgPcbViewer" style="border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;max-height:360px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = '/api/v1/plm2';
 const NAV = [['todos','我的待办'],['capture','采集录入'],['ecn','ECN 变更审批'],['material','物料生命周期'],['project','研发项目'],['process','工序流转'],['tools','工序工具'],['agent','我的智能体'],['role','权限与职责']];
@@ -401,7 +426,7 @@ const pages = {
       });
     }catch(e){}
     state.wsApprovals = [];
-    if (['RD_LEAD','ADMIN'].includes(state.role) || (state.auth&&state.auth.roles||[]).some(r=>['RD_LEAD','ADMIN'].includes(r))) {
+    if (['RD_LEAD','ADMIN'].includes(state.role) || (state.auth && ['RD_LEAD','ADMIN'].includes(state.auth.role))) {
       try { state.wsApprovals = (await get('/ws-v2?approvals=1')).items; } catch(e){}
     }
     renderTodosView();
@@ -620,6 +645,7 @@ const pages = {
   },
   async tools(){
     const { tools } = await get('/tools');
+    if(!state._projectsCache){ try { state._projectsCache = (await get('/projects')).projects; } catch(e){ state._projectsCache = []; } }
     const typeTag = t => t==='embed' ? '<span class="tag green">内嵌 JS</span>' : t==='desktop' ? '<span class="tag blue">本地桌面</span>' : '<span class="tag orange">服务端</span>';
     const cats = {};
     tools.forEach(t=>{ (cats[t.category]=cats[t.category]||[]).push(t); });
@@ -653,6 +679,43 @@ const pages = {
           <button class="btn" onclick="launchTool('kicad','KiCad')">启动 KiCad</button>
         </div>
         <div class="muted" style="font-size:12px;margin-top:8px">经服务端直接启动本机已安装的桌面软件（KiCad/FreeCAD/LibreCAD）；未安装会明确提示。</div>
+      </div>
+      <div class="panel"><h2>资料关联项目 <span class="tag">制图成果保存/提交审核时使用</span></h2>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <select id="genProject" style="flex:1;min-width:260px;padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+            <option value="">— 选择关联项目 —</option>
+            ${(state._projectsCache||[]).map(p=>`<option value="${esc(p.projectNo)}">${esc(p.projectNo)} · ${esc(p.name)}</option>`).join('')}
+          </select>
+          <span class="muted" style="font-size:11px;max-width:320px">选择后，下方两个制图工具的成果将以「电子评审单」保存到该项目的<b>电子节点</b>：草稿 → 提交审核 → 研发主管批准归档 → 同步 M04 PLM。</span>
+        </div>
+      </div>
+      <div class="panel"><h2>通俗语言自动化制图 <span class="tag">KiCad 原理图 + PCB</span></h2>
+        <div class="muted" style="font-size:12px;margin-bottom:8px">用通俗语言描述电路需求，自动生成 KiCad 原理图（.kicad_sch）与空 PCB（.kicad_pcb）。<br>支持：<b>LED 指示灯</b>、<b>按键开关</b>、<b>限流/上拉电阻</b>、<b>滤波电容</b>，可自动提取电压/阻值/容值。<br>示例：<b>5V 电源，接一个 LED 指示灯和 330 欧姆限流电阻</b></div>
+        <div class="row">
+          <input id="genText" style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px" placeholder="例如：5V 电源，接一个 LED 指示灯和 330 欧姆限流电阻">
+          <button class="btn primary" onclick="genKicad()">生成图纸</button>
+        </div>
+        <div id="genResult" style="margin-top:12px"></div>
+      </div>
+      <div class="panel"><h2>AI 大模型制图 <span class="tag">DeepSeek · 真实电路</span></h2>
+        <div class="muted" style="font-size:12px;margin-bottom:8px">输入完整 <b>BOM（物料清单）</b> 或电路需求，真实大模型（DeepSeek）理解拓扑并生成完整 KiCad 原理图（含驱动 IC / MOS / 电感 / 二极管 / 采样 / 调光等）。成果同样可保存为资料 → 审核 → 归档。</div>
+        <textarea id="genAiText" rows="10" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:inherit">1 驱动主控IC LT3756
+2 COB光源 50W 17V/3A 6000K
+3 N沟道MOS管 75V/80A 低内阻
+4 升压电感 22μH/10A 磁屏蔽
+5 肖特基二极管 100V/10A 超快恢复
+6 采样电阻 0.05Ω/5W 合金
+7 自恢复保险丝 10A/60V
+8 防反接MOS 60V/30A
+9 NTC热敏电阻 10K 3950
+10 电解电容 35V/1000μF
+11 瓷片电容 104/106
+12 按键/调光接口 轻触按键/排针</textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="btn primary" onclick="genKicadAi()">AI 生成原理图</button>
+          <button class="btn small" onclick="document.getElementById('genAiText').value=''">清空</button>
+        </div>
+        <div id="genAiResult" style="margin-top:12px"></div>
       </div>`;
   }
 };
@@ -749,6 +812,318 @@ async function launchTool(id, name){
     alert(name + ' 启动失败：' + e.message + '（请先安装对应桌面软件，再从工序节点调用）');
     return false;
   }
+}
+async function openKicadFile(file){
+  try{
+    const r = await postJson('/tools/kicad/open', { file });
+    if(!r.ok) throw new Error(r.data.error || r.status);
+    toast2('已用 KiCad 打开（pid ' + r.data.pid + '）');
+  }catch(e){ alert('打开失败：' + e.message); }
+}
+/* ---- 交互式 SVG 查看器：滚轮缩放（以鼠标为中心）+ 拖拽平移 + 按钮 ---- */
+const svgViewers = {};
+async function initSvgViewer(containerId, svgUrl, key){
+  const container = document.getElementById(containerId);
+  if(!container) return;
+  container.innerHTML = '<div class="muted" style="font-size:12px;padding:24px;text-align:center">图纸渲染中…</div>';
+  try{
+    const r = await fetch(svgUrl);
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const svgText = await r.text();
+    container.innerHTML = svgText;
+    const svg = container.querySelector('svg');
+    if(!svg) throw new Error('SVG 解析失败');
+    let w, h;
+    const vbAttr = svg.getAttribute('viewBox');
+    if(vbAttr){
+      const p = vbAttr.split(/[\s,]+/).map(Number);
+      w = p[2]; h = p[3];
+    } else {
+      const wm = (svg.getAttribute('width')||'').match(/[\d.]+/);
+      const hm = (svg.getAttribute('height')||'').match(/[\d.]+/);
+      w = wm ? parseFloat(wm[0]) : 210; h = hm ? parseFloat(hm[0]) : 297;
+      svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    }
+    svg.removeAttribute('width'); svg.removeAttribute('height');
+    svg.style.width = '100%'; svg.style.height = 'auto'; svg.style.display = 'block';
+    svg.style.cursor = 'grab'; svg.style.touchAction = 'none';
+    const v = svgViewers[key] = { svg, origVB: { x: 0, y: 0, w, h }, dragging: false, lastX: 0, lastY: 0 };
+    container.addEventListener('wheel', e => {
+      e.preventDefault();
+      const vb = svg.viewBox.baseVal;
+      const rect = svg.getBoundingClientRect();
+      const px = vb.x + ((e.clientX - rect.left) / rect.width) * vb.width;
+      const py = vb.y + ((e.clientY - rect.top) / rect.height) * vb.height;
+      const factor = e.deltaY < 0 ? 0.82 : 1.22;
+      const nw = Math.min(Math.max(vb.width * factor, w / 50), w * 5);
+      const nh = nw * (h / w);
+      vb.x = px - (px - vb.x) * (nw / vb.width);
+      vb.y = py - (py - vb.y) * (nh / vb.height);
+      vb.width = nw; vb.height = nh;
+    }, { passive: false });
+    container.addEventListener('mousedown', e => { v.dragging = true; v.lastX = e.clientX; v.lastY = e.clientY; svg.style.cursor = 'grabbing'; });
+    window.addEventListener('mousemove', e => {
+      if(!v.dragging) return;
+      const vb = svg.viewBox.baseVal;
+      const rect = svg.getBoundingClientRect();
+      vb.x -= (e.clientX - v.lastX) / rect.width * vb.width;
+      vb.y -= (e.clientY - v.lastY) / rect.height * vb.height;
+      v.lastX = e.clientX; v.lastY = e.clientY;
+    });
+    window.addEventListener('mouseup', () => { v.dragging = false; svg.style.cursor = 'grab'; });
+  }catch(e){
+    container.innerHTML = '<div class="muted" style="font-size:12px;padding:16px">图纸预览不可用（' + esc(e.message) + '）</div>';
+  }
+}
+function svgViewerZoom(key, factor){
+  const v = svgViewers[key]; if(!v) return;
+  const vb = v.svg.viewBox.baseVal;
+  const cx = vb.x + vb.width / 2, cy = vb.y + vb.height / 2;
+  const nw = Math.min(Math.max(vb.width * factor, v.origVB.w / 50), v.origVB.w * 5);
+  const nh = nw * (v.origVB.h / v.origVB.w);
+  vb.x = cx - nw / 2; vb.y = cy - nh / 2; vb.width = nw; vb.height = nh;
+}
+function svgViewerReset(key){
+  const v = svgViewers[key]; if(!v) return;
+  const vb = v.svg.viewBox.baseVal;
+  vb.x = v.origVB.x; vb.y = v.origVB.y; vb.width = v.origVB.w; vb.height = v.origVB.h;
+}
+/* 图纸预览弹窗：审批/查看时预览制图成果（原理图 + PCB），带缩放平移 */
+function showDrawingPreview(schFile, pcbFile, title){
+  const m = document.getElementById('dwgModal'); if(!m) return;
+  document.getElementById('dwgTitle').textContent = title || '图纸预览';
+  m.hidden = false;
+  initSvgViewer('dwgSchViewer', '/api/v1/plm2/tools/kicad/preview?file=' + encodeURIComponent(schFile), 'dwgSch');
+  const pcbWrap = document.getElementById('dwgPcbWrap');
+  if(pcbFile){ pcbWrap.style.display=''; initSvgViewer('dwgPcbViewer', '/api/v1/plm2/tools/kicad/preview?file=' + encodeURIComponent(pcbFile), 'dwgPcb'); }
+  else { pcbWrap.style.display='none'; }
+}
+/* ---- 通俗语言自动化制图（模板+参数化，可改参数重新生成） ---- */
+const GEN_TYPES = ['R','LED','C','SW'];
+function genCompRow(c, i){
+  const opts = GEN_TYPES.map(t=>`<option value="${t}" ${t===c.type?'selected':''}>${t==='R'?'R 电阻':t==='LED'?'LED 灯':t==='C'?'C 电容':'SW 开关'}</option>`).join('');
+  return `<tr>
+    <td style="width:110px"><select data-gen-type style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px">${opts}</select></td>
+    <td><input data-gen-value value="${esc(c.value)}" placeholder="如 330 / 1k / 100nF" style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px"></td>
+    <td style="width:40px"><button class="btn small danger" onclick="this.closest('tr').remove()">✕</button></td>
+  </tr>`;
+}
+function genParamsHtml(){
+  const d = state.genResult;
+  const comps = d.components || [];
+  return `<div style="margin-top:10px;padding:10px;background:#f5f8ff;border-radius:8px">
+    <div class="row" style="gap:8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
+      <span class="muted" style="font-size:12px">电源</span>
+      <input id="genSupply" value="${esc(d.supply)}" style="width:70px;padding:5px;border:1px solid var(--line);border-radius:6px">
+      <span class="muted" style="font-size:12px;margin-left:6px">元件（改参数后重新生成）</span>
+      <button class="btn small" onclick="genAddComp()">＋ 添加</button>
+      <button class="btn small primary" onclick="genRegen()">↻ 重新生成</button>
+    </div>
+    <table style="width:100%"><thead><tr><th style="font-size:11px;text-align:left">类型</th><th style="font-size:11px;text-align:left">值</th><th></th></tr></thead>
+    <tbody id="genComps">${comps.map((c,i)=>genCompRow(c,i)).join('')}</tbody></table>
+  </div>`;
+}
+function renderGenResult(){
+  const d = state.genResult;
+  const box = document.getElementById('genResult');
+  const comps = (d.components||[]).map(c=>`${c.ref}(${esc(c.value)})`).join(' + ');
+  box.innerHTML = `<div class="notice" style="border-color:#cde9db;background:#eefaf4;color:#13724e">
+    <b>${esc(d.title)}</b> · 电源 ${esc(d.supply)} · 元件 ${comps}
+    <div style="margin-top:6px;font-size:12px">已生成：<br>原理图 <code>${esc(d.schPath)}</code><br>PCB <code>${esc(d.pcbPath)}</code></div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap">
+      <button class="btn primary" onclick="openKicadFile('${esc(d.schPath)}')">用 KiCad 打开原理图</button>
+      <button class="btn" onclick="openKicadFile('${esc(d.pcbPath)}')">用 KiCad 打开 PCB</button>
+    </div>
+    ${genParamsHtml()}
+    <div class="row" style="margin-top:8px;flex-wrap:wrap;padding:8px 10px;background:#f5f8ff;border-radius:8px">
+      <span class="muted" style="font-size:12px">保存为资料（关联项目·电子节点）：</span>
+      <button class="btn" onclick="saveKicadGen('draft')">保存到系统（草稿）</button>
+      <button class="btn primary" onclick="saveKicadGen('submit')">提交审核</button>
+    </div>
+    <div style="margin-top:12px">
+      <div class="muted" style="font-size:12px;margin-bottom:4px">原理图预览</div>
+      <img src="/api/v1/plm2/tools/kicad/preview?file=${encodeURIComponent(d.schPath)}" style="max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff" onerror="this.outerHTML='<div class=muted style=font-size:12px>预览不可用</div>'">
+      <div class="muted" style="font-size:12px;margin:10px 0 4px">PCB 预览</div>
+      <img src="/api/v1/plm2/tools/kicad/preview?file=${encodeURIComponent(d.pcbPath)}" style="max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff" onerror="this.outerHTML='<div class=muted style=font-size:12px>预览不可用</div>'">
+    </div>
+  </div>`;
+}
+async function genKicad(){
+  const text = document.getElementById('genText').value.trim();
+  const box = document.getElementById('genResult');
+  if(!text){ alert('请输入电路需求描述'); return; }
+  box.innerHTML = '<div class="muted">生成中…</div>';
+  try{
+    const r = await postJson('/tools/kicad/generate', { text });
+    if(!r.ok) throw new Error(r.data.error || r.status);
+    state.genResult = r.data;
+    renderGenResult();
+  }catch(e){ box.innerHTML = `<div class="notice warn">生成失败：${esc(e.message)}</div>`; }
+}
+function genAddComp(){
+  const tb = document.getElementById('genComps');
+  if(!tb){ alert('请先生成图纸'); return; }
+  tb.insertAdjacentHTML('beforeend', genCompRow({type:'R', value:'330'}, tb.children.length));
+}
+async function genRegen(){
+  const d = state.genResult;
+  if(!d){ alert('请先生成图纸'); return; }
+  const supply = (document.getElementById('genSupply')||{}).value || d.supply;
+  const comps = [];
+  document.querySelectorAll('#genComps tr').forEach(tr=>{
+    const t = tr.querySelector('select[data-gen-type]');
+    const v = tr.querySelector('input[data-gen-value]');
+    if(t && t.value) comps.push({ type: t.value, value: (v&&v.value)||t.value });
+  });
+  if(!comps.length){ alert('请至少保留一个元件'); return; }
+  try{
+    const r = await postJson('/tools/kicad/generate', { params: { supply, components: comps } });
+    if(!r.ok) throw new Error(r.data.error||r.status);
+    state.genResult = r.data;
+    renderGenResult();
+    toast2('已按新参数重新生成');
+  }catch(e){ alert('重新生成失败：'+e.message); }
+}
+async function saveKicadGen(action){
+  const d = state.genResult;
+  if(!d){ alert('请先生成图纸'); return; }
+  const projectNo = document.getElementById('genProject').value;
+  if(!projectNo){ alert('请先选择关联项目'); return; }
+  const me = state.auth ? state.auth.realName : '演示';
+  const comps = (d.components||[]).map(c=>`${c.ref}(${c.value})`).join('+');
+  const summary = `${d.title}，电源${d.supply}，元件 ${comps}；原理图 ${d.schPath}，PCB ${d.pcbPath}`;
+  const fields = {
+    review_type: '电子',
+    review_date: new Date().toISOString().slice(0,10),
+    host: me,
+    sch_file: d.schPath,
+    pcb_file: d.pcbPath,
+    issues: '通俗语言制图成果：' + summary,
+    conclusion: '通过'
+  };
+  try{
+    const r = await postJson('/ws-v2', { projectNo, nodeCode:'ELECTRONICS', fields, actor: me, action });
+    if(!r.ok) throw new Error(r.data.error || r.status);
+    alert(action==='submit'
+      ? `已提交审核（${r.data.statusLabel}）。研发主管在「我的待办 → 资料审批」批准后自动归档并同步 M04 PLM 评审表。`
+      : `已保存为草稿（${r.data.statusLabel}）。可继续编辑或提交审核。`);
+  }catch(e){ alert('保存被拒：'+e.message); }
+}
+/* ---- AI 大模型制图（DeepSeek 真实电路：LT3756 等） ---- */
+function aiCompRow(c){
+  return `<tr>
+    <td style="white-space:nowrap"><code>${esc(c.designator)}</code></td>
+    <td style="font-size:11px;color:#5a6b80">${esc(c.type)}</td>
+    <td><input data-ai-des="${esc(c.designator)}" value="${esc(c.value||'')}" style="width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:12px"></td>
+    <td style="font-size:11px;color:#5a6b80;max-width:220px">${esc(c.function||'')}</td>
+  </tr>`;
+}
+function renderGenAiResult(){
+  const d = state.genAiResult;
+  const box = document.getElementById('genAiResult');
+  const comps = (d.components||[]).map(c=>`${c.designator}(${esc(c.value)})`).join('、');
+  box.innerHTML = `<div class="notice" style="border-color:#cde9db;background:#eefaf4;color:#13724e">
+    <b>${esc(d.title)}</b> <span class="tag">${esc(d.topology||'')}</span>
+    <div style="margin-top:6px;font-size:12px">${(d.components||[]).length} 个元件、${(d.connections||[]).length} 条网络：${comps}</div>
+    <div style="margin-top:6px;font-size:12px">原理图：<code>${esc(d.schPath)}</code></div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap">
+      <button class="btn primary" onclick="openKicadFile('${esc(d.schPath)}')">用 KiCad 打开原理图</button>
+      ${d.pcbPath?`<button class="btn primary" onclick="openKicadFile('${esc(d.pcbPath)}')">用 KiCad 打开 PCB</button>`:''}
+      <button class="btn" onclick="saveKicadGenAi()">保存为资料（提交审核）</button>
+    </div>
+    <div style="margin-top:10px;padding:10px;background:#f5f8ff;border-radius:8px">
+      <div class="row" style="gap:8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
+        <span class="muted" style="font-size:12px">元件参数（改值后重新生成）</span>
+        <button class="btn small primary" onclick="aiApplyEdits()">↻ 应用修改（重新生成）</button>
+      </div>
+      <div style="max-height:220px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:6px">
+      <table style="width:100%"><thead><tr>
+        <th style="font-size:11px;text-align:left;padding:4px 8px">位号</th><th style="font-size:11px;text-align:left;padding:4px 8px">类型</th>
+        <th style="font-size:11px;text-align:left;padding:4px 8px">值（可编辑）</th><th style="font-size:11px;text-align:left;padding:4px 8px">功能</th>
+      </tr></thead><tbody id="genAiComps">${(d.components||[]).map(aiCompRow).join('')}</tbody></table>
+      </div>
+      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input id="genAiEdit" placeholder="AI 修改指令，如：把电感改成 33μH 并增加 TVS 防护" style="flex:1;min-width:220px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+        <button class="btn small" onclick="aiEditByLLM()">✏ AI 修改</button>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="row" style="gap:6px;margin-bottom:6px;align-items:center">
+        <span class="muted" style="font-size:12px">原理图</span>
+        <button class="btn small" onclick="svgViewerZoom('genAi',0.8)">＋</button>
+        <button class="btn small" onclick="svgViewerZoom('genAi',1.25)">－</button>
+        <button class="btn small" onclick="svgViewerReset('genAi')">⟳</button>
+        ${d.pcbPath?`<span class="muted" style="font-size:12px;margin-left:12px">PCB 板图</span>
+        <button class="btn small" onclick="svgViewerZoom('genAiPcb',0.8)">＋</button>
+        <button class="btn small" onclick="svgViewerZoom('genAiPcb',1.25)">－</button>
+        <button class="btn small" onclick="svgViewerReset('genAiPcb')">⟳</button>`:''}
+        <span class="muted" style="font-size:11px">滚轮缩放 · 拖拽平移</span>
+      </div>
+      <div id="genAiViewer" style="border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;max-height:480px"></div>
+      ${d.pcbPath?`<div id="genAiPcbViewer" style="border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;max-height:420px;margin-top:10px"></div>`:''}
+    </div>
+  </div>`;
+  initSvgViewer('genAiViewer', '/api/v1/plm2/tools/kicad/preview?file=' + encodeURIComponent(d.schPath), 'genAi');
+  if(d.pcbPath) initSvgViewer('genAiPcbViewer', '/api/v1/plm2/tools/kicad/preview?file=' + encodeURIComponent(d.pcbPath), 'genAiPcb');
+}
+async function genKicadAi(){
+  const text = document.getElementById('genAiText').value.trim();
+  const box = document.getElementById('genAiResult');
+  if(!text){ alert('请输入 BOM 或电路需求'); return; }
+  box.innerHTML = '<div class="muted">AI 大模型分析中…（DeepSeek，约需 5-15 秒）</div>';
+  try{
+    const r = await postJson('/tools/kicad/generate-ai', { text });
+    if(!r.ok) throw new Error(r.data.error || r.status);
+    state.genAiResult = r.data;
+    renderGenAiResult();
+  }catch(e){ box.innerHTML = `<div class="notice warn">AI 生成失败：${esc(e.message)}</div>`; }
+}
+async function aiRegen(structure, edit){
+  const box = document.getElementById('genAiResult');
+  if(!box) return;
+  box.innerHTML = '<div class="muted">' + (edit ? 'AI 大模型修改中…（约 5-15 秒）' : '正在重新生成图纸…') + '</div>';
+  try{
+    const payload = edit ? { structure, edit } : { structure };
+    const r = await postJson('/tools/kicad/generate-ai', payload);
+    if(!r.ok) throw new Error(r.data.error || r.status);
+    state.genAiResult = r.data;
+    renderGenAiResult();
+    toast2(edit ? 'AI 已按指令修改' : '已按新参数重新生成');
+  }catch(e){ alert('重新生成失败：' + e.message); renderGenAiResult(); }
+}
+async function aiApplyEdits(){
+  const d = state.genAiResult;
+  if(!d){ alert('请先 AI 生成'); return; }
+  const comps = (d.components||[]).map(c => {
+    const el = document.querySelector(`#genAiComps input[data-ai-des="${c.designator}"]`);
+    return el ? Object.assign({}, c, { value: el.value }) : c;
+  });
+  await aiRegen({ title: d.title, topology: d.topology, components: comps, connections: d.connections });
+}
+async function aiEditByLLM(){
+  const d = state.genAiResult;
+  if(!d){ alert('请先 AI 生成'); return; }
+  const edit = document.getElementById('genAiEdit').value.trim();
+  if(!edit){ alert('请输入修改指令，如：把电感改成 33μH'); return; }
+  const comps = (d.components||[]).map(c => {
+    const el = document.querySelector(`#genAiComps input[data-ai-des="${c.designator}"]`);
+    return el ? Object.assign({}, c, { value: el.value }) : c;
+  });
+  await aiRegen({ title: d.title, topology: d.topology, components: comps, connections: d.connections }, edit);
+}
+async function saveKicadGenAi(){
+  const d = state.genAiResult;
+  if(!d){ alert('请先 AI 生成'); return; }
+  const projectNo = document.getElementById('genProject').value;
+  if(!projectNo){ alert('请先选择关联项目'); return; }
+  const me = state.auth ? state.auth.realName : '演示';
+  const summary = `${d.title}（${d.topology||''}），${(d.components||[]).length} 元件；原理图 ${d.schPath}`;
+  const fields = { review_type:'电子', review_date:new Date().toISOString().slice(0,10), host:me, issues:'AI 大模型制图成果：'+summary, conclusion:'通过', sch_file:d.schPath, pcb_file:d.pcbFile||d.pcbPath||'' };
+  try{
+    const r = await postJson('/ws-v2', { projectNo, nodeCode:'ELECTRONICS', fields, actor:me, action:'submit' });
+    if(!r.ok) throw new Error(r.data.error||r.status);
+    alert(`已提交审核（${r.data.statusLabel}）。研发主管在「我的待办 → 资料审批」批准后自动归档并同步 M04 PLM。`);
+  }catch(e){ alert('保存被拒：'+e.message); }
 }
 
 /* ---- DXF 图纸解析（ezdxf 服务端 8002） ---- */
@@ -918,7 +1293,7 @@ function renderTodosView(){
       ${state.wsApprovals.map(w=>`<div class="task" style="padding:10px 0;border-bottom:1px solid #eef2f7">
         <div class="body"><b>${esc((mkTplName(w.type)))}</b> · ${esc(w.projectNo)} / ${esc(w.nodeCode)}
           <small>制作：${esc(w.createdBy)} · 提交：${esc((w.submittedAt||'').slice(0,16).replace('T',' '))} · 关键内容：${esc(wsSummary(w))}</small></div>
-        <div class="row" style="gap:6px"><button class="btn small" onclick='wsView(${JSON.stringify(w).replace(/'/g,"&#39;")})'>查看</button><button class="btn small primary" onclick="wsApprove('${w.id}',true)">批准归档</button><button class="btn small danger" onclick="wsApprove('${w.id}',false)">驳回</button></div>
+        <div class="row" style="gap:6px">${(w.fields&&(w.fields.sch_file||w.fields.pcb_file))?`<button class="btn small" onclick="showDrawingPreview('${esc(w.fields.sch_file||'')}'${w.fields.pcb_file?`,'${esc(w.fields.pcb_file)}'`:''},'${esc(mkTplName(w.type))} · ${esc(w.projectNo)} · ${esc(w.createdBy)}')">🖼 预览图纸</button>`:''}<button class="btn small" onclick='wsView(${JSON.stringify(w).replace(/'/g,"&#39;")})'>查看</button><button class="btn small primary" onclick="wsApprove('${w.id}',true)">批准归档</button><button class="btn small danger" onclick="wsApprove('${w.id}',false)">驳回</button></div>
       </div>`).join('')}</div>`:''}
     <div class="notice">复刻 Multica「My Issues」：范围（全部/指派给我/我负责的项目）+ 视图（列表/看板/表格）+ 状态分组计数；点行打开详情抽屉可编辑（状态/计划日/实际日/责任人/交付物），数据口径同 /v1/me/todos。</div>
       <div class="row" style="margin-top:10px"><button class="btn small" onclick="syncFromPlm()">⟳ 从 PLM 同步（我负责的项目）</button><span class="muted" id="syncInfo" style="font-size:12px"></span></div>`;
