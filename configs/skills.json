@@ -1,0 +1,249 @@
+{
+  "skillPack": "m10-poms",
+  "version": "1.0.0",
+  "description": "M10 POMS 岗位微系统技能包——从会话中提炼的可复用技能，供其他系统（M04 PLM / M07 HLC / M05 CRM / EBMS 等）通过 Hub 调用",
+  "extractedFrom": "M10-POMS 全部会话与实践",
+  "skills": [
+    {
+      "id": "m10.auth.unified-login",
+      "name": "M04 统一登录",
+      "category": "认证",
+      "description": "用 PLM(M04) 同一账号密码登录，返回双系统通用 JWT + 角色 + personId 映射",
+      "input": { "username": "string", "password": "string" },
+      "output": { "token": "string", "userId": "number", "realName": "string", "roles": "string[]", "role": "string", "personId": "number" },
+      "api": "POST /api/v1/plm2/auth/login",
+      "constraints": ["密码须与 M04 一致", "令牌双系统通用", "写操作须带 Authorization Bearer"],
+      "usage": "任何需要与 PLM 交互的系统复用此认证"
+    },
+    {
+      "id": "m10.auth.role-derive",
+      "name": "服务端角色派生",
+      "category": "权限",
+      "description": "从 JWT claims 中提取 roleCode 并映射为演示角色，覆盖客户端传入的角色（防伪造）",
+      "input": { "token": "string(JWT)" },
+      "output": { "role": "string", "roles": "string[]" },
+      "mapping": { "rd_manager": "RD_LEAD", "engineer": "ENGINEER", "finance/cw1": "FINANCE", "admin": "ADMIN" },
+      "constraints": ["UI 隐藏 ≠ 权限控制", "写操作必须经此派生", "缓存 TTL 30s"],
+      "usage": "所有写操作的服务端鉴权前置"
+    },
+    {
+      "id": "m10.assembly.multi-role",
+      "name": "兼岗装配",
+      "category": "装配",
+      "description": "多角色合并权限/模块/职责，虞周峰(engineer+rd_manager+project_manager)→7模块/9职责/23权限",
+      "input": { "roleCodes": "string(逗号分隔)" },
+      "output": { "modules": "array", "duties": "array", "permission_matrix": "array", "roles": "array" },
+      "constraints": ["去重合并", "取最高等级角色为主岗"],
+      "usage": "任何多角色用户的岗位装配"
+    },
+    {
+      "id": "m10.assembly.confirm",
+      "name": "装配确认",
+      "category": "装配",
+      "description": "三级级联选择（公司→部门→岗位）后须点「✔ 确认装配」锁定，显示摘要+manifest_id",
+      "input": { "company": "string", "department": "string", "position": "string" },
+      "output": { "confirmed": "boolean", "manifest_id": "string", "duties_count": "number", "tasks_count": "number" },
+      "constraints": ["确认后锁定下拉", "重新装配解锁清空"],
+      "usage": "岗位装配台的最终确认步骤"
+    },
+    {
+      "id": "m10.sync.write-through",
+      "name": "写透同步",
+      "category": "同步",
+      "description": "M10 修改节点/项目/工作表后立即经 PLM REST API 写回，响应含 plmSync:{ok}",
+      "channels": {
+        "node": "PUT /api/project/{id}/nodes/{code}",
+        "project": "PUT /api/v1/projects",
+        "worksheet": "POST /api/v1/rd/sheets/{type}"
+      },
+      "constraints": ["仅回传显式改动字段", "不覆盖 PLM 真实值", "仅回传字段（如 owner），不回传 PLM 原有值"],
+      "usage": "M10→M04 单向实时同步"
+    },
+    {
+      "id": "m10.sync.read-through",
+      "name": "读透同步",
+      "category": "同步",
+      "description": "M10 读取项目时从 PLM API 拉取最新矩阵合并（TTL 5s 或 fresh 强制）",
+      "api": "GET /api/project/{id}/nodes",
+      "constraints": ["TTL 5s 防频繁请求", "?fresh=1 强制刷新", "PLM 不可用时优雅降级为本地缓存"],
+      "usage": "M04→M10 反向同步"
+    },
+    {
+      "id": "m10.todos.plm-module",
+      "name": "PLM 我的待办（OrgTodoService 口径）",
+      "category": "待办",
+      "description": "我负责项目下全部节点 ∪ 直接指派给我的节点，按计划日切分逾期/待办/已完成/无节点",
+      "input": { "personName": "string" },
+      "output": { "overdue": "array", "todo": "array", "done": "array", "none": "array", "overdueCount": "number", "todoCount": "number", "doneCount": "number", "noneCount": "number", "total": "number" },
+      "rules": {
+        "scope": "n.owner=? OR n.project_no IN (SELECT project_no FROM plm_project WHERE owner=?)",
+        "overdue": "status≠DONE AND plan_date<CURRENT_DATE",
+        "todo": "status≠DONE AND (plan_date IS NULL OR plan_date≥CURRENT_DATE)",
+        "done": "status=DONE ORDER BY actual_date DESC LIMIT 200",
+        "none": "status='NONE' 不计入待办"
+      },
+      "usage": "任何需要个人待办的系统复用此口径"
+    },
+    {
+      "id": "m10.todos.dept-aggregation",
+      "name": "部门待办聚合",
+      "category": "待办",
+      "description": "经理类角色看本部门成员待办汇总，ADMIN/gm 看全部，普通员工仅 SELF",
+      "roleGate": { "rd_manager/project_manager": ["RD"], "sales_director/sales_manager": ["SALES"], "cw1": ["FIN"] },
+      "usage": "部门经理的团队待办视图"
+    },
+    {
+      "id": "m10.todos.multica-view",
+      "name": "Multica 风格个人模块",
+      "category": "UI",
+      "description": "范围切换(全部/指派给我/我负责的项目) + 视图(列表/看板/表格) + 状态分组计数 + 点行编辑",
+      "views": ["list(可折叠分组)", "board(四列看板)", "table(排序表格)"],
+      "scopes": ["all", "assigned(直接指派)", "owned(我负责的项目)"],
+      "usage": "待办页的 Multica My Issues 风格呈现"
+    },
+    {
+      "id": "m10.worksheet.lifecycle",
+      "name": "资料制作→审批→归档→同步",
+      "category": "工作流",
+      "description": "制作(模板+历史+工具)→草稿→提交→上级审批→批准(自动归档WSA-x+节点联动+PLM表同步)",
+      "states": ["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "ARCHIVED"],
+      "constraints": ["制作人≠审批人(职责分离)", "批准自动生成归档号", "按 doneWhen 联动节点 DONE/IN_PROGRESS", "仅 mapped 类型推送 PLM 表"],
+      "usage": "任何需要「制作→审批→归档」闭环的文档流程"
+    },
+    {
+      "id": "m10.worksheet.templates",
+      "name": "8 类工作表模板",
+      "category": "模板",
+      "description": "plan(甘特行)/basebom/spec(15字段)/config(11字段)/review/trial/test/shipment，对齐 PLM 真实表结构",
+      "doneWhen": { "spec": "status=已批准", "config": "signed=是", "review/trial": "conclusion=通过", "test/shipment": "verdict=合格", "plan": "confirmer=是", "basebom": "status=已发布" },
+      "usage": "任何系统的结构化表单模板定义"
+    },
+    {
+      "id": "m10.node.detail-table",
+      "name": "22 节点明细表",
+      "category": "UI",
+      "description": "复刻 progress.vue：#/节点/状态/计划日期/实际日期/责任人/交付物/资料/操作，支持行内编辑",
+      "columns": ["seq", "node(name+key)", "status(tag)", "planDate", "actualDate(默认今天+✔确认)", "owner(默认项目负责人)", "deliveryDesc(默认模板)", "ws(资料状态)", "actions(编辑/制作)"],
+      "validations": { "todoStatus": "计划日期必填(422)", "DONE": "自动补当天实际日期", "NONE": "不计入待办总数" },
+      "statusList": ["无节点", "未设置", "已计划", "进行中", "已完成", "未完成", "待定"],
+      "usage": "项目节点跟踪的标准表格"
+    },
+    {
+      "id": "m10.tools.invoke",
+      "name": "工序工具调用",
+      "category": "工具",
+      "description": "按节点映射对应工具（FreeCAD/LibreCAD/KiCad 调用 + Excel/OCR/DXF/语音/水印导入），点击即用",
+      "nodeToolMap": {
+        "MOLD_DRAWING": ["librecad", "freecad", "dxf", "wm"],
+        "MOLD": ["freecad", "dxf", "wm"],
+        "ELECTRONICS": ["kicad", "excel"],
+        "PLAN": ["gantt", "excel"],
+        "TEST_REPORT": ["ocr", "excel", "wm"]
+      },
+      "usage": "任何需要按业务节点调用专业工具的场景"
+    },
+    {
+      "id": "m10.tools.file-preview",
+      "name": "文件预览+编辑+缩放",
+      "category": "工具",
+      "description": "图片(缩放/平移/标注)、PDF(内嵌+新窗口)、文本(编辑)、Excel(多Sheet+单元格编辑+保存)、DXF(解析)",
+      "features": ["通用页面缩放25%-400%", "图片滚轮缩放+拖拽", "Excel contenteditable+保存回写附件", "双模式(编辑/预览)互切不丢值"],
+      "usage": "任何系统的文件查看与编辑器"
+    },
+    {
+      "id": "m10.table.generic",
+      "name": "通用表格（搜索/筛选/排序/停用）",
+      "category": "UI",
+      "description": "tblRender 组件：搜索框+列筛选下拉+点表头排序+行操作（停用/编辑/审批等），四表复用",
+      "features": ["搜索(模糊匹配多字段)", "列筛选(自动提取唯一值)", "排序(数值/字符串/自定义fn)", "行操作按钮", "计数显示"],
+      "usage": "任何列表页的标准表格"
+    },
+    {
+      "id": "m10.anomaly.zone",
+      "name": "异常专区",
+      "category": "UI",
+      "description": "红色面板展示逾期节点+工序阻塞，每条带处理动作（跳转节点编辑/工序页）",
+      "sources": ["todos.overdue", "process_routes(blocked steps)"],
+      "usage": "待办页顶部的优先处理区块"
+    },
+    {
+      "id": "m10.initiation.five-stage",
+      "name": "立项五阶段审批",
+      "category": "工作流",
+      "description": "draft→submitted→dept_review→rd_review→finance_review→gm_approve→execute，批准后自动创建22节点项目",
+      "roleGates": { "dept_review": "RD_LEAD", "rd_review": "RD_LEAD", "finance_review": "FINANCE", "gm_approve": "GM", "execute": "ADMIN" },
+      "constraints": ["非法跳转409", "错角色403", "execute 自动建项目(22节点)"],
+      "usage": "任何需要多级审批+自动创建下游对象的工作流"
+    },
+    {
+      "id": "m10.capture.idempotent",
+      "name": "幂等采集",
+      "category": "数据",
+      "description": "扫码匹配料号→动态字段→拍照/语音→提交(pending-review)，相同 Idempotency-Key 不重复写入",
+      "constraints": ["错配404", "越权403", "幂等重放返回相同captureId", "done≠verified"],
+      "usage": "任何需要防重复提交的数据采集"
+    },
+    {
+      "id": "m10.capture.role-filter",
+      "name": "采集类型岗位严格匹配",
+      "category": "权限",
+      "description": "工程师只有规格/工作表/拍照语音，品质只有IQC/拍照语音；服务端二次校验越权403",
+      "usage": "按岗位过滤可用的采集/操作类型"
+    },
+    {
+      "id": "m10.agent.session",
+      "name": "Agent 会话（模拟）",
+      "category": "Agent",
+      "description": "岗位主Agent+专业子Agent列表+对话（本地规则模拟，Hub未连接标注simulated）",
+      "agents": ["岗位主Agent(任务/对象/Guard)", "品质检验", "研发资料", "销售开发"],
+      "constraints": ["高风险动作人工确认", "审批建议不得直接执行", "Hub 503 不虚假成功"],
+      "usage": "任何系统的 Agent 入口页"
+    },
+    {
+      "id": "m10.revoke.instant",
+      "name": "撤权即时失效",
+      "category": "安全",
+      "description": "authCache TTL 30s + POST /auth/revoke 主动清空 → 伪令牌写操作立即401",
+      "usage": "权限撤销后的快速生效机制"
+    },
+    {
+      "id": "m10.import.real-data",
+      "name": "真实数据导入",
+      "category": "数据",
+      "description": "从 Docker plm-postgres 直读 PLM 真实表（项目/物料/人员/节点/菜单/权限），UTF-8 安全",
+      "tables": ["plm_project", "plm_project_node", "plm_material", "sys_user+role+dept", "sys_permission", "plm_ecn", "evidence/feedback"],
+      "constraints": ["仅 SELECT 只读", "UTF-8 编码安全", "可重复执行幂等"],
+      "usage": "任何需要从 PLM 导入真实数据的场景"
+    },
+    {
+      "id": "m10.hlc.repair-leave",
+      "name": "报修/请假闭环",
+      "category": "工作流",
+      "description": "员工发起→M07受理/派单/审批→处理留证→验收(done≠verified)→关闭归档→M10查看报告",
+      "states": { "repair": "DRAFT→SUBMITTED→TRIAGED→ASSIGNED→IN_PROGRESS→AWAITING_ACCEPTANCE→CLOSED", "leave": "DRAFT→SUBMITTED→POLICY_CHECKED→APPROVAL_PENDING→APPROVED→APPLIED→ARCHIVED" },
+      "constraints": ["执行者不可自验(403)", "处理完成必须留证(422)", "非法跳转(409)"],
+      "usage": "M07+M10 双端的标准审批闭环"
+    }
+  ],
+  "plmRealAgents": [
+    { "code": "AGENT_CODER", "name": "编码助手", "tools": ["codegen.preview", "codegen.allocate"], "autonomy": "L1" },
+    { "code": "AGENT_QA", "name": "质检官", "tools": ["dq.run", "dq.score", "dq.autofix"], "autonomy": "L1" },
+    { "code": "AGENT_ANALYST", "name": "分析师", "tools": ["metric.query", "analytics.insight"], "autonomy": "L0" },
+    { "code": "AGENT_COACH", "name": "改善教练", "tools": ["issue.create", "issue.analyze", "improve.draft"], "autonomy": "L1" },
+    { "code": "AGENT_ECN", "name": "变更助理", "tools": ["bom.diff", "bom.whereused", "ecn.draft"], "autonomy": "L1" },
+    { "code": "AGENT_GATE", "name": "技转检查员", "tools": ["dq.run", "archive.checklist", "project.gate"], "autonomy": "L0" },
+    { "code": "AGENT_BOM", "name": "结构助理", "tools": ["bom.validate", "bom.extract"], "autonomy": "L1" },
+    { "code": "AGENT_HELP", "name": "问答员", "tools": ["knowledge.search"], "autonomy": "L0" },
+    { "code": "AGENT_ORCH", "name": "总控", "tools": ["*"], "autonomy": "L0" }
+  ],
+  "usage": {
+    "bySystem": {
+      "M04_PLM": ["m10.auth.*", "m10.sync.*", "m10.todos.*", "m10.worksheet.*", "m10.node.*", "m10.tools.*", "m10.table.*"],
+      "M07_HLC": ["m10.hlc.*", "m10.auth.*", "m10.capture.*"],
+      "M05_CRM": ["m10.auth.*", "m10.table.*", "m10.capture.*"],
+      "EBMS": ["m10.auth.*", "m10.import.*", "m10.table.*"],
+      "Hub": ["m10.agent.*", "所有技能经 Hub Guard 调用"]
+    },
+    "invokePattern": "其他系统 → Hub/M11 → m10 skill API → M10 BFF → adapter → 专业系统"
+  }
+}

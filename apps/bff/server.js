@@ -17,6 +17,7 @@ const org = require('../../adapters/org');
 const plm2 = require('../../adapters/plm2');
 const plmSync = require('../../adapters/plm2/sync');
 const TOOLS = require('../../configs/tools.json');
+const SKILLS = require('../../configs/skills.json');
 const hub = require('../../adapters/hub');
 
 /* ---- M10 统一认证（与 M04 PLM 同一账号/令牌/角色） ---- */
@@ -216,6 +217,14 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/plm2/tools' && req.method === 'GET') {
       return send(res, 200, { tools: TOOLS.tools });
+    }
+    if (pathname === '/api/v1/skills' && req.method === 'GET') {
+      const skill = q.id ? SKILLS.skills.find(s => s.id === q.id) : null;
+      if (q.id && !skill) return send(res, 404, { error: 'skill not found' });
+      return send(res, 200, q.id ? skill : {
+        pack: SKILLS.skillPack, version: SKILLS.version, description: SKILLS.description,
+        count: SKILLS.skills.length, skills: SKILLS.skills, plmRealAgents: SKILLS.plmRealAgents, usage: SKILLS.usage
+      });
     }
     const toolLaunch = pathname.match(/^\/api\/v1\/plm2\/tools\/([^/]+)\/launch$/);
     if (toolLaunch && req.method === 'POST') {
