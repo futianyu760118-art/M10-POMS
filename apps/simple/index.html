@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M10 POMS · 简版</title>
+<style>
+:root{font-family:system-ui,"Microsoft YaHei",sans-serif;color:#16283f;background:#eef2f8}
+*{box-sizing:border-box}body{margin:0;padding:16px;max-width:560px;margin:0 auto}
+.card{background:#fff;border:1px solid #e2e8f1;border-radius:14px;padding:16px;margin-bottom:14px}
+h1{font-size:17px;margin:0 0 2px}h2{font-size:14px;margin:0 0 10px}
+.muted{color:#7b8aa0;font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+select,input,button{font:inherit;padding:8px 10px;border:1px solid #d5dfec;border-radius:9px;background:#fff}
+button{background:#2f6fbd;color:#fff;border-color:#2f6fbd;cursor:pointer}
+button.sec{background:#fff;color:#16283f}
+.chip{display:inline-block;background:#edf4ff;color:#24508f;border:1px solid #d7e5f6;border-radius:20px;padding:3px 10px;font-size:12px;margin:2px}
+.badge{font-size:11px;padding:2px 8px;border-radius:20px;background:#fdf3e0;color:#d98a14}
+.ok{background:#eaf7f0;color:#1c9a66}
+label{display:block;font-size:12px;color:#7b8aa0;margin:10px 0 4px}
+field{display:block}
+.err{background:#fdeeee;color:#d64545;border:1px solid #f0b9b9;border-radius:10px;padding:10px;font-size:13px}
+pre{background:#0f2744;color:#d7e6f5;padding:12px;border-radius:10px;overflow:auto;font-size:12px}
+</style>
+</head>
+<body>
+<h1>M10 POMS · 简版（前后端打通）</h1>
+<p class="muted">前端 → BFF → mock adapter：装配 manifest + 提交采集（幂等）。</p>
+
+<div class="card">
+  <h2>1. 装配</h2>
+  <div class="row">
+    <select id="actor">
+      <option value="u-1001">张三 · 恒剑 质检员</option>
+      <option value="u-1002">李四 · 恒剑 质检员+研发</option>
+      <option value="u-2001">王五 · 贞观 质检员</option>
+      <option value="u-1003">赵六 · 恒剑 销售</option>
+    </select>
+    <select id="family">
+      <option value="">无产品包</option>
+      <option value="led-light">led-light</option>
+      <option value="timer">timer</option>
+    </select>
+    <button onclick="assemble()">装配</button>
+  </div>
+  <div id="manifest"></div>
+</div>
+
+<div class="card" id="captureCard" hidden>
+  <h2>2. 采集提交</h2>
+  <div id="fields"></div>
+  <button onclick="submitCapture()">提交（202 pending-review）</button>
+  <div id="captureResult" style="margin-top:10px"></div>
+</div>
+
+<script>
+let productPack = null;
+
+async function assemble() {
+  const actor = document.getElementById('actor').value;
+  const family = document.getElementById('family').value;
+  const p = new URLSearchParams({ actor_id: actor });
+  if (family) p.set('product_family', family);
+  const res = await fetch('/poms/v1/me/manifest?' + p);
+  const data = await res.json();
+  const el = document.getElementById('manifest');
+  if (!res.ok) {
+    el.innerHTML = '<div class="err">' + res.status + ' · ' + data.error + '</div>';
+    document.getElementById('captureCard').hidden = true;
+    return;
+  }
+  productPack = data.product_pack;
+  const chips = (data.capability_ids || []).map(c => '<span class="chip">' + c + '</span>').join('');
+  const pack = productPack
+    ? '<div style="margin-top:8px"><span class="badge">产品包 ' + productPack.pack_id + ' · ' + productPack.status + '</span></div>'
+    : '<div style="margin-top:8px"><span class="badge">无产品包</span></div>';
+  el.innerHTML = '<div>' + chips + '</div>' + pack;
+  buildFields();
+  document.getElementById('captureCard').hidden = false;
+}
+
+function buildFields() {
+  const box = document.getElementById('fields');
+  box.innerHTML = '';
+  const list = (productPack && productPack.fields) || [{ id: 'note', type: 'number', label: '备注值' }];
+  list.forEach(f => {
+    const lab = document.createElement('label');
+    lab.textContent = f.label + (f.type === 'enum' ? '（pass/fail）' : '');
+    const inp = document.createElement('input');
+    inp.dataset.k = f.id;
+    box.append(lab, inp);
+  });
+}
+
+async function submitCapture() {
+  const values = {};
+  document.querySelectorAll('#fields input').forEach(i => { if (i.value !== '') values[i.dataset.k] = i.value; });
+  const key = 'ik-' + Math.random().toString(36).slice(2, 10);
+  const res = await fetch('/poms/v1/captures', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+    body: JSON.stringify({ actor_id: document.getElementById('actor').value, capture_type: 'scan', values })
+  });
+  const data = await res.json();
+  const el = document.getElementById('captureResult');
+  if (res.ok) {
+    el.innerHTML = '<div class="badge ok">' + data.status + '</div><pre>幂等键 ' + key + '\ncapture_id ' + data.capture_id + '\nevidence ' + data.evidence_id + '\n（done≠verified，待验证）</pre>';
+  } else {
+    el.innerHTML = '<div class="err">' + res.status + ' · ' + data.error + '</div>';
+  }
+}
+</script>
+</body>
+</html>

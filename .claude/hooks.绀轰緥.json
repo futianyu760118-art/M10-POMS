@@ -1,0 +1,37 @@
+{
+  "_说明": "这是可选增量。把 hooks 字段整体合并进 .claude/settings.json 的顶层（与 permissions 平级）即可生效。0-1 阶段只建议启用第 1 条。",
+
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "<<pnpm exec prettier --write>>",
+            "_说明": "编辑后自动格式化。这是确定性执行的，模型无法绕过，也是唯一真正可靠的治理层。传入文件路径的环境变量名请以所用 Claude Code 版本的官方文档为准。"
+          }
+        ]
+      }
+    ],
+
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "<<你的命令白名单校验脚本，返回非 0 即阻断>>",
+            "_说明": "可选。用于拦截 settings.json 的 glob 无法覆盖的场景（如复合命令、管道绕过）。0-1 阶段通常不必上，除非团队有合规要求。"
+          }
+        ]
+      }
+    ]
+  },
+
+  "_重要提醒": [
+    "Hooks 是代码层的确定性控制，模型无权选择是否执行——这是它强于 CLAUDE.md / Rules / Skills 的根本原因。",
+    "但 Hooks 本身具备执行命令的能力，属于供应链攻击面。只启用你能逐行读懂的脚本，任何新增 Hook 都要走评审。",
+    "Hooks 是强制点，不是替你做决策的工具。团队对某条规则有分歧时，先把规则讨论清楚，再写成 Hook。"
+  ]
+}

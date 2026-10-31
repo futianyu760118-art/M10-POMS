@@ -1,0 +1,14 @@
+{
+  "pack_id": "timer-inspection",
+  "version": "0.1.0-example",
+  "domain_owner": "M08",
+  "tenant_id": "zhenguan",
+  "product_family": "timer",
+  "product_model": "EXAMPLE_ONLY",
+  "fields": [
+    { "id": "timing_error_ms", "type": "number", "label": "计时误差 ms" },
+    { "id": "output_check", "type": "enum", "options": ["pass", "fail"] },
+    { "id": "appearance", "type": "enum", "options": ["pass", "fail"] }
+  ],
+  "status": "DRAFT_UNAPPROVED"
+}

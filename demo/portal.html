@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AEOS 统一门户 · 恒剑光电</title>
+<style>
+:root{--ink:#17243b;--muted:#6b788d;--line:#e2e8f0;--blue:#1767c9;--pale:#eaf2fe;--green:#11836b;--orange:#db8328;--nav:#10233b}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,"Microsoft YaHei",system-ui,sans-serif;background:#f4f6fa;color:var(--ink);line-height:1.5}
+.head{background:linear-gradient(135deg,#10233b,#1b3d63);color:#fff;padding:26px 28px}
+.head h1{margin:0;font-size:22px;font-weight:800}
+.head p{margin:6px 0 0;font-size:13px;opacity:.75}
+.head .pills{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.head .pill{font-size:11px;background:rgba(255,255,255,.12);padding:4px 11px;border-radius:20px}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 20px 50px}
+h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:8px;transition:.15s}
+.card:hover{box-shadow:0 8px 24px rgba(15,39,68,.1);transform:translateY(-2px)}
+.card .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card b.t{font-size:16px}
+.card .code{font-size:11px;color:var(--muted)}
+.card p{margin:0;font-size:12.5px;color:var(--muted);flex:1}
+.tag{font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600;white-space:nowrap}
+.tag.ok{background:#e7f5ef;color:var(--green)}
+.tag.run{background:#eaf2fe;color:var(--blue)}
+.tag.plan{background:#eef1f5;color:var(--muted)}
+.btn{display:inline-block;border:1px solid #cbd7e7;border-radius:9px;background:#fff;color:#23415e;padding:8px 14px;font-size:13px;font-weight:680;cursor:pointer;text-decoration:none;text-align:center}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.foot{max-width:1180px;margin:0 auto;padding:0 20px 40px;font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>AEOS 统一门户 · 宁波恒剑光电科技有限公司</h1>
+  <p>岗位与个人运营微系统（M10 POMS）· 选择业务系统进入工作台</p>
+  <div class="pills">
+    <span class="pill">已接入：PLM（真实数据 166 项目）</span>
+    <span class="pill">HLC 报修/请假闭环</span>
+    <span class="pill">AI 录入 8002 · 水印 8003</span>
+  </div>
+</div>
+<div class="wrap">
+  <h2 class="sec">业务系统（按系统选择进入）</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="top"><b class="t">PLM 研发自治中心</b><span class="tag ok">已接入 · 真实数据</span></div>
+      <span class="code">M04 · /plm2</span>
+      <p>166 个真实项目 · 22 节点跟踪 · 工作表填报联动 · ECN 三级审批 · 物料生命周期 · 工序流转（按人员联动） · 采集录入 + AI · 工序工具</p>
+      <a class="btn primary" href="/plm2">进入 PLM</a>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">HLC 人力后勤自治中心</b><span class="tag ok">已接入 · 双端闭环</span></div>
+      <span class="code">M07×M10 · /hlc</span>
+      <p>报修/请假首条 MVP 闭环：员工发起 → 受理/派单/审批 → 留证 → 验收（done≠verified）→ 归档 → 个人报告</p>
+      <a class="btn primary" href="/hlc">进入 HLC</a>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">CRM 销售自治中心</b><span class="tag run">本机运行 · 待导入</span></div>
+      <span class="code">M05 · crm-postgres:55434 / crm-backend:8000</span>
+      <p>客户/线索/报价/订单。生产容器已在运行，参照 import-from-plm.js 模式即可接入真实数据。</p>
+      <button class="btn" disabled>待接入</button>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">SCP 供应链协同</b><span class="tag plan">规划</span></div>
+      <span class="code">M06 · 采购/到料/交付</span>
+      <p>到料与生产计划表、采购与供应商管理（PLM 模板 12/15 号工作表归属此域）。</p>
+      <button class="btn" disabled>规划中</button>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">FAC 财经自治中心</b><span class="tag plan">规划</span></div>
+      <span class="code">M09 · 应收/成本/回款</span>
+      <p>多币种 AR、核销、催收；POMS 仅视图与 Action（U08 销售 8 阶段的后端）。</p>
+      <button class="btn" disabled>规划中</button>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">EDP 数据证据平台</b><span class="tag plan">规划</span></div>
+      <span class="code">M02 · Event/Evidence/Trace</span>
+      <p>采集→人机审核→清洗校验→归档 Result/Evidence 的统一证据链（当前各系统内 mock）。</p>
+      <button class="btn" disabled>规划中</button>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">Hub 智能体中心</b><span class="tag plan">模拟模式</span></div>
+      <span class="code">M13 · Agent Workforce</span>
+      <p>个人/专业 Agent 会话；未连接时明确显示模拟（当前 /poms/v1/agents 返回 simulated，503 不虚假成功）。</p>
+      <button class="btn" disabled>规划中</button>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">EBMS 企业经营管理</b><span class="tag run">本机运行 · 待导入</span></div>
+      <span class="code">M03 · ebms:3010</span>
+      <p>经营看板/项目推进（PLM 项目数据曾由 EBMS 同步而来，rd_project_progress 可作数据源）。</p>
+      <button class="btn" disabled>待接入</button>
+    </div>
+  </div>
+
+  <h2 class="sec">通用工作台</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="top"><b class="t">岗位装配台</b><span class="tag ok">已接入</span></div>
+      <span class="code">公司 → 部门 → 岗位 级联</span>
+      <p>选择后自动装配职责 / 任务项 / 能力包（恒剑/贞观两企业并行）。</p>
+      <a class="btn" href="/org">进入装配台</a>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">品质检验演示</b><span class="tag ok">Demo</span></div>
+      <span class="code">扫码匹配 · 采集 · done≠verified</span>
+      <p>V2.3 场景演示页（灯具/定时器能力包）。</p>
+      <a class="btn" href="/demo/inspection.html">打开</a>
+    </div>
+    <div class="card">
+      <div class="top"><b class="t">AI 录入 / 工具服务</b><span class="tag ok">已接入</span></div>
+      <span class="code">:8002 OCR/语音/VL/DXF · :8003 水印</span>
+      <p>PaddleOCR·FunASR·Qwen2.5-VL（未装权重时模拟）；DXF 解析与 PDF/图片水印已真实可用。</p>
+      <a class="btn" href="/plm2">在 PLM 内使用</a>
+    </div>
+  </div>
+</div>
+<div class="foot">AEOS V7.2.2 · M10 POMS L0 · 数据来源：plm-postgres/plm_v4（真实）+ 本地演示 · 未经 Owner 签批均为候选状态</div>
+</body>
+</html>

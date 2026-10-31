@@ -1,0 +1,11 @@
+﻿# ===== 团队 Claude Code 约定（来自启动包） =====
+.claude/settings.local.json
+CLAUDE.local.md
+
+# ===== 本项目产物（AI 安装时按真实结构补充） =====
+node_modules/
+__pycache__/
+*.pyc
+services/ai-entry/__pycache__/
+database/backups/
+*.dump

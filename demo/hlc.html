@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AEOS M07+M10 · 人事行政双端（报修/请假）</title>
+<style>
+:root{--bg:#f4f6fa;--ink:#17243b;--muted:#6b788d;--line:#e2e8f0;--blue:#1767c9;--pale:#eaf2fe;--green:#11836b;--orange:#db8328;--red:#c33a4e;--nav:#10233b}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{font-family:Inter,"Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+.shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh;max-width:1500px;margin:0 auto}
+.side{background:var(--nav);color:#c6d4e5;padding:18px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{color:#fff;font-size:16px;font-weight:800;padding:2px 10px 8px}
+.brand small{display:block;color:#94adca;font-size:10px;font-weight:500;margin-top:4px}
+.navlabel{font-size:10px;color:#87a1be;letter-spacing:1.3px;padding:16px 12px 8px}
+.navitem{display:block;width:100%;background:transparent;border:0;text-align:left;color:#bed0e2;padding:10px 12px;border-radius:9px;margin:2px 0;font-size:13px;cursor:pointer}
+.navitem.active{background:#244e7e;color:#fff;font-weight:700}
+.navitem:hover{background:#203b59}
+.side-foot{font-size:10px;color:#90a4bd;padding:18px 10px;line-height:1.7}
+.main{padding:18px 24px 56px;min-width:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.title{font-size:21px;font-weight:800;margin:0}
+.topright{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pill{background:#fff;border:1px solid var(--line);border-radius:99px;padding:6px 11px;font-size:12px;color:#52647b}
+.pill select{border:0;background:none;font:inherit;color:#23415e;font-weight:700;outline:none}
+.btn{border:1px solid #cbd7e7;border-radius:9px;background:#fff;color:#23415e;padding:8px 12px;font-size:13px;font-weight:680;cursor:pointer}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.danger{color:var(--red);border-color:#f0c9cf}
+.btn.small{padding:5px 9px;font-size:12px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+.panel h2{font-size:15px;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center}
+.panel h2 .tag{font-size:11px;color:var(--muted);font-weight:400}
+.grid{display:grid;gap:12px}
+.g5{grid-template-columns:repeat(5,1fr)}.g2{grid-template-columns:1fr 1fr}
+.metric{border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:#fbfcfe}
+.metric span{font-size:11px;color:var(--muted)}.metric b{display:block;font-size:22px;font-weight:800;margin:3px 0}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
+.tag.green{background:#e7f5ef;color:var(--green)}.tag.orange{background:#fdf2e2;color:var(--orange)}
+.tag.red{background:#fdeaea;color:var(--red)}.tag.blue{background:var(--pale);color:#24508f}.tag.gray{background:#eef1f5;color:#6b788d}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #eef2f7;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
+.stepper{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.step{font-size:11px;padding:4px 9px;border-radius:20px;background:#eef1f5;color:#6b788d;white-space:nowrap}
+.step.done{background:#e7f5ef;color:var(--green)}
+.step.now{background:var(--pale);color:var(--blue);font-weight:700}
+.notice{background:#fff8e5;border:1px solid #f0d48b;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5b12;margin-bottom:14px}
+.notice.warn{background:#fdeeee;border-color:#f0b9b9;color:#8a2525}
+.field{display:block;margin-bottom:10px}
+.field span{font-size:12px;color:var(--muted);display:block;margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{font-size:12px;background:var(--pale);color:#24508f;border:1px solid #d7e5f6;border-radius:20px;padding:5px 11px}
+.muted{color:var(--muted)}.empty{text-align:center;color:var(--muted);padding:36px 16px;font-size:13px}
+.footer{margin-top:16px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:860px){.shell{display:block}.side{display:none}.g5,.g2{grid-template-columns:1fr 1fr}.main{padding:12px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">M07 × M10 <span style="color:#62a7ff">双端</span><small>恒剑 · 人事行政协同（报修/请假）</small></div>
+    <div class="navlabel">M07 · 人力后勤自治中心</div><div id="nav07"></div>
+    <div class="navlabel">M10 · 员工个人端</div><div id="nav10"></div>
+    <div class="side-foot">首条 MVP 闭环：员工发起 → M01 Guard → M07 受理/派单/审批 → 处理留证 → 验收（done≠verified）→ 归档 → M10 报告<br>数据经 BFF API（内存 mock）</div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <div class="title" id="pageTitle">总览工作台</div>
+      <div class="topright">
+        <span class="pill">宁波恒剑光电科技有限公司</span>
+        <span class="pill">当前身份：<select id="personSel" onchange="switchPerson()"></select></span>
+      </div>
+    </div>
+    <div class="notice" id="rolebar"></div>
+    <div id="content"><div class="empty">加载中…</div></div>
+    <div class="footer">AEOS M07 HLC × M10 POMS · 报修/请假首条闭环演示 · 状态机与权限由服务端（BFF /api/v1/hlc）执行，UI 仅投影。</div>
+  </main>
+</div>
+<script>
+const HLC = '/api/v1/hlc';
+const POMS = '/api/v1/poms';
+const NAV07 = [['overview','总览工作台'],['pool','业务事务池'],['approvals','审批中心']];
+const NAV10 = [['home','我的首页'],['apply','我的申请'],['tasks','未来待办'],['reports','过去报告']];
+const TYPE_LABEL = { logistics_repair:'后勤维修', leave:'请假' };
+const STATE_LABEL = { DRAFT:'草稿',SUBMITTED:'已提交',TRIAGED:'待分派',ASSIGNED:'已分派',IN_PROGRESS:'处理中',AWAITING_ACCEPTANCE:'待验收',CLOSED:'已关闭',NEEDS_INFO:'待补充',REJECTED:'已拒绝',CANCELLED:'已取消',POLICY_CHECKED:'政策校验通过',APPROVAL_PENDING:'待审批',APPROVED:'已批准',APPLIED:'已生效',ARCHIVED:'已归档' };
+const SM = {
+  logistics_repair: { steps:['报修','分派','处理','现场验收','关闭'], order:['DRAFT','SUBMITTED','TRIAGED','ASSIGNED','IN_PROGRESS','AWAITING_ACCEPTANCE','CLOSED'] },
+  leave: { steps:['申请','政策校验','审批','生效','归档'], order:['DRAFT','SUBMITTED','POLICY_CHECKED','APPROVAL_PENDING','APPROVED','APPLIED','ARCHIVED'] }
+};
+const CLOSED_STATES = ['CLOSED','ARCHIVED','REJECTED','CANCELLED'];
+
+let state = { person:'p-001', page:'overview', people:[], requests:[], ws:{actions:[]} };
+
+async function get(p){ const r = await fetch(p); if(!r.ok) throw new Error(r.status); return r.json(); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function stTag(s){ const g=['CLOSED','ARCHIVED','APPROVED','APPLIED']; const r=['REJECTED','CANCELLED']; const o=['APPROVAL_PENDING','AWAITING_ACCEPTANCE','NEEDS_INFO']; const c=g.includes(s)?'green':r.includes(s)?'red':o.includes(s)?'orange':'blue'; return `<span class="tag ${c}">${STATE_LABEL[s]||s}</span>`; }
+function pname(id){ const p = state.people.find(x=>x.person_id===id); return p ? p.name : (id||'—'); }
+function me(){ return state.people.find(p=>p.person_id===state.person); }
+function can(act){ return state.ws.actions.includes(act); }
+
+function nav(){ for(const [el,items] of [['nav07',NAV07],['nav10',NAV10]]) document.getElementById(el).innerHTML = items.map(([k,v])=>`<button class="navitem ${state.page===k?'active':''}" onclick="go('${k}')">${v}</button>`).join(''); }
+function go(k){ state.page=k; render(); }
+
+async function loadAll(){
+  const [p, r, w] = await Promise.all([
+    get(HLC+'/people'),
+    get(HLC+'/service-requests'),
+    get(POMS+'/me/workspace?person_id='+encodeURIComponent(state.person))
+  ]);
+  state.people = p.people;
+  state.requests = r.requests;
+  state.ws = w;
+}
+
+async function init(){
+  const p = await get(HLC+'/people');
+  state.people = p.people;
+  const sel = document.getElementById('personSel');
+  sel.innerHTML = p.people.map(x=>`<option value="${x.person_id}" ${x.person_id===state.person?'selected':''}>${x.name} · ${x.position}</option>`).join('');
+  await loadAll(); render();
+}
+async function switchPerson(){ state.person = document.getElementById('personSel').value; await loadAll(); render(); }
+
+function stepBar(r){
+  const sm = SM[r.type]; if(!sm) return '';
+  let i = sm.order.indexOf(r.state);
+  if(i<0) i = sm.order.length; // 异常态（REJECTED 等）停在最后
+  return `<div class="stepper">${sm.steps.map((s,k)=>`<span class="step ${k<i?'done':k===i?'now':''}">${k+1}.${s}</span>`).join('')}</div>`;
+}
+
+// 按当前身份能力生成可用动作（服务端仍会鉴权/校验）
+function actsFor(r){
+  const a = [];
+  if(r.type==='logistics_repair'){
+    if(r.state==='SUBMITTED' && can('hlc.request.assign')) a.push(`<button class="btn small" onclick="tr('${r.id}','TRIAGED')">受理</button>`);
+    if(r.state==='TRIAGED' && can('hlc.request.assign')) a.push(`<button class="btn small" onclick="trAssign('${r.id}')">分派</button>`);
+    if(r.state==='ASSIGNED' && can('hlc.request.assign')) a.push(`<button class="btn small" onclick="tr('${r.id}','IN_PROGRESS')">开始处理</button>`);
+    if(r.state==='IN_PROGRESS' && can('hlc.request.assign')) a.push(`<button class="btn small primary" onclick="trDone('${r.id}')">处理完成</button>`);
+    if(r.state==='AWAITING_ACCEPTANCE' && can('hlc.request.verify')) a.push(`<button class="btn small primary" onclick="trClose('${r.id}')">验收关闭</button>`);
+  } else {
+    if(r.state==='SUBMITTED' && can('hlc.request.approve')) a.push(`<button class="btn small" onclick="tr('${r.id}','POLICY_CHECKED')">政策校验</button>`);
+    if(r.state==='POLICY_CHECKED' && can('hlc.request.approve')) a.push(`<button class="btn small" onclick="tr('${r.id}','APPROVAL_PENDING')">提交审批</button>`);
+    if(r.state==='APPROVAL_PENDING' && can('hlc.request.approve')) a.push(`<button class="btn small primary" onclick="tr('${r.id}','APPROVED')">批准</button><button class="btn small danger" onclick="tr('${r.id}','REJECTED')">拒绝</button>`);
+    if(r.state==='APPROVED' && can('hlc.request.approve')) a.push(`<button class="btn small" onclick="tr('${r.id}','APPLIED')">生效</button>`);
+    if(r.state==='APPLIED' && can('hlc.request.approve')) a.push(`<button class="btn small" onclick="tr('${r.id}','ARCHIVED')">归档</button>`);
+  }
+  return a.join(' ');
+}
+
+function reqRow(r, actions=true){
+  const selfBlock = r.state==='AWAITING_ACCEPTANCE' && r.done_by===state.person
+    ? `<div class="muted" style="font-size:11px">执行者不可自验（done≠verified）</div>` : '';
+  return `<div class="req" style="padding:11px 0;border-bottom:1px solid #eef2f7">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div style="flex:1;min-width:0">
+        <b>${esc(r.subject)}</b>
+        <div class="muted" style="font-size:12px">${r.id} · ${TYPE_LABEL[r.type]||r.type} · 申请人 ${esc(pname(r.requester))} · 执行 ${esc(pname(r.assignee))} · SLA ${esc(r.sla||'—')}${r.done_by?` · 处理人 ${esc(pname(r.done_by))}`:''}${(r.evidence_refs&&r.evidence_refs.length)?` · 证据 ${r.evidence_refs.map(esc).join('，')}`:''}${r.verified_by?` · 验收人 ${esc(pname(r.verified_by))}`:''}</div>
+        ${stepBar(r)}${selfBlock}
+      </div>
+      <div class="row" style="flex-direction:column;align-items:flex-end">${stTag(r.state)}${actions?actsFor(r):''}</div>
+    </div></div>`;
+}
+
+const pages = {
+  overview(){
+    const r = state.requests;
+    const cnt = f => r.filter(f).length;
+    return `<div class="grid g5">
+      ${[['待分派',cnt(x=>['SUBMITTED','TRIAGED'].includes(x.state))],['处理中',cnt(x=>['ASSIGNED','IN_PROGRESS'].includes(x.state))],['待审批',cnt(x=>x.state==='APPROVAL_PENDING')],['待验收',cnt(x=>x.state==='AWAITING_ACCEPTANCE')],['已关闭',cnt(x=>['CLOSED','ARCHIVED'].includes(x.state))]]
+        .map(([a,b])=>`<div class="metric"><span>${a}</span><b>${b}</b></div>`).join('')}
+    </div>
+    <div class="panel"><h2>业务事务池 <span class="tag">M07 专业处理</span></h2>${r.map(x=>reqRow(x)).join('')||'<div class="empty">暂无</div>'}</div>
+    <div class="notice" style="margin:0">闭环：员工 M10 发起 → M01 Guard → M07 受理/分派/审批 → 处理上传证据 → <b>申请人/授权验收人验收</b>（done ≠ verified）→ 关闭归档 → M10 查看报告。</div>`;
+  },
+  pool(){
+    return `<div class="panel"><h2>全部业务事务 <span class="tag">状态机受控 · 非法跳转 409</span></h2>${state.requests.map(x=>reqRow(x)).join('')||'<div class="empty">暂无</div>'}</div>`;
+  },
+  approvals(){
+    const list = state.requests.filter(x=>['APPROVAL_PENDING','AWAITING_ACCEPTANCE','POLICY_CHECKED','SUBMITTED'].includes(x.state));
+    return `<div class="panel"><h2>人工审批 / 验收工作池 <span class="tag">人审优先 · 职责分离</span></h2>
+      ${list.map(x=>reqRow(x)).join('')||'<div class="empty">暂无待审批/验收事项</div>'}</div>
+      <div class="notice warn" style="margin:0">演示操作经 BFF 转发至 m07 状态机；生产须经 M01 Guard 与双人复核，高风险动作一律人工确认。</div>`;
+  },
+  home(){
+    const mine = state.requests.filter(x=>!CLOSED_STATES.includes(x.state) && (x.requester===state.person||x.assignee===state.person));
+    return `<div class="panel"><h2>我的待办 <span class="tag">未来待办 / 过去报告 / 智能体</span></h2>${mine.map(x=>reqRow(x)).join('')||'<div class="empty">暂无待办 🎉</div>'}</div>
+      <div class="panel"><h2>快捷申请</h2><div class="row">
+        <button class="btn primary" onclick="quick('logistics_repair')">报修申请</button>
+        <button class="btn primary" onclick="quick('leave')">请假申请</button>
+        <button class="btn" onclick="go('reports')">过去报告</button>
+      </div></div>`;
+  },
+  apply(){
+    return `<div class="panel"><h2>我的申请 <span class="tag">最小字段 + 状态机</span></h2>
+      <label class="field"><span>申请类型</span><select id="apType"><option value="logistics_repair">后勤维修</option><option value="leave">请假</option></select></label>
+      <label class="field"><span>标题</span><input id="apSubject" placeholder="例如：车间照明维修 / 年假申请"></label>
+      <label class="field"><span>说明</span><textarea id="apDesc" rows="3" placeholder="描述具体情况"></textarea></label>
+      <div class="row"><button class="btn primary" onclick="createReq()">提交（进入状态机 SUBMITTED）</button></div></div>
+      <div class="panel"><h2>我的申请记录</h2>${state.requests.filter(x=>x.requester===state.person).map(x=>reqRow(x)).join('')||'<div class="empty">暂无申请</div>'}</div>`;
+  },
+  tasks(){
+    const mine = state.requests.filter(x=>!CLOSED_STATES.includes(x.state) && (x.requester===state.person||x.assignee===state.person));
+    return `<div class="panel"><h2>未来待办与异常 <span class="tag">对象/截止/状态</span></h2>${mine.map(x=>reqRow(x)).join('')||'<div class="empty">暂无待办</div>'}</div>
+      <div class="panel"><h2>执行机制</h2><div class="stepper">${['M01 权限判定','M10 展示待办','M07 业务处理','人工审批/验收','M02 Result/Evidence','M10 回显报告'].map(s=>`<span class="step">${s}</span>`).join('')}</div></div>`;
+  },
+  reports(){
+    const done = state.requests.filter(x=>x.requester===state.person && CLOSED_STATES.includes(x.state));
+    return `<div class="panel"><h2>过去的报告 <span class="tag">ResultRef / 证据 / 验收人</span></h2>
+      ${done.map(x=>`<div class="req" style="padding:11px 0;border-bottom:1px solid #eef2f7">
+        <div class="row" style="justify-content:space-between"><div style="flex:1"><b>${esc(x.subject)}</b>
+        <div class="muted" style="font-size:12px">${x.id} · 状态 ${STATE_LABEL[x.state]||x.state}${x.verified_by?` · 验收人 ${esc(pname(x.verified_by))}`:''}${x.result_ref?` · ResultRef ${esc(x.result_ref)}`:''}${(x.evidence_refs&&x.evidence_refs.length)?` · 证据 ${x.evidence_refs.map(esc).join('，')}`:''}</div></div>${stTag(x.state)}</div></div>`).join('')||'<div class="empty">暂无已完成报告</div>'}</div>
+      <div class="notice" style="margin:0">历史结果经授权展示；执行者声明完成 ≠ 验证通过，验收须由授权验收人执行。</div>`;
+  }
+};
+
+async function render(){
+  nav();
+  document.getElementById('pageTitle').textContent = [...NAV07,...NAV10].find(x=>x[0]===state.page)[1];
+  const m = me();
+  document.getElementById('rolebar').innerHTML = `<b>${m.name}</b>（${m.dept} · ${m.position}）· 能力：${state.ws.actions.length?state.ws.actions.map(a=>`<span class="chip">${a}</span>`).join(' '):'<span class="tag gray">无管理能力（仅本人申请/查看）</span>'}　UI 仅投影，服务端再鉴权。`;
+  try { document.getElementById('content').innerHTML = pages[state.page](); }
+  catch(e){ document.getElementById('content').innerHTML = `<div class="empty">加载失败（${e.message}），请确认 BFF 已启动。</div>`; }
+}
+
+/* ---- 操作（全部走服务端状态机） ---- */
+async function post(path, body){
+  const r = await fetch(HLC+path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok){ throw new Error(j.error || (r.status+' 错误')); }
+  return j;
+}
+async function tr(id, next, extra={}){
+  try{ await post(`/service-requests/${id}/transitions`, { next_state: next, actor: state.person, ...extra }); await loadAll(); render(); }
+  catch(e){ alert('被拒绝：'+e.message); }
+}
+function trAssign(id){
+  const a = prompt('指定执行人（person_id，默认 p-002 马雅雯）','p-002');
+  if(!a) return;
+  tr(id,'ASSIGNED',{ assignee: a.trim(), sla: '3 日内' });
+}
+function trDone(id){
+  const ev = prompt('填写证据引用（处理完成必须留证，如 EVD-2601）','EVD-2601');
+  if(!ev) return;
+  tr(id,'AWAITING_ACCEPTANCE',{ evidence_ref: ev.trim(), note:'处理完成，提交验收' });
+}
+function trClose(id){ tr(id,'CLOSED',{ verifier: state.person, note:'验收通过' }); }
+function quick(type){ go('apply'); document.getElementById('apType').value = type; document.getElementById('apSubject').value = type==='leave'?'年假申请（2 天）':'车间设施报修'; document.getElementById('apDesc').focus(); }
+async function createReq(){
+  const type = document.getElementById('apType').value;
+  const subject = document.getElementById('apSubject').value.trim();
+  const description = document.getElementById('apDesc').value.trim();
+  if(!subject){ alert('请填写标题'); return; }
+  try{
+    const r = await post('/service-requests', { type, subject, description, requester: state.person, idempotency_key: 'ik-'+Date.now()+'-'+Math.random().toString(36).slice(2,6) });
+    alert('已创建 '+r.id+'，状态 SUBMITTED（待 M07 受理）');
+    await loadAll(); render();
+  }catch(e){ alert('创建失败：'+e.message); }
+}
+
+init().catch(e=>{ document.getElementById('content').innerHTML = `<div class="empty">无法连接 BFF（${e.message}），请先 npm start。</div>`; });
+</script>
+</body>
+</html>

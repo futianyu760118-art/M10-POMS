@@ -1,0 +1,16 @@
+{
+  "agent_model": "hub-reference-only",
+  "principal": { "role": "sales", "display_name": "销售岗位主智能体" },
+  "sub_agents": [
+    { "key": "sales-1", "display_name": "公开获客", "runtime": "AEOS Hub Adapter", "status": "UNBOUND" },
+    { "key": "sales-2", "display_name": "线索评估", "runtime": "AEOS Hub Adapter", "status": "UNBOUND" },
+    { "key": "sales-3", "display_name": "客户沟通", "runtime": "AEOS Hub Adapter", "status": "UNBOUND" },
+    { "key": "sales-4", "display_name": "报价分析", "runtime": "AEOS Hub Adapter", "status": "UNBOUND" },
+    { "key": "sales-5", "display_name": "订单协同", "runtime": "AEOS Hub Adapter", "status": "UNBOUND" },
+    { "key": "sales-6", "display_name": "交付跟踪", "runtime": "AEOS Hub Adapter", "status": "UNBOUND" },
+    { "key": "sales-7", "display_name": "回款跟踪", "runtime": "AEOS Hub Adapter", "status": "UNBOUND" },
+    { "key": "sales-8", "display_name": "售后服务", "runtime": "AEOS Hub Adapter", "status": "UNBOUND" }
+  ],
+  "guard": "M01/Hub approval required",
+  "state": "MOCK_ONLY"
+}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="manifest.json">
+<title>M10 POMS · BFF 装配演示</title>
+<style>
+:root{font-family:system-ui,"Microsoft YaHei",sans-serif;color:#16283f;background:#eef2f8}
+*{box-sizing:border-box}body{margin:0;padding:16px;max-width:560px;margin:0 auto}
+.card{background:#fff;border:1px solid #e2e8f1;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 4px 16px rgba(15,39,68,.06)}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:0 0 10px}
+.muted{color:#7b8aa0;font-size:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+select,input,button{font:inherit;padding:9px 11px;border:1px solid #d5dfec;border-radius:10px;background:#fff}
+button{background:#2f6fbd;color:#fff;border-color:#2f6fbd;cursor:pointer}
+.chip{display:inline-block;background:#edf4ff;color:#24508f;border:1px solid #d7e5f6;border-radius:20px;padding:4px 11px;font-size:12px;margin:3px}
+pre{background:#0f2744;color:#d7e6f5;padding:14px;border-radius:12px;overflow:auto;font-size:12px;line-height:1.5}
+.badge{font-size:11px;padding:2px 9px;border-radius:20px;background:#fdf3e0;color:#d98a14}
+</style>
+</head>
+<body>
+<h1>M10 POMS · 移动工作台</h1>
+<p class="muted">本页通过 BFF 调用 <code>/poms/v1/me/manifest</code>，演示岗位装配 + 产品包匹配（L0 mock）。</p>
+
+<div class="card">
+  <h2>装配输入</h2>
+  <div class="row">
+    <label>人员 <select id="actor"></select></label>
+    <label>产品族 <select id="family"><option value="">（无）</option><option value="led-light">led-light 灯具</option><option value="timer">timer 定时器</option></select></label>
+    <button onclick="load()">装配 Manifest</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>返回的 UI Manifest</h2>
+  <div id="summary"></div>
+  <pre id="raw">点击「装配」加载…</pre>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

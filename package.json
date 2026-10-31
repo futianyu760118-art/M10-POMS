@@ -1,0 +1,13 @@
+{
+  "name": "m10-poms",
+  "version": "0.1.0-demo",
+  "private": true,
+  "description": "AEOS M10 POMS 岗位与个人运营微系统 — L0 Demo / mock BFF 脚手架（未接入生产接口）",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node apps/bff/server.js",
+    "dev": "node apps/bff/server.js",
+    "test": "node tests/contract/run.js"
+  },
+  "license": "UNLICENSED"
+}

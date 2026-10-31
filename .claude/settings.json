@@ -1,0 +1,56 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard *)",
+      "Bash(git checkout main *)",
+      "Bash(git branch -D *)",
+      "Bash(curl * | sh*)",
+      "Bash(wget * | sh*)",
+      "Write(**/.env)",
+      "Write(**/.env.*)",
+      "Write(**/*.pem)",
+      "Write(**/*secret*)"
+    ],
+
+    "ask": [
+      "Bash(npm install *)",
+      "Bash(npm i *)",
+      "Bash(yarn add *)",
+      "Bash(pip install *)",
+      "Bash(uv add *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(git init *)",
+      "Bash(rm *)",
+      "Bash(npx *)",
+      "Bash(docker exec *)",
+      "Bash(docker compose *)"
+    ],
+
+    "allow": [
+      "Read",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch --*)",
+      "Bash(npm start *)",
+      "Bash(npm test *)",
+      "Bash(npm run test *)",
+      "Bash(node tests/contract/run.js *)",
+      "Bash(node --check *)",
+      "Bash(node scripts/import-from-plm.js *)",
+      "Bash(node *_selfcheck*.js *)",
+      "Bash(python -m uvicorn *)",
+      "Bash(python -c *)",
+      "Bash(ls *)",
+      "Bash(cat *)"
+    ]
+  }
+}

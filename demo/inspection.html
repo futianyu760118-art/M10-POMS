@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f2744">
+<title>AEOS · M10 POMS 岗位与个人运营微系统</title>
+<style>
+:root{
+  --bg:#eef2f8; --card:#ffffff; --ink:#16283f; --muted:#7b8aa0;
+  --line:#e2e8f1; --brand:#0f2744; --brand2:#2f6fbd; --accent:#2f6fbd;
+  --ok:#1c9a66; --warn:#d98a14; --danger:#d64545; --chip:#edf4ff;
+  --shadow:0 6px 24px rgba(15,39,68,.08);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  color:var(--ink);background:var(--bg);line-height:1.5;
+  display:flex;justify-content:center;min-height:100vh;
+}
+.shell{width:100%;max-width:440px;min-height:100vh;background:var(--bg);position:relative;
+  box-shadow:0 0 0 1px var(--line),0 10px 40px rgba(15,39,68,.12)}
+@media(min-width:800px){.shell{margin:18px auto;min-height:calc(100vh - 36px);border-radius:24px;overflow:hidden}}
+/* 顶部条 */
+.topbar{background:linear-gradient(135deg,#0f2744,#1b3d63);color:#fff;padding:14px 16px 12px;position:sticky;top:0;z-index:20}
+.topbar .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.topbar .brand{font-size:15px;font-weight:700;letter-spacing:.3px}
+.topbar .brand small{display:block;font-weight:400;font-size:11px;opacity:.65;margin-top:1px}
+.avatar{width:34px;height:34px;border-radius:50%;background:#2f6fbd;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;cursor:pointer}
+.tenant{font-size:11px;opacity:.75}
+/* 目标 / 异常条 */
+.strip{padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.goal{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow)}
+.goal .t{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.goal .v{font-size:15px;font-weight:600;margin-top:3px}
+.goal .bar{height:5px;border-radius:3px;background:#e7edf5;margin-top:9px;overflow:hidden}
+.goal .bar i{display:block;height:100%;background:linear-gradient(90deg,#2f6fbd,#5b9be0);border-radius:3px}
+.alerts{display:flex;gap:10px;flex-wrap:wrap}
+.alert{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 13px;box-shadow:var(--shadow)}
+.alert .k{font-size:11px;color:var(--muted)}
+.alert .n{font-size:20px;font-weight:800;line-height:1.1}
+.alert.warn .n{color:var(--warn)}.alert.ok .n{color:var(--ok)}.alert.bad .n{color:var(--danger)}
+/* 区块 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);margin:0 16px 14px}
+.card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between}
+.card h2 .tag{font-size:11px;color:var(--muted);font-weight:400}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:12px;background:var(--chip);color:#24508f;border:1px solid #d7e5f6;border-radius:20px;padding:5px 11px;display:inline-flex;align-items:center;gap:5px}
+.chip.alt{background:#eefaf4;color:#13724e;border-color:#cde9db}
+.badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
+.badge.done{background:#eaf7f0;color:var(--ok)}.badge.verify{background:#fdf3e0;color:var(--warn)}
+.badge.sub{background:#eef3fb;color:#3a6fb5}.badge.bad{background:#fdeeee;color:var(--danger)}
+/* 任务列表 */
+.task{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid #eef2f7;align-items:flex-start}
+.task:last-child{border-bottom:0}
+.task .ico{width:34px;height:34px;border-radius:10px;background:#edf4ff;color:#2f6fbd;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.task .bd{flex:1;min-width:0}
+.task .tt{font-size:14px;font-weight:600}
+.task .mt{font-size:12px;color:var(--muted);margin-top:2px}
+.task .mt b{color:var(--ink);font-weight:600}
+.task .rt{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none}
+/* 底部导航 */
+.nav{position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;z-index:20;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+.nav button{flex:1;background:none;border:0;padding:7px 2px;color:var(--muted);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+.nav button .i{font-size:19px;line-height:1}
+.nav button.on{color:var(--accent);font-weight:600}
+/* 抽屉 */
+.drawer{position:fixed;inset:0;background:rgba(15,39,68,.45);z-index:40;display:none;align-items:flex-end}
+.drawer.open{display:flex}
+.sheet{background:var(--card);width:100%;max-width:440px;margin:0 auto;border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));max-height:84vh;overflow:auto;animation:up .22s ease}
+@keyframes up{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}
+.sheet .grab{width:44px;height:5px;border-radius:3px;background:#d6dfeb;margin:0 auto 14px}
+/* 表单 */
+label{display:block;font-size:12px;color:var(--muted);margin:13px 0 5px}
+input,textarea,select{width:100%;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:#fbfcfe}
+input:focus,textarea:focus,select:focus{outline:2px solid #bcd7f2;border-color:var(--accent)}
+button{font:inherit;cursor:pointer}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:11px 16px;font-size:14px;font-weight:600}
+.btn.pri{background:var(--brand2);color:#fff;border-color:var(--brand2)}
+.btn.ghost{background:#f2f6fb}
+.btn.block{width:100%}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btnrow{display:flex;gap:10px}.btnrow .btn{flex:1}
+.muted{color:var(--muted);font-size:12px}
+.notice{background:#fff8e5;border:1px solid #f0d48b;border-radius:12px;padding:10px 12px;font-size:12px;color:#7a5b12;margin:0 16px 14px}
+/* 采集 */
+.scanbox{border:2px dashed #c3d4e8;border-radius:16px;padding:22px;text-align:center;color:var(--muted)}
+.scanbox .big{font-size:34px}
+.field{margin-bottom:2px}
+.photobtn,.voicebtn{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfcfe;margin-top:9px;cursor:pointer}
+.photobtn .i{font-size:22px}
+.photobtn.rec{background:#fdeeee;border-color:#f0b9b9}
+.thumb{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.thumb .t{width:56px;height:56px;border-radius:10px;background:#e9eef5;display:flex;align-items:center;justify-content:center;font-size:20px;color:#4a6a8f}
+/* 登录 */
+.login{padding:40px 24px}
+.login .logo{font-size:30px}
+.login h1{font-size:20px;margin:8px 0 4px}
+.login p{color:var(--muted);font-size:13px;margin:0 0 22px}
+.seg{display:flex;background:#e7edf5;border-radius:12px;padding:4px;margin-bottom:14px}
+.seg button{flex:1;border:0;background:none;padding:9px;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(15,39,68,.1)}
+/* 页面切换 */
+.page{display:none;padding-bottom:12px}
+.page.on{display:block}
+.empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="shell" id="shell">
+
+  <!-- 登录 -->
+  <div id="page-login" class="page on">
+    <div class="login">
+      <div class="logo">🧩</div>
+      <h1>M10 · POMS</h1>
+      <p>岗位与个人运营微系统<br>演示环境 · L0 Mock · 未接入生产接口</p>
+
+      <label>租户 / 企业</label>
+      <select id="login-tenant"></select>
+
+      <label>当前岗位（可多选，模拟兼岗）</label>
+      <div id="login-pos"></div>
+
+      <label style="margin-top:18px">演示说明</label>
+      <div class="notice" style="margin:0">本 Demo 依据 V2.3 PRD 构建，全部数据为本地模拟。done ≠ verified，执行者不可无授权自验；Agent 面板在 Hub 未连接时显示「模拟模式」。</div>
+
+      <button class="btn pri block" style="margin-top:20px" onclick="login()">进入工作台</button>
+    </div>
+  </div>
+
+  <!-- 工作台 -->
+  <div id="page-work" class="page">
+    <div class="topbar">
+      <div class="row">
+        <div class="brand" id="brand">M10 POMS<small id="brand-sub">岗位工作台</small></div>
+        <div class="row" style="gap:10px">
+          <span class="tenant" id="tenant-name"></span>
+          <div class="avatar" id="avatar" onclick="openDrawer('role-drawer')"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="strip">
+      <div class="goal">
+        <div class="t">🎯 本期目标 <span class="muted" id="goal-tag"></span></div>
+        <div class="v" id="goal-text">—</div>
+        <div class="bar"><i id="goal-bar" style="width:0%"></i></div>
+      </div>
+      <div class="alerts">
+        <div class="alert warn"><div class="k">当前异常</div><div class="n" id="alert-anom">0</div></div>
+        <div class="alert"><div class="k">未来待办</div><div class="n" id="alert-todo">0</div></div>
+        <div class="alert ok"><div class="k">已验证结果</div><div class="n" id="alert-ok">0</div></div>
+      </div>
+    </div>
+
+    <div class="notice" id="pos-notice">兼岗提示：当前装配了多个岗位的能力包，敏感操作将在服务端再次鉴权。</div>
+
+    <!-- 待办页 -->
+    <div id="tab-todo" class="page on">
+      <div class="card">
+        <h2>未来待办 <span class="tag">对象 / 截止 / 状态</span></h2>
+        <div id="todo-list"></div>
+      </div>
+      <div class="card">
+        <h2>当前岗位能力包 <span class="tag" id="pack-note">由 M01 Policy 装配</span></h2>
+        <div class="chips" id="pack-chips"></div>
+      </div>
+      <div class="card">
+        <h2>产品包切换 <span class="tag">公共代码零产品侵入</span></h2>
+        <div class="chips" id="family-chips"></div>
+      </div>
+    </div>
+
+    <!-- 采集页 -->
+    <div id="tab-capture" class="page">
+      <div class="card">
+        <h2>采集 · 扫码匹配 <span class="tag">U03 / U04</span></h2>
+        <div class="scanbox" id="scan-box">
+          <div class="big">📷</div>
+          <div>点击扫码（模拟），输入或选择工单编号</div>
+        </div>
+        <div id="scan-result" style="margin-top:12px"></div>
+      </div>
+      <div id="capture-form"></div>
+    </div>
+
+    <!-- 结果页 -->
+    <div id="tab-results" class="page">
+      <div class="card">
+        <h2>过去结果 <span class="tag">声明完成 ≠ 验证通过</span></h2>
+        <div id="result-list"></div>
+      </div>
+    </div>
+
+    <!-- 底部导航 -->
+    <div class="nav">
+      <button id="nav-todo" class="on" onclick="switchTab('todo')"><span class="i">📋</span>待办</button>
+      <button id="nav-capture" onclick="switchTab('capture')"><span class="i">📷</span>采集</button>
+      <button id="nav-results" onclick="switchTab('results')"><span class="i">🗂</span>结果</button>
+      <button id="nav-agent" onclick="openDrawer('agent-drawer')"><span class="i">🤖</span>Agent</button>
+    </div>
+  </div>
+</div>
+
+<!-- 岗位抽屉 -->
+<div class="drawer" id="role-drawer">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2 style="margin:0 0 4px">岗位与装配</h2>
+    <p class="muted" style="margin:0 0 14px">登录后按岗位/权限自动装配（U01），撤权即时失效。</p>
+    <div id="role-detail"></div>
+    <button class="btn block" style="margin-top:16px" onclick="logout()">退出 / 切换岗位</button>
+  </div>
+</div>
+
+<!-- Agent 抽屉 -->
+<div class="drawer" id="agent-drawer">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2 style="margin:0 0 4px">我的智能体</h2>
+    <p class="muted" style="margin:0 0 14px" id="agent-status">—</p>
+    <div id="agent-list"></div>
+    <label>向主 Agent 提问（本地模拟，不发送到真实 Hub）</label>
+    <textarea id="agent-q" rows="2" placeholder="例：这条待办的业务对象和版本是什么？"></textarea>
+    <button class="btn pri block" style="margin-top:10px" onclick="agentAsk()">发送</button>
+    <div class="notice" id="agent-answer" style="margin:14px 0 0;display:none"></div>
+  </div>
+</div>
+
+<script>
+/* ============ 模拟数据（L0 Mock，非真实接口） ============ */
+const TENANTS = {
+  HJ: { id:'HJ', name:'恒剑照明', family:'lighting', pos:['质检员','研发工程师','销售专员'] },
+  ZG: { id:'ZG', name:'贞观电子', family:'timer',   pos:['质检员','研发工程师'] }
+};
+
+const POSITIONS = {
+  '质检员':   { center:'M08 品控', packs:['quality','capture'], icon:'🔍' },
+  '研发工程师': { center:'M04 研发', packs:['rd-design','bom','ecn'], icon:'🧪' },
+  '销售专员':  { center:'M05 销售', packs:['lead','quote','delivery','finance'], icon:'📈' }
+};
+
+const PACKS = {
+  'quality':   { name:'品质检验',  desc:'检验模板渲染、扫码匹配、done/verified' },
+  'capture':   { name:'证据采集',  desc:'拍照 / 语音 / 测量，原始来源与追踪字段' },
+  'rd-design': { name:'结构设计与图纸', desc:'设计、图纸、版本' },
+  'bom':       { name:'BOM 与物料',    desc:'物料、零件、清单' },
+  'ecn':       { name:'ECN 工程变更',  desc:'变更、ECO' },
+  'lead':      { name:'公开线索开发',  desc:'公开获客，保留可核验来源' },
+  'quote':     { name:'询盘与报价',    desc:'样品、规格、报价' },
+  'delivery':  { name:'生产与交付',    desc:'出货、交期' },
+  'finance':   { name:'应收回款',      desc:'AR、核销、催收（仅视图/Action）' }
+};
+
+const FAMILIES = {
+  lighting: { name:'恒剑灯具', products:[
+    { model:'HJ-LED-01', revision:'A', name:'工矿灯 200W' },
+    { model:'HJ-LED-02', revision:'B', name:'面板灯 40W' }
+  ]},
+  timer: { name:'贞观定时器', products:[
+    { model:'ZG-TM-01', revision:'A', name:'电子定时器 10A' },
+    { model:'ZG-TM-02', revision:'C', name:'双回路定时器' }
+  ]}
+};
+
+// 检验模板（动态专业字段，按型号/工艺版本匹配）
+const TEMPLATES = {
+  lighting: [
+    { k:'power',   label:'实测功率 (W)',   unit:'W' },
+    { k:'cct',     label:'色温 (K)',       unit:'K' },
+    { k:'flux',    label:'光通量 (lm)',    unit:'lm' },
+    { k:'hiPot',   label:'绝缘耐压 (kV)',  unit:'kV' }
+  ],
+  timer: [
+    { k:'accuracy', label:'定时精度 (s)',  unit:'s' },
+    { k:'contact',  label:'触点电阻 (mΩ)', unit:'mΩ' },
+    { k:'insul',    label:'绝缘电阻 (MΩ)', unit:'MΩ' },
+    { k:'appear',   label:'外观缺陷数',    unit:'处' }
+  ]
+};
+
+const AGENTS = {
+  main: { id:'main', name:'岗位主 Agent', role:'personal', skills:['任务拆解','对象查询','Guard 前置校验'], autonomy:'assist', guard:'高风险动作需人工审批' },
+  quality: { id:'quality', name:'品质检验子 Agent', role:'pro', skills:['检验模板加载','测量记录','结果汇总'], autonomy:'assist', guard:'不可自验 done=verified' },
+  sales:   { id:'sales', name:'销售开发子 Agent', role:'pro', skills:['公开线索检索','线索评分','跟进记录'], autonomy:'supervised', guard:'遵守隐私，禁止私自抓取' }
+};
+
+/* ============ 运行状态 ============ */
+let state = {
+  tenant:null, positions:[], family:'lighting', selectedProduct:null,
+  todos:[], results:[], anomalies:[], captures:[], hubConnected:false
+};
+
+/* ============ 登录 ============ */
+function buildLogin(){
+  const t = document.getElementById('login-tenant');
+  t.innerHTML = '';
+  Object.values(TENANTS).forEach(x=>{
+    const o = document.createElement('option'); o.value=x.id; o.textContent=x.name+' · '+FAMILIES[x.family].name; t.add(o);
+  });
+  t.onchange = buildPos;
+  buildPos();
+}
+function buildPos(){
+  const t = state.tenant || TENANTS.HJ;
+  const box = document.getElementById('login-pos');
+  box.innerHTML = '';
+  TENANTS[t.id || t].pos.forEach(p=>{
+    const lab = document.createElement('label');
+    lab.style.display='flex'; lab.style.alignItems='center'; lab.style.gap='8px'; lab.style.margin='7px 0';
+    const c = document.createElement('input'); c.type='checkbox'; c.value=p; c.style.width='auto';
+    c.checked = p==='质检员';
+    lab.append(c, document.createTextNode(' '+POSITIONS[p].center+' · '+p));
+    box.append(lab);
+  });
+}
+function login(){
+  const tid = document.getElementById('login-tenant').value;
+  const t = TENANTS[tid];
+  const pos = [...document.querySelectorAll('#login-pos input:checked')].map(x=>x.value);
+  if(!pos.length){ alert('请至少选择一个岗位'); return; }
+  state.tenant = t;
+  state.positions = pos;
+  state.family = t.family;
+  state.hubConnected = false;
+  seedData();
+  renderAll();
+  document.getElementById('page-login').classList.remove('on');
+  document.getElementById('page-work').classList.add('on');
+  switchTab('todo');
+}
+function logout(){
+  closeDrawers();
+  document.getElementById('page-work').classList.remove('on');
+  document.getElementById('page-login').classList.add('on');
+  buildLogin();
+}
+
+/* ============ 演示数据 ============ */
+function seedData(){
+  const fam = FAMILIES[state.family];
+  state.todos = [
+    { id:'T1', obj:'工单 WO-2601', type:'产品检验',  due:'今日 14:00', st:'doing', ref:{model:'HJ-LED-01',rev:'A'} },
+    { id:'T2', obj:'工单 WO-2602', type:'首件确认',  due:'今日 16:30', st:'doing', ref:{model:'ZG-TM-01',rev:'A'} },
+    { id:'T3', obj:'客户 CL-008', type:'询盘跟进',  due:'明日 10:00', st:'todo' },
+    { id:'T4', obj:'变更 ECN-112',type:'图纸评审',  due:'后日 09:00', st:'todo' }
+  ];
+  if(state.family==='lighting'){
+    state.todos[0].type='灯具检验'; state.todos[1].type='成品抽检';
+    state.todos[1].ref = {model:'HJ-LED-02',rev:'B'};
+  } else {
+    state.todos[0].type='定时器检验'; state.todos[1].type='成品抽检';
+    state.todos[0].ref = {model:'ZG-TM-01',rev:'A'};
+    state.todos[1].ref = {model:'ZG-TM-02',rev:'C'};
+  }
+  state.results = [
+    { id:'R1', obj:'工单 WO-2598', type:'灯具检验', st:'verified', who:'质检员 · 已由主管验证', t:'昨日' },
+    { id:'R2', obj:'工单 WO-2597', type:'外观巡检', st:'submitted', who:'质检员 · 待验证', t:'昨日' },
+    { id:'R3', obj:'线索 LD-077',  type:'公开线索建档', st:'verified', who:'销售 · 来源可核验', t:'昨日' }
+  ];
+  state.anomalies = [
+    { id:'A1', obj:'WO-2599', type:'绝缘耐压超限', lv:'bad' }
+  ];
+  state.captures = [];
+  state.selectedProduct = null;
+}
+
+/* ============ 渲染 ============ */
+function renderAll(){
+  const t = state.tenant;
+  document.getElementById('tenant-name').textContent = t.name;
+  document.getElementById('brand-sub').textContent = state.positions.map(p=>POSITIONS[p].center).join(' / ');
+  const av = document.getElementById('avatar');
+  av.textContent = state.positions[0][0];
+  av.title = state.positions.join('、');
+
+  document.getElementById('pos-notice').style.display = state.positions.length>1 ? '' : 'none';
+
+  // 目标
+  const done = state.results.filter(r=>r.st==='verified').length;
+  const total = Math.max(state.todos.length + done, 1);
+  const pct = Math.round((done/total)*100);
+  document.getElementById('goal-text').textContent = `本月完成 ${done} 项验证结果（${pct}%）`;
+  document.getElementById('goal-bar').style.width = pct+'%';
+  document.getElementById('goal-tag').textContent = state.positions.length>1 ? '· 兼岗 '+state.positions.length+' 岗' : '';
+
+  // 统计
+  document.getElementById('alert-anom').textContent = state.anomalies.length;
+  document.getElementById('alert-todo').textContent = state.todos.filter(x=>x.st!=='done').length;
+  document.getElementById('alert-ok').textContent = done;
+
+  renderTodos(); renderPacks(); renderFamilies(); renderResults(); renderCapture(); renderAgents();
+}
+function renderTodos(){
+  const el = document.getElementById('todo-list'); el.innerHTML='';
+  const icon={检验:'🔍',灯具检验:'🔍',定时器检验:'🔍',成品抽检:'📦',首件确认:'🧾',询盘跟进:'📈',图纸评审:'📐'};
+  state.todos.filter(t=>t.st!=='done').forEach(t=>{
+    const d=document.createElement('div'); d.className='task';
+    const ico=document.createElement('div'); ico.className='ico'; ico.textContent=icon[t.type]||'📌';
+    const bd=document.createElement('div'); bd.className='bd';
+    const tt=document.createElement('div'); tt.className='tt'; tt.textContent=t.type;
+    const mt=document.createElement('div'); mt.className='mt';
+    mt.innerHTML='<b>'+t.obj+'</b> · 截止 '+t.due;
+    bd.append(tt,mt);
+    const rt=document.createElement('div'); rt.className='rt';
+    const b=document.createElement('button'); b.className='btn ghost'; b.style.padding='7px 10px'; b.style.fontSize='12px';
+    b.textContent = t.type.indexOf('检验')>=0 || t.type.indexOf('抽检')>=0 ? '去采集' : '声明完成';
+    b.onclick = ()=> (t.type.indexOf('检验')>=0 || t.type.indexOf('抽检')>=0) ? goCapture(t) : declareDone(t);
+    const st=document.createElement('span'); st.className='badge sub'; st.textContent='待处理';
+    rt.append(b,st); d.append(ico,bd,rt); el.append(d);
+  });
+  if(!el.children.length) el.innerHTML='<div class="empty">没有待处理事项 🎉</div>';
+}
+function renderPacks(){
+  const el=document.getElementById('pack-chips'); el.innerHTML='';
+  const set = new Set();
+  state.positions.forEach(p=>POSITIONS[p].packs.forEach(x=>set.add(x)));
+  [...set].forEach(id=>{
+    const p=PACKS[id]; if(!p) return;
+    const c=document.createElement('span'); c.className='chip'; c.textContent=p.name; c.title=p.desc; el.append(c);
+  });
+}
+function renderFamilies(){
+  const el=document.getElementById('family-chips'); el.innerHTML='';
+  Object.values(FAMILIES).forEach(f=>{
+    const c=document.createElement('button'); c.className='chip'; c.style.cursor='pointer';
+    c.textContent=f.name; if(f.name===FAMILIES[state.family].name)c.classList.add('alt');
+    c.onclick=()=>{ state.family = Object.keys(FAMILIES).find(k=>FAMILIES[k].name===f.name); state.selectedProduct=null; seedData(); renderAll(); };
+    el.append(c);
+  });
+}
+function renderResults(){
+  const el=document.getElementById('result-list'); el.innerHTML='';
+  state.results.forEach(r=>{
+    const d=document.createElement('div'); d.className='task';
+    const ico=document.createElement('div'); ico.className='ico'; ico.textContent='🗂';
+    const bd=document.createElement('div'); bd.className='bd';
+    const tt=document.createElement('div'); tt.className='tt'; tt.textContent=r.type+' · '+r.obj;
+    const mt=document.createElement('div'); mt.className='mt'; mt.textContent=r.who+' · '+r.t;
+    bd.append(tt,mt);
+    const st=document.createElement('span'); st.className='badge '+(r.st==='verified'?'done':'verify');
+    st.textContent = r.st==='verified'?'已验证':'已提交·待验证';
+    d.append(ico,bd,st); el.append(d);
+  });
+  if(!el.children.length) el.innerHTML='<div class="empty">暂无结果</div>';
+}
+
+/* ============ 采集流程 ============ */
+function goCapture(task){
+  switchTab('capture');
+  state.selectedProduct = task.ref;
+  renderCapture();
+  document.getElementById('scan-box').scrollIntoView({behavior:'smooth'});
+}
+function renderCapture(){
+  const box=document.getElementById('scan-box');
+  box.innerHTML='<div class="big">📷</div><div>点击扫码（模拟）· 输入工单编号</div>';
+  box.onclick=()=>{
+    const code=prompt('模拟扫码：请输入工单编号（如 WO-2601）','WO-2601');
+    if(!code)return;
+    scan(code);
+  };
+  const res=document.getElementById('scan-result'); res.innerHTML='';
+  const form=document.getElementById('capture-form'); form.innerHTML='';
+  if(state.selectedProduct){ renderCaptureForm(state.selectedProduct); }
+}
+function scan(code){
+  const res=document.getElementById('scan-result');
+  const fam=FAMILIES[state.family];
+  const p=fam.products.find(x=>('WO-2601'===code && x.model===(state.family==='lighting'?'HJ-LED-01':'ZG-TM-01')) ||
+                                    ('WO-2602'===code && x.model===(state.family==='lighting'?'HJ-LED-02':'ZG-TM-02')));
+  if(!p){
+    res.innerHTML='<div class="notice" style="margin:0;border-color:#f0b9b9;background:#fdeeee;color:#8a2525">❌ 匹配失败：工单与产品型号/工艺版本不匹配，已拒绝（U03）。</div>';
+    state.selectedProduct=null;
+    document.getElementById('capture-form').innerHTML='';
+    return;
+  }
+  state.selectedProduct=p;
+  res.innerHTML='<div class="notice" style="margin:0;border-color:#cde9db;background:#eefaf4;color:#13724e">✅ 匹配成功：'+p.name+' · '+p.model+' rev'+p.revision+'</div>';
+  renderCaptureForm(p);
+}
+function renderCaptureForm(p){
+  const form=document.getElementById('capture-form'); form.innerHTML='';
+  const card=document.createElement('div'); card.className='card';
+  const h=document.createElement('h2'); h.textContent='检验采集 · '+p.model+' rev'+p.revision; card.append(h);
+  const fields=TEMPLATES[state.family];
+  const vals={};
+  fields.forEach(f=>{
+    const lab=document.createElement('label'); lab.textContent=f.label+'（'+f.unit+'）';
+    const inp=document.createElement('input'); inp.type='number'; inp.dataset.k=f.k; inp.placeholder='实测值';
+    card.append(lab,inp);
+  });
+  // 拍照
+  const ph=document.createElement('div'); ph.className='photobtn';
+  ph.innerHTML='<span class="i">📸</span><div><div>拍照取证</div><div class="muted">模拟·生成占位证据</div></div>';
+  ph.onclick=()=>{ const th=document.createElement('span'); th.className='t'; th.textContent='📷'; card.querySelector('.thumb')?.append(th); };
+  card.append(ph);
+  const th=document.createElement('div'); th.className='thumb'; card.append(th);
+  // 语音
+  const vo=document.createElement('div'); vo.className='photobtn'; vo.id='voicebtn';
+  vo.innerHTML='<span class="i">🎤</span><div><div>语音备注</div><div class="muted" id="voice-label">模拟·点击开始/停止</div></div>';
+  let rec=false;
+  vo.onclick=()=>{ rec=!rec; vo.classList.toggle('rec',rec); document.getElementById('voice-label').textContent=rec?'录音中（模拟）· 再点停止':'已录制（模拟）'; };
+  card.append(vo);
+  // 提交
+  const btn=document.createElement('button'); btn.className='btn pri block'; btn.style.marginTop='14px';
+  btn.textContent='预览提交（进入待验证）';
+  btn.onclick=()=>{ submitCapture(p,fields,vals); };
+  card.append(btn);
+  form.append(card);
+  // 收集数值
+  form.querySelectorAll('input[data-k]').forEach(i=> i.oninput=()=>{ vals[i.dataset.k]=i.value; });
+}
+function submitCapture(p,fields,vals){
+  const miss=fields.some(f=>!vals[f.k]);
+  if(miss){ alert('请填写所有测量字段'); return; }
+  const key='IDEM-'+Date.now();
+  state.captures.push({ id:key, model:p.model, vals:{...vals}, status:'submitted' });
+  state.results.unshift({ id:'R'+Date.now(), obj:'工单 WO-2601', type:state.family==='lighting'?'灯具检验':'定时器检验', st:'submitted', who:state.positions[0]+' · 待验证（done≠verified）', t:'刚刚' });
+  // 提交后：执行者不可自验
+  const form=document.getElementById('capture-form');
+  form.innerHTML='<div class="card"><div class="notice" style="margin:0">✅ 已提交（幂等键 '+key+'）。<br>结果状态为 <b>submitted</b>，须由授权验证者（verified）确认，执行者不可无授权自验（U05）。</div></div>';
+  renderResults(); renderTodos(); renderAll();
+}
+function declareDone(task){
+  task.st='done';
+  state.results.unshift({ id:'R'+Date.now(), obj:task.obj, type:task.type, st:'submitted', who:state.positions[0]+' · 声明完成，待验证', t:'刚刚' });
+  renderAll();
+}
+
+/* ============ Agent ============ */
+function renderAgents(){
+  const st=document.getElementById('agent-status');
+  st.textContent = state.hubConnected ? 'Hub 已连接 · 会话可通过 M11 授权 Adapter 打开' : '⚠️ 模拟模式：Hub 未连接，不提供虚假成功（U09 / AT11）';
+  const el=document.getElementById('agent-list'); el.innerHTML='';
+  const list=[AGENTS.main, AGENTS.quality, AGENTS.sales];
+  list.forEach(a=>{
+    const d=document.createElement('div'); d.className='task';
+    const ico=document.createElement('div'); ico.className='ico'; ico.textContent='🤖';
+    const bd=document.createElement('div'); bd.className='bd';
+    const tt=document.createElement('div'); tt.className='tt'; tt.textContent=a.name;
+    const mt=document.createElement('div'); mt.className='mt'; mt.textContent='技能：'+a.skills.join(' / ');
+    const mt2=document.createElement('div'); mt2.className='mt'; mt2.innerHTML='<b>自主级</b> '+a.autonomy+' · <b>Guard</b> '+a.guard;
+    bd.append(tt,mt,mt2);
+    const st=document.createElement('span'); st.className='badge '+(state.hubConnected?'done':'sub'); st.textContent=state.hubConnected?'已连接':'模拟';
+    d.append(ico,bd,st); el.append(d);
+  });
+}
+function agentAsk(){
+  const q=document.getElementById('agent-q').value.trim();
+  const box=document.getElementById('agent-answer');
+  if(!q){ return; }
+  box.style.display='block';
+  box.innerHTML='<b>模拟回复</b>：请检查该任务的业务对象（object_ref）、版本、来源与证据。涉及审批应走专业自治中心与 Guard；当前为模拟模式，未调用 AI Hub。';
+}
+
+/* ============ 导航 ============ */
+function switchTab(tab){
+  ['todo','capture','results'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('on', t===tab);
+    document.getElementById('nav-'+t).classList.toggle('on', t===tab);
+  });
+}
+function openDrawer(id){ document.getElementById(id).classList.add('open'); if(id==='agent-drawer')renderAgents(); if(id==='role-drawer')renderRoleDetail(); }
+function closeDrawers(){ document.querySelectorAll('.drawer').forEach(d=>d.classList.remove('open')); }
+document.querySelectorAll('.drawer').forEach(d=> d.addEventListener('click',e=>{ if(e.target===d) d.classList.remove('open'); }));
+function renderRoleDetail(){
+  const el=document.getElementById('role-detail'); el.innerHTML='';
+  state.positions.forEach(p=>{
+    const pos=POSITIONS[p];
+    const d=document.createElement('div'); d.className='card'; d.style.margin='0 0 10px';
+    const h=document.createElement('h2'); h.style.margin='0'; h.innerHTML=pos.icon+' '+p+' <span class="tag">'+pos.center+'</span>';
+    d.append(h);
+    const chips=document.createElement('div'); chips.className='chips'; chips.style.marginTop='10px';
+    pos.packs.forEach(id=>{ const c=document.createElement('span'); c.className='chip'; c.textContent=PACKS[id]?.name||id; chips.append(c); });
+    d.append(chips);
+    el.append(d);
+  });
+  const note=document.createElement('div'); note.className='notice'; note.style.margin='0';
+  note.textContent='兼岗能力合并可见；无权限不可提交；撤权即时失效（服务端执行前再鉴权，UI 隐藏 ≠ 权限控制）。';
+  el.append(note);
+}
+
+/* ============ 初始化 ============ */
+buildLogin();
+</script>
+</body>
+</html>
