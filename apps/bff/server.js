@@ -20,6 +20,26 @@ const plmSync = require('../../adapters/plm2/sync');
 const TOOLS = require('../../configs/tools.json');
 const SKILLS = require('../../configs/skills.json');
 const hub = require('../../adapters/hub');
+const {
+  JsonlLeadOutbox,
+  PUBLIC_LEAD_PATH,
+  createHttpPublisher,
+  createPublicLeadConfig,
+  createPublicLeadService,
+  allowedOrigin
+} = require('./public-leads');
+
+const publicLeadConfig = createPublicLeadConfig();
+const publicLeadOutbox = new JsonlLeadOutbox(publicLeadConfig);
+const publicLeadService = createPublicLeadService({
+  config: publicLeadConfig,
+  outbox: publicLeadOutbox,
+  publisher: createHttpPublisher(publicLeadConfig)
+});
+const publicLeadFlushTimer = setInterval(() => {
+  publicLeadService.flush().catch(() => {});
+}, 5000);
+publicLeadFlushTimer.unref();
 
 /* ---- M10 统一认证（与 M04 PLM 同一账号/令牌/角色） ---- */
 const ROLE_PRIORITY = ['ADMIN', 'admin', 'gm', 'rd_manager', 'engineer', 'project_manager', 'sales_director', 'sales_manager', 'purchase', 'finance', 'cw1', 'sales', 'sales_user', 'viewer', 'QUALITY', 'hr_manager'];
@@ -147,13 +167,36 @@ function send(res, status, body, headers) {
   res.end(typeof body === 'string' ? body : JSON.stringify(body, null, 2));
 }
 
-function readBody(req) {
+function readBody(req, maxBytes = 1e6) {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', c => { data += c; if (data.length > 1e6) req.destroy(); });
-    req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(Object.assign(e, { status: 400 })); } });
+    let settled = false;
+    req.on('data', c => {
+      if (settled) return;
+      data += c;
+      if (Buffer.byteLength(data, 'utf8') > maxBytes) {
+        settled = true;
+        reject(Object.assign(new Error('request body too large'), { status: 413 }));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (settled) return;
+      try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(Object.assign(e, { status: 400 })); }
+    });
     req.on('error', reject);
   });
+}
+
+function publicLeadCorsHeaders(origin) {
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Idempotency-Key, X-Captcha-Token',
+    'Access-Control-Max-Age': '600',
+    Vary: 'Origin',
+    'Cache-Control': 'no-store'
+  };
 }
 
 function allowedActions(person, req) {
@@ -203,6 +246,29 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/favicon')) return send(res, 204, '');
     if (pathname === '/health' && req.method === 'GET') {
       return send(res, 200, { status: 'ok', service: 'm10-poms-bff', auth_mode: REQUIRE_AUTH ? 'strict' : 'l0-demo' });
+    }
+
+    // 官网公开线索入口：独立来源校验、限流、CAPTCHA、持久 Outbox；不经过内部登录态，
+    // 也不返回 CRM 对象或任何 PII。目标投递失败由 Outbox 定时重试并最终进入 DLQ。
+    if (pathname === PUBLIC_LEAD_PATH && req.method === 'OPTIONS') {
+      const origin = String(req.headers.origin || '');
+      if (!allowedOrigin(origin, publicLeadConfig.allowedOrigins)) throw Object.assign(new Error('来源不被允许'), { status: 403 });
+      return send(res, 204, '', publicLeadCorsHeaders(origin));
+    }
+    if (pathname === PUBLIC_LEAD_PATH && req.method === 'POST') {
+      const origin = String(req.headers.origin || '');
+      if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type'] || ''))) {
+        throw Object.assign(new Error('仅支持 application/json'), { status: 415 });
+      }
+      const body = await readBody(req, 32 * 1024);
+      const result = await publicLeadService.submit({
+        body,
+        origin,
+        clientKey: req.socket.remoteAddress || 'unknown',
+        captchaToken: Array.isArray(req.headers['x-captcha-token']) ? req.headers['x-captcha-token'][0] : req.headers['x-captcha-token'],
+        idempotencyKey: Array.isArray(req.headers['idempotency-key']) ? req.headers['idempotency-key'][0] : req.headers['idempotency-key']
+      });
+      return send(res, 202, { lead_reference: result.lead_reference }, publicLeadCorsHeaders(origin));
     }
 
     // 生产默认 fail-closed；开发环境可显式关闭以保留 L0 演示。登录和当前用户查询是唯一公开认证入口。

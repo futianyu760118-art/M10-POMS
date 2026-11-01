@@ -9,3 +9,4 @@ __pycache__/
 services/ai-entry/__pycache__/
 database/backups/
 *.dump
+var/

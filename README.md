@@ -24,6 +24,25 @@ M10_REQUIRE_AUTH=true npm start
 
 当前过渡适配器使用 M04 PLM 的 `/auth/info` 校验 Bearer Token，后续由 AEOS M01/Keycloak 适配器替换。仅在本地 L0 演示时可不设置该变量；认证请求中的角色、PLM 人员和 M01 操作人由服务端令牌映射，不接受请求体或查询参数覆盖。
 
+### 官网 Public Lead BFF
+
+官网公开表单只调用 `POST /api/v1/public/leads`，不携带内部登录 Token。BFF 强制校验精确 Origin、JSON 请求体、字段长度、同意版本、CAPTCHA 和 IP 限流；线索先写入本地 JSONL Outbox，再投递到配置的 `PUBLIC_BFF_TARGET_URL`。目标不可用时保留重试状态，达到 `PUBLIC_BFF_MAX_ATTEMPTS` 后写入 DLQ。浏览器响应只包含不透明的 `lead_reference`。
+
+生产环境必须配置以下变量，缺少任一关键安全配置时 BFF 启动失败：
+
+```bash
+PUBLIC_BFF_ALLOWED_ORIGINS=https://your-public-site.example
+PUBLIC_BFF_CAPTCHA_MODE=provider
+PUBLIC_BFF_CAPTCHA_VERIFY_URL=https://captcha-provider.example/verify
+PUBLIC_BFF_TARGET_URL=https://edp.internal.example/api/v1/public/lead-intake
+PUBLIC_BFF_TARGET_TOKEN=<service-identity-token>
+PUBLIC_BFF_TENANT_ID=<tenant-id>
+PUBLIC_BFF_OUTBOX_FILE=/var/lib/aeos/public-lead-outbox.jsonl
+PUBLIC_BFF_DLQ_FILE=/var/lib/aeos/public-lead-dlq.jsonl
+```
+
+开发环境可显式使用 `PUBLIC_BFF_CAPTCHA_MODE=disabled`，但不得用于生产。`PUBLIC_BFF_OUTBOX_FILE` 和 `PUBLIC_BFF_DLQ_FILE` 必须位于持久卷，并由部署层限制访问权限；应用日志不得打印完整手机号、邮箱、留言或契约正文。
+
 启动 BFF 后：
 
 | 入口 | 说明 |
