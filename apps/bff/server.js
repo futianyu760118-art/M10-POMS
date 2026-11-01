@@ -37,7 +37,7 @@ function mapPerson(vo) {
   const ppl = plm2.getPeople();
   const byUser = ppl.find(p => p.username === vo.username);
   const byName = ppl.find(p => p.name === vo.realName);
-  const person = byUser || byName || ppl[0] || null;
+  const person = byUser || byName || null;
   return person ? person.id : null;
 }
 function mapM01Person(vo) {
@@ -59,7 +59,8 @@ function authSession(vo) {
     role: primary,
     permissions: mergedPerms,
     personId: mapPerson(vo),
-    m01PersonId: mapM01Person(vo)
+    m01PersonId: mapM01Person(vo),
+    legacyActorId: /^u-/.test(String(vo.userId || '')) ? vo.userId : null
   };
 }
 function bearerToken(req) {
@@ -69,27 +70,43 @@ function bearerToken(req) {
 }
 
 function requestPersonId(req, supplied) {
-  return req.aeosSession && req.aeosSession.m01PersonId ? req.aeosSession.m01PersonId : supplied;
+  return req.aeosSession ? req.aeosSession.m01PersonId : supplied;
 }
 
 function requestPlmPersonId(req, supplied) {
-  return req.aeosSession && req.aeosSession.personId ? req.aeosSession.personId : supplied;
+  return req.aeosSession ? req.aeosSession.personId : supplied;
+}
+
+function requiredPlmPersonId(req, supplied) {
+  const id = requestPlmPersonId(req, supplied);
+  if (REQUIRE_AUTH && !id) throw Object.assign(new Error('当前账号尚未绑定 PLM 人员'), { status: 403 });
+  return id;
 }
 
 function requestRole(req, supplied) {
   return req.aeosSession ? req.aeosSession.roles.join(',') : supplied;
 }
 
+function requestLegacyActorId(req, supplied) {
+  if (req.aeosSession) {
+    if (!req.aeosSession.legacyActorId) throw Object.assign(new Error('当前账号尚未绑定 M01 演示操作人'), { status: 403 });
+    return req.aeosSession.legacyActorId;
+  }
+  return supplied;
+}
+
 async function getRequestSession(req, options = {}) {
   const required = options.required !== undefined ? options.required : REQUIRE_AUTH;
-  if (req.aeosSession) return req.aeosSession;
+  const fresh = options.fresh === true;
+  if (req.aeosSession && !fresh) return req.aeosSession;
+  if (fresh) req.aeosSession = null;
   const tok = bearerToken(req);
   if (!tok) {
     if (required) throw Object.assign(new Error('需要登录后访问 M10 BFF'), { status: 401 });
     return null;
   }
   const hit = authCache.get(tok);
-  if (hit && hit.exp > Date.now()) {
+  if (!fresh && hit && hit.exp > Date.now()) {
     req.aeosSession = hit.session;
     return hit.session;
   }
@@ -105,7 +122,7 @@ async function getRequestSession(req, options = {}) {
 
 // 写操作鉴权：认证请求必须以服务端验证出的角色和人员为准；仅 L0 开发模式允许无令牌演示。
 async function guardWriteRole(req, body) {
-  const s = await getRequestSession(req, { required: REQUIRE_AUTH });
+  const s = await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
   if (!s) return; // 仅开发环境 L0 演示模式
   body.role = s.roles.join(',');
   body.__aeos_person_id = s.personId;
@@ -192,8 +209,9 @@ const server = http.createServer(async (req, res) => {
 
     // ---- API (proposal only) ----
     if (pathname === '/poms/v1/me/manifest' && req.method === 'GET') {
+      const actorId = requestLegacyActorId(req, q.actor_id);
       const manifest = assembly.assemble({
-        actor_id: q.actor_id,
+        actor_id: actorId,
         product_family: q.product_family,
         model_id: q.model_id,
         process_revision: q.process_revision,
@@ -204,13 +222,16 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/poms/v1/me/actions' && req.method === 'GET') {
-      const actions = m01.getDEHActions(q.actor_id);
-      return send(res, 200, { actor_id: q.actor_id, actions });
+      const actorId = requestLegacyActorId(req, q.actor_id);
+      const actions = m01.getDEHActions(actorId);
+      return send(res, 200, { actor_id: actorId, actions });
     }
 
     if (pathname === '/poms/v1/captures' && req.method === 'POST') {
       const body = await readBody(req);
-      const result = capture.submitCapture({ ...body, idempotency_key: req.headers['idempotency-key'] || body.idempotency_key });
+      await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
+      const actorId = requestLegacyActorId(req, body.actor_id);
+      const result = capture.submitCapture({ ...body, actor_id: actorId, idempotency_key: req.headers['idempotency-key'] || body.idempotency_key });
       return send(res, 202, result);
     }
 
@@ -220,6 +241,7 @@ const server = http.createServer(async (req, res) => {
 
     const sessionMatch = pathname.match(/^\/poms\/v1\/agents\/([^/]+)\/sessions$/);
     if (sessionMatch && req.method === 'POST') {
+      await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
       const session = hub.openSession(sessionMatch[1]);
       return send(res, 201, session);
     }
@@ -238,18 +260,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, plm2.getManifest(requestRole(req, q.role)));
     }
     if (pathname === '/api/v1/plm2/me/overview' && req.method === 'GET') {
-      return send(res, 200, plm2.overview(requestPlmPersonId(req, q.user)));
+      return send(res, 200, plm2.overview(requiredPlmPersonId(req, q.user)));
     }
     if (pathname === '/api/v1/plm2/me/todos' && req.method === 'GET') {
-      const userId = requestPlmPersonId(req, q.user);
+      const userId = requiredPlmPersonId(req, q.user);
       const u = plm2.getPeople().find(p => p.id === Number(userId));
       return send(res, 200, Object.assign({ realName: u ? u.name : userId }, plm2.todosFor(u ? u.name : '')));
     }
     if (pathname === '/api/v1/plm2/me/dept-todos' && req.method === 'GET') {
-      return send(res, 200, plm2.deptTodos(requestPlmPersonId(req, q.user)));
+      return send(res, 200, plm2.deptTodos(requiredPlmPersonId(req, q.user)));
     }
     if (pathname === '/api/v1/plm2/work-items' && req.method === 'GET') {
-      const userId = requestPlmPersonId(req, q.user);
+      const userId = requiredPlmPersonId(req, q.user);
       const wsTodos = plm2.listApprovalTodos(userId).filter(t => t.status === 'OPEN');
       return send(res, 200, { items: [...wsTodos, ...plm2.listWorkItems(userId)] });
     }
@@ -265,6 +287,7 @@ const server = http.createServer(async (req, res) => {
     const stepDone = pathname.match(/^\/api\/v1\/plm2\/process-routes\/([^/]+)\/steps\/(\d+)\/complete$/);
     if (stepDone && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       return send(res, 200, plm2.completeStep(stepDone[1], stepDone[2], body));
     }
     if (pathname === '/api/v1/plm2/projects' && req.method === 'GET') {
@@ -283,6 +306,7 @@ const server = http.createServer(async (req, res) => {
     }
     const toolLaunch = pathname.match(/^\/api\/v1\/plm2\/tools\/([^/]+)\/launch$/);
     if (toolLaunch && req.method === 'POST') {
+      await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
       const id = toolLaunch[1];
       const tool = TOOLS.tools.find(t => t.id === id);
       if (!tool || tool.type !== 'desktop') return send(res, 404, { ok: false, error: '工具不存在或非桌面工具' });
@@ -299,6 +323,7 @@ const server = http.createServer(async (req, res) => {
     const kicadGen = pathname.match(/^\/api\/v1\/plm2\/tools\/kicad\/generate$/);
     if (kicadGen && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       let r;
       if (body.params && Array.isArray(body.params.components)) {
         r = circuit.generate({ supply: body.params.supply, components: body.params.components });
@@ -327,6 +352,7 @@ const server = http.createServer(async (req, res) => {
     const kicadGenAi = pathname.match(/^\/api\/v1\/plm2\/tools\/kicad\/generate-ai$/);
     if (kicadGenAi && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       let structure;
       const deepseek = require('../../packages/circuit/deepseek');
       const schComplex = require('../../packages/circuit/sch-complex');
@@ -363,6 +389,7 @@ const server = http.createServer(async (req, res) => {
     const kicadOpen = pathname.match(/^\/api\/v1\/plm2\/tools\/kicad\/open$/);
     if (kicadOpen && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       const file = path.normalize(String(body.file || ''));
       const outDir = path.normalize(process.env.KICAD_OUT_DIR || 'D:/KiCad/generated');
       if (!file.startsWith(outDir)) return send(res, 403, { ok: false, error: '只能打开生成目录内的文件' });
@@ -422,6 +449,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/plm2/worksheets' && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       return send(res, 201, plm2.submitWorksheet(body));
     }
     if (pathname === '/api/v1/plm2/ws-templates' && req.method === 'GET') {
@@ -436,6 +464,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/plm2/ws-v2' && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       return send(res, 200, plm2.makeWorksheet(body));
     }
     const wsAppr = pathname.match(/^\/api\/v1\/plm2\/ws-v2\/([^/]+)\/(approve|reject)$/);
@@ -449,6 +478,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/plm2/ecns' && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       return send(res, 201, plm2.createEcn(body));
     }
     const projMatch = pathname.match(/^\/api\/v1\/plm2\/projects\/([^/]+)$/);
@@ -456,6 +486,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await plm2.getProjectAsync(decodeURIComponent(projMatch[1]), { fresh: q.fresh === '1' }));
     }
     if (pathname === '/api/v1/plm2/auth/revoke' && req.method === 'POST') {
+      const s = await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
+      if (s && !s.roles.includes('ADMIN')) throw Object.assign(new Error('仅管理员可撤销 BFF 令牌缓存'), { status: 403 });
       authCache.clear();
       return send(res, 200, { revoked: true, clearedAt: new Date().toISOString(), note: '已清空令牌缓存，下次写操作将重新经 PLM /auth/info 验证（令牌无效则 401）' });
     }
@@ -464,6 +496,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/plm2/initiations' && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       return send(res, 201, plm2.createInitiation(body));
     }
     const initTrans = pathname.match(/^\/api\/v1\/plm2\/initiations\/([^/]+)\/transition$/);
@@ -497,11 +530,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/plm2/sync' && req.method === 'POST') {
       const body = await readBody(req).catch(() => ({}));
-      return send(res, 200, await plm2.syncPull(body.person || null));
+      await guardWriteRole(req, body);
+      return send(res, 200, await plm2.syncPull(requiredPlmPersonId(req, body.person) || null));
     }
     const prjStatusM = pathname.match(/^\/api\/v1\/plm2\/projects\/([^/]+)\/status$/);
     if (prjStatusM && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       return send(res, 200, plm2.updateProjectStatus(prjStatusM[1], body.status, body.role));
     }
     const nodeUpd = pathname.match(/^\/api\/v1\/plm2\/projects\/([^/]+)\/nodes\/([^/]+)$/);
@@ -530,28 +565,32 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { captureTypes: plm2.getCaptureTypes(requestRole(req, q.role)) });
     }
     if (pathname === '/api/v1/plm2/captures' && req.method === 'GET') {
-      return send(res, 200, { captures: plm2.listCaptures(requestPlmPersonId(req, q.operator)) });
+      return send(res, 200, { captures: plm2.listCaptures(requiredPlmPersonId(req, q.operator)) });
     }
     if (pathname === '/api/v1/plm2/captures' && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       const result = plm2.submitCapture({ ...body, idempotency_key: req.headers['idempotency-key'] || body.idempotency_key });
       return send(res, result.replay ? 200 : 201, result);
     }
     const matTrans = pathname.match(/^\/api\/v1\/plm2\/materials\/([^/]+)\/transition$/);
     if (matTrans && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       const r = plm2.transitionMaterial(matTrans[1], body.action, body.role);
       return send(res, 200, r);
     }
     const ecnTrans = pathname.match(/^\/api\/v1\/plm2\/ecns\/([^/]+)\/transition$/);
     if (ecnTrans && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       const r = plm2.ecnTransition(ecnTrans[1], body.action, body.role);
       return send(res, 200, r);
     }
     const wiDone = pathname.match(/^\/api\/v1\/plm2\/work-items\/([^/]+)\/done$/);
     if (wiDone && req.method === 'POST') {
       const body = await readBody(req);
+      await guardWriteRole(req, body);
       const r = plm2.completeWorkItem(wiDone[1], body.role);
       return send(res, 200, r);
     }
@@ -648,6 +687,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'POST') {
       const body = await readBody(req);
+      await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
       const requester = requestPersonId(req, body.requester);
       if (!requester) throw Object.assign(new Error('缺少申请人身份'), { status: 401 });
       const idempotency_key = req.headers['idempotency-key'] || body.idempotency_key;
@@ -667,11 +707,12 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'GET') {
       const personId = requestPersonId(req, q.person_id);
       if (REQUIRE_AUTH && !personId) throw Object.assign(new Error('当前账号尚未绑定 M01 人员'), { status: 403 });
+      const requestFilter = { ...q, requester: personId, person_id: personId };
       try {
-        return send(res, 200, { requests: await hlc.listRequests({ ...q, person_id: personId }, personId), source: 'hlc-rest' });
+        return send(res, 200, { requests: await hlc.listRequests(requestFilter, personId), source: 'hlc-rest' });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
-        return send(res, 200, { requests: filterVisibleRequests(m07.listRequests({ ...q, person_id: personId }), personId), source: 'm07-mock-fallback', hlc_error: e.message });
+        return send(res, 200, { requests: filterVisibleRequests(m07.listRequests(requestFilter), personId), source: 'm07-mock-fallback', hlc_error: e.message });
       }
     }
 
@@ -692,6 +733,7 @@ const server = http.createServer(async (req, res) => {
     let trMatch = pathname.match(/^\/api\/v1\/hlc\/service-requests\/([^/]+)\/transitions$/);
     if (trMatch && req.method === 'POST') {
       const body = await readBody(req);
+      await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
       const actorId = requestPersonId(req, body.actor);
       if (!actorId) throw Object.assign(new Error('缺少操作人身份'), { status: 401 });
       const actor = m01.getPerson(actorId);
@@ -712,6 +754,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/v1/agents/personal/sessions' && req.method === 'POST') {
       const body = await readBody(req);
+      await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
       const session = hub.openSession(body.agent_id);
       return send(res, 201, session);
     }
