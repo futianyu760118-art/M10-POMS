@@ -641,7 +641,7 @@ const server = http.createServer(async (req, res) => {
       const isAdmin = p.capabilities.includes('hlc:request:read');
       let all, source = 'm07-mock';
       try { all = await hlc.listRequests({ ...q, requester: personId }, personId); source = 'hlc-rest'; }
-      catch (e) { all = m07.listRequests(q); source = 'm07-mock-fallback'; }
+      catch (e) { all = filterVisibleRequests(m07.listRequests({ ...q, requester: personId }), personId); source = 'm07-mock-fallback'; }
       const items = all
         .filter(r => isAdmin || r.requester === p.person_id || r.assignee === p.person_id)
         .filter(r => ['CLOSED', 'ARCHIVED', 'REJECTED', 'CANCELLED'].indexOf(r.state) < 0)
@@ -666,7 +666,7 @@ const server = http.createServer(async (req, res) => {
       const p = m01.getPerson(personId);
       let all, source = 'm07-mock';
       try { all = await hlc.listRequests({ ...q, requester: personId }, personId); source = 'hlc-rest'; }
-      catch (e) { all = m07.listRequests(q); source = 'm07-mock-fallback'; }
+      catch (e) { all = filterVisibleRequests(m07.listRequests({ ...q, requester: personId }), personId); source = 'm07-mock-fallback'; }
       const results = all
         .filter(r => r.state === 'CLOSED' || r.state === 'ARCHIVED')
         .map(r => ({ result_id: r.result_ref || 'res_' + r.id, source_system: 'M07', source_object_id: r.id, verification: r.verified_by ? 'verified' : 'pending', evidence_refs: r.evidence_refs, verified_by: r.verified_by, verified_at: r.verified_at }));
