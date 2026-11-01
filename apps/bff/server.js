@@ -201,6 +201,9 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/hlc' || pathname === '/hlc/') return serveStatic('/demo/hlc.html', res);
     if (pathname.startsWith('/demo/') || pathname.startsWith('/apps/') || pathname.startsWith('/vendor/')) return serveStatic(pathname, res);
     if (pathname.startsWith('/favicon')) return send(res, 204, '');
+    if (pathname === '/health' && req.method === 'GET') {
+      return send(res, 200, { status: 'ok', service: 'm10-poms-bff', auth_mode: REQUIRE_AUTH ? 'strict' : 'l0-demo' });
+    }
 
     // 生产默认 fail-closed；开发环境可显式关闭以保留 L0 演示。登录和当前用户查询是唯一公开认证入口。
     const isApi = pathname.startsWith('/api/') || pathname.startsWith('/poms/');

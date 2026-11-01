@@ -65,11 +65,12 @@ async function waitForServer() {
   child.stderr.on('data', chunk => { stderr += chunk.toString(); });
   try {
     assert.strictEqual(await waitForServer(), 200, 'public portal must remain reachable');
+    assert.strictEqual(await request('/health'), 200, 'health endpoint must remain public');
     assert.strictEqual(await request('/api/v1/plm2/roles'), 401, 'anonymous API access must fail closed');
     assert.strictEqual(await request('/api/v1/plm2/auth/me'), 401, 'current-user endpoint must reject missing token');
     assert.strictEqual(await request('/api/v1/poms/me/workspace?person_id=p-002', { Authorization: 'Bearer valid-token' }), 401, 'unmapped token must not fall back to person_id query');
     assert.strictEqual(await postJson('/api/v1/plm2/materials/HJ202607230001/transition', { action: 'submit_review', role: 'ADMIN' }, { Authorization: 'Bearer valid-token' }), 403, 'client role must not override verified role');
-    console.log('M10 BFF auth boundary: 5 checks passed');
+    console.log('M10 BFF auth boundary: 6 checks passed');
   } finally {
     child.kill();
     await new Promise(resolve => {
