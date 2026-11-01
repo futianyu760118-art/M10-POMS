@@ -149,6 +149,13 @@ function allowedActions(person, req) {
   return a;
 }
 
+function filterVisibleRequests(list, personId) {
+  if (!personId) return [];
+  const person = m01.getPerson(personId);
+  if (person.capabilities.includes('hlc:request:read')) return list;
+  return list.filter(r => r.requester === personId || r.assignee === personId);
+}
+
 function serveStatic(reqPath, res) {
   let file = path.normalize(reqPath).replace(/^(\.\.[/\\])+/, '');
   if (file === '/' || file === '') file = '/index.html';
@@ -659,22 +666,26 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'GET') {
       const personId = requestPersonId(req, q.person_id);
+      if (REQUIRE_AUTH && !personId) throw Object.assign(new Error('当前账号尚未绑定 M01 人员'), { status: 403 });
       try {
         return send(res, 200, { requests: await hlc.listRequests({ ...q, person_id: personId }, personId), source: 'hlc-rest' });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
-        return send(res, 200, { requests: m07.listRequests(q), source: 'm07-mock-fallback', hlc_error: e.message });
+        return send(res, 200, { requests: filterVisibleRequests(m07.listRequests({ ...q, person_id: personId }), personId), source: 'm07-mock-fallback', hlc_error: e.message });
       }
     }
 
     let srMatch = pathname.match(/^\/api\/v1\/hlc\/service-requests\/([^/]+)$/);
     if (srMatch && req.method === 'GET') {
       const personId = requestPersonId(req, q.person_id);
+      if (REQUIRE_AUTH && !personId) throw Object.assign(new Error('当前账号尚未绑定 M01 人员'), { status: 403 });
       try {
         return send(res, 200, await hlc.getRequest(srMatch[1], personId));
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
-        return send(res, 200, m07.getRequest(srMatch[1]));
+        const record = m07.getRequest(srMatch[1]);
+        if (!filterVisibleRequests([record], personId).length) throw Object.assign(new Error('permission denied'), { status: 403 });
+        return send(res, 200, record);
       }
     }
 
@@ -688,12 +699,13 @@ const server = http.createServer(async (req, res) => {
       // 服务端执行前再鉴权（UI 隐藏 ≠ 权限控制）
       if (['TRIAGED', 'ASSIGNED'].includes(next) && !actor.capabilities.includes('hlc:request:assign')) throw Object.assign(new Error('permission denied'), { status: 403 });
       if (['APPROVED', 'REJECTED', 'POLICY_CHECKED'].includes(next) && !actor.capabilities.includes('hlc:request:approve')) throw Object.assign(new Error('permission denied'), { status: 403 });
+      const verifier = next === 'CLOSED' ? actorId : body.verifier;
       try {
-        const updated = await hlc.transition(trMatch[1], next, { actor: actorId, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla, scope: body.scope, expectedVersion: body.expected_version });
+        const updated = await hlc.transition(trMatch[1], next, { actor: actorId, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier, sla: body.sla, scope: body.scope, expectedVersion: body.expected_version });
         return send(res, 200, { ...updated, source: 'hlc-rest' });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
-        const updated = m07.transition(trMatch[1], next, { actor: actorId, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla });
+        const updated = m07.transition(trMatch[1], next, { actor: actorId, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier, sla: body.sla });
         return send(res, 200, { ...updated, source: 'm07-mock-fallback', hlc_error: e.message });
       }
     }
