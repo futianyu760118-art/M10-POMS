@@ -7,6 +7,7 @@ const path = require('path');
 const {
   JsonlLeadOutbox,
   allowedOrigin,
+  createHttpPublisher,
   createPublicLeadConfig,
   createPublicLeadService,
   createRateLimiter,
@@ -35,6 +36,19 @@ async function main() {
   assert.equal(event.consent.retention_until, '2028-10-31T00:00:00.000Z');
   assert.equal(allowedOrigin('https://150.158.13.110', config.allowedOrigins), true);
   assert.equal(allowedOrigin('https://evil.example', config.allowedOrigins), false);
+
+  let targetRequest;
+  await createHttpPublisher({
+    targetUrl: 'https://edp.example/api/v1/public/lead-intake',
+    targetToken: 'edp-api-key',
+    targetTimeoutMs: 1000
+  }, async (url, options) => {
+    targetRequest = { url, options };
+    return { ok: true, status: 202 };
+  })({ intake_id: 'lead_test', idempotency_key: 'web-001' });
+  assert.equal(targetRequest.url, 'https://edp.example/api/v1/public/lead-intake');
+  assert.equal(targetRequest.options.headers['X-API-Key'], 'edp-api-key');
+  assert.equal(targetRequest.options.headers.Authorization, undefined);
 
   assert.throws(() => normalizePublicLead({ name: '张三', phone: '13800138000', interest: 'x', consent: { granted: true } }, config), /隐私/);
   assert.throws(() => normalizePublicLead({ name: '张三', email: 'bad', interest: 'x', consent: { granted: true, version: 'v', purpose: 'p' } }, config), /邮箱/);

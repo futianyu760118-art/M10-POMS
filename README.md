@@ -35,13 +35,13 @@ PUBLIC_BFF_ALLOWED_ORIGINS=https://your-public-site.example
 PUBLIC_BFF_CAPTCHA_MODE=provider
 PUBLIC_BFF_CAPTCHA_VERIFY_URL=https://captcha-provider.example/verify
 PUBLIC_BFF_TARGET_URL=https://edp.internal.example/api/v1/public/lead-intake
-PUBLIC_BFF_TARGET_TOKEN=<service-identity-token>
+PUBLIC_BFF_TARGET_TOKEN=<edp-service-api-key>
 PUBLIC_BFF_TENANT_ID=<tenant-id>
 PUBLIC_BFF_OUTBOX_FILE=/var/lib/aeos/public-lead-outbox.jsonl
 PUBLIC_BFF_DLQ_FILE=/var/lib/aeos/public-lead-dlq.jsonl
 ```
 
-开发环境可显式使用 `PUBLIC_BFF_CAPTCHA_MODE=disabled`，但不得用于生产。`PUBLIC_BFF_OUTBOX_FILE` 和 `PUBLIC_BFF_DLQ_FILE` 必须位于持久卷，并由部署层限制访问权限；应用日志不得打印完整手机号、邮箱、留言或契约正文。
+开发环境可显式使用 `PUBLIC_BFF_CAPTCHA_MODE=disabled`，但不得用于生产。M10 到 EDP 使用 `X-API-Key`，EDP 到 CRM 使用独立的 Bearer 服务令牌。`PUBLIC_BFF_OUTBOX_FILE` 和 `PUBLIC_BFF_DLQ_FILE` 必须位于持久卷，并由部署层限制访问权限；应用日志不得打印完整手机号、邮箱、留言或契约正文。
 
 启动 BFF 后：
 

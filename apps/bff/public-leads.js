@@ -273,7 +273,8 @@ function createHttpPublisher(config, fetchImpl = globalThis.fetch) {
         'X-Contract-Version': PUBLIC_LEAD_CONTRACT,
         'X-Idempotency-Key': event.idempotency_key
       };
-      if (config.targetToken) headers.Authorization = `Bearer ${config.targetToken}`;
+      // EDP 的官网入口使用 X-API-Key 认证；不要把 API Key 伪装成浏览器 JWT。
+      if (config.targetToken) headers['X-API-Key'] = config.targetToken;
       const response = await fetchImpl(config.targetUrl, {
         method: 'POST',
         headers,
