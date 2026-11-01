@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node apps/bff/server.js",
     "dev": "node apps/bff/server.js",
-    "test": "node tests/contract/run.js"
+    "test": "node tests/contract/run.js && node tests/http/auth-boundary.test.js"
   },
   "license": "UNLICENSED"
 }

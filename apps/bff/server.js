@@ -1,5 +1,5 @@
 'use strict';
-// apps/bff — POMS 代理与服务端授权（L0 mock，未接入生产接口）。
+// apps/bff — POMS 代理与服务端授权（M04 统一认证过渡适配器）。
 // 纯 Node http 实现，无第三方依赖，可直接 `npm start` 运行。
 const http = require('http');
 const fs = require('fs');
@@ -24,7 +24,9 @@ const hub = require('../../adapters/hub');
 /* ---- M10 统一认证（与 M04 PLM 同一账号/令牌/角色） ---- */
 const ROLE_PRIORITY = ['ADMIN', 'admin', 'gm', 'rd_manager', 'engineer', 'project_manager', 'sales_director', 'sales_manager', 'purchase', 'finance', 'cw1', 'sales', 'sales_user', 'viewer', 'QUALITY', 'hr_manager'];
 const ROLE_MAP = { ADMIN: 'ADMIN', admin: 'ADMIN', gm: 'GM', rd_manager: 'RD_LEAD', engineer: 'ENGINEER', project_manager: 'PROJECT_MANAGER', sales_director: 'SALES_MANAGER', sales_manager: 'SALES_MANAGER', purchase: 'PURCHASE', finance: 'FINANCE', cw1: 'FINANCE', sales: 'SALES', sales_user: 'SALES', viewer: 'VIEWER', hr_manager: 'VIEWER', QUALITY: 'QUALITY', ENGINEER: 'ENGINEER', SALES: 'SALES' };
-const authCache = new Map(); // token -> { exp, vo }
+const authCache = new Map(); // token -> { exp, session, vo }
+const REQUIRE_AUTH = ['1', 'true', 'yes', 'on'].includes(String(process.env.M10_REQUIRE_AUTH || '').toLowerCase())
+  || String(process.env.NODE_ENV || '').toLowerCase() === 'production';
 
 function deriveRole(roleCodeStr) {
   const rs = String(roleCodeStr || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -37,6 +39,11 @@ function mapPerson(vo) {
   const byName = ppl.find(p => p.name === vo.realName);
   const person = byUser || byName || ppl[0] || null;
   return person ? person.id : null;
+}
+function mapM01Person(vo) {
+  const people = Object.values(m01.PERSONS || {});
+  const person = people.find(p => p.name === vo.realName);
+  return person ? person.person_id : null;
 }
 function authSession(vo) {
   const roleCodes = vo.roles && vo.roles.length ? vo.roles : [];
@@ -51,24 +58,57 @@ function authSession(vo) {
     roles: demoRoles,
     role: primary,
     permissions: mergedPerms,
-    personId: mapPerson(vo)
+    personId: mapPerson(vo),
+    m01PersonId: mapM01Person(vo)
   };
 }
-// 写操作鉴权：带令牌 → 经 PLM /auth/info 真验证（60s 缓存）并以其角色覆盖客户端角色；无令牌 → L0 演示模式（沿用 body.role）
-async function guardWriteRole(req, body) {
-  const h = req.headers['authorization'] || '';
+function bearerToken(req) {
+  const h = req.headers.authorization || '';
   const m = h.match(/^Bearer\s+(.+)$/i);
-  if (!m) return; // L0 演示模式
-  const tok = m[1];
+  return m ? m[1] : null;
+}
+
+function requestPersonId(req, supplied) {
+  return req.aeosSession && req.aeosSession.m01PersonId ? req.aeosSession.m01PersonId : supplied;
+}
+
+function requestPlmPersonId(req, supplied) {
+  return req.aeosSession && req.aeosSession.personId ? req.aeosSession.personId : supplied;
+}
+
+function requestRole(req, supplied) {
+  return req.aeosSession ? req.aeosSession.roles.join(',') : supplied;
+}
+
+async function getRequestSession(req, options = {}) {
+  const required = options.required !== undefined ? options.required : REQUIRE_AUTH;
+  if (req.aeosSession) return req.aeosSession;
+  const tok = bearerToken(req);
+  if (!tok) {
+    if (required) throw Object.assign(new Error('需要登录后访问 M10 BFF'), { status: 401 });
+    return null;
+  }
   const hit = authCache.get(tok);
-  if (hit && hit.exp > Date.now()) { body.role = hit.roles ? hit.roles.join(',') : hit.role; return; }
-  let vo = null;
+  if (hit && hit.exp > Date.now()) {
+    req.aeosSession = hit.session;
+    return hit.session;
+  }
+  let vo;
   try { vo = await plmSync.infoWith(tok); } catch (e) {
     throw Object.assign(new Error('令牌无效或已过期（M04 统一认证）'), { status: 401 });
   }
-  const s = authSession(vo);
-  authCache.set(tok, { exp: Date.now() + 30000, role: s.role, roles: s.roles, vo });
-  body.role = s.roles ? s.roles.join(',') : s.role;
+  const session = authSession(vo);
+  authCache.set(tok, { exp: Date.now() + 30000, session, vo });
+  req.aeosSession = session;
+  return session;
+}
+
+// 写操作鉴权：认证请求必须以服务端验证出的角色和人员为准；仅 L0 开发模式允许无令牌演示。
+async function guardWriteRole(req, body) {
+  const s = await getRequestSession(req, { required: REQUIRE_AUTH });
+  if (!s) return; // 仅开发环境 L0 演示模式
+  body.role = s.roles.join(',');
+  body.__aeos_person_id = s.personId;
 }
 
 const PORT = process.env.PORT || 4173;
@@ -138,6 +178,11 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/demo/') || pathname.startsWith('/apps/') || pathname.startsWith('/vendor/')) return serveStatic(pathname, res);
     if (pathname.startsWith('/favicon')) return send(res, 204, '');
 
+    // 生产默认 fail-closed；开发环境可显式关闭以保留 L0 演示。登录和当前用户查询是唯一公开认证入口。
+    const isApi = pathname.startsWith('/api/') || pathname.startsWith('/poms/');
+    const isPublicAuth = pathname === '/api/v1/plm2/auth/login' || pathname === '/api/v1/plm2/auth/me';
+    if (isApi && !isPublicAuth) await getRequestSession(req, { required: REQUIRE_AUTH });
+
     // ---- API (proposal only) ----
     if (pathname === '/poms/v1/me/manifest' && req.method === 'GET') {
       const manifest = assembly.assemble({
@@ -177,33 +222,35 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { roles: plm2.getRoles(), departments: plm2.getDepartments(), modules: plm2.getModules() });
     }
     if (pathname === '/api/v1/plm2/people' && req.method === 'GET') {
-      return send(res, 200, { people: plm2.getPeople(q.role) });
+      return send(res, 200, { people: plm2.getPeople(requestRole(req, q.role)) });
     }
     if (pathname === '/api/v1/plm2/dicts' && req.method === 'GET') {
       return send(res, 200, { dicts: plm2.getDicts(), lifecycle: plm2.getLifecycle() });
     }
     if (pathname === '/api/v1/plm2/me/manifest' && req.method === 'GET') {
-      return send(res, 200, plm2.getManifest(q.role));
+      return send(res, 200, plm2.getManifest(requestRole(req, q.role)));
     }
     if (pathname === '/api/v1/plm2/me/overview' && req.method === 'GET') {
-      return send(res, 200, plm2.overview(q.user));
+      return send(res, 200, plm2.overview(requestPlmPersonId(req, q.user)));
     }
     if (pathname === '/api/v1/plm2/me/todos' && req.method === 'GET') {
-      const u = plm2.getPeople().find(p => p.id === Number(q.user));
-      return send(res, 200, Object.assign({ realName: u ? u.name : q.user }, plm2.todosFor(u ? u.name : '')));
+      const userId = requestPlmPersonId(req, q.user);
+      const u = plm2.getPeople().find(p => p.id === Number(userId));
+      return send(res, 200, Object.assign({ realName: u ? u.name : userId }, plm2.todosFor(u ? u.name : '')));
     }
     if (pathname === '/api/v1/plm2/me/dept-todos' && req.method === 'GET') {
-      return send(res, 200, plm2.deptTodos(q.user));
+      return send(res, 200, plm2.deptTodos(requestPlmPersonId(req, q.user)));
     }
     if (pathname === '/api/v1/plm2/work-items' && req.method === 'GET') {
-      const wsTodos = plm2.listApprovalTodos(q.user).filter(t => t.status === 'OPEN');
-      return send(res, 200, { items: [...wsTodos, ...plm2.listWorkItems(q.user)] });
+      const userId = requestPlmPersonId(req, q.user);
+      const wsTodos = plm2.listApprovalTodos(userId).filter(t => t.status === 'OPEN');
+      return send(res, 200, { items: [...wsTodos, ...plm2.listWorkItems(userId)] });
     }
     if (pathname === '/api/v1/plm2/materials' && req.method === 'GET') {
-      return send(res, 200, { materials: plm2.listMaterials(q.role) });
+      return send(res, 200, { materials: plm2.listMaterials(requestRole(req, q.role)) });
     }
     if (pathname === '/api/v1/plm2/ecns' && req.method === 'GET') {
-      return send(res, 200, { ecns: plm2.listEcns(q.role) });
+      return send(res, 200, { ecns: plm2.listEcns(requestRole(req, q.role)) });
     }
     if (pathname === '/api/v1/plm2/process-routes' && req.method === 'GET') {
       return send(res, 200, { routes: plm2.listProcessRoutes() });
@@ -473,10 +520,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, plm2.updateMaterial(decodeURIComponent(matEdit[1]), body, body.role));
     }
     if (pathname === '/api/v1/plm2/capture-types' && req.method === 'GET') {
-      return send(res, 200, { captureTypes: plm2.getCaptureTypes(q.role) });
+      return send(res, 200, { captureTypes: plm2.getCaptureTypes(requestRole(req, q.role)) });
     }
     if (pathname === '/api/v1/plm2/captures' && req.method === 'GET') {
-      return send(res, 200, { captures: plm2.listCaptures(q.operator) });
+      return send(res, 200, { captures: plm2.listCaptures(requestPlmPersonId(req, q.operator)) });
     }
     if (pathname === '/api/v1/plm2/captures' && req.method === 'POST') {
       const body = await readBody(req);
@@ -519,7 +566,9 @@ const server = http.createServer(async (req, res) => {
 
     // ---- 恒剑 M07+M10 契约（来自《AEOS_M07_M10_可开发资料包 V1.0》03 章，候选） ----
     if (pathname === '/api/v1/poms/me/workspace' && req.method === 'GET') {
-      const p = m01.getPerson(q.person_id);
+      const personId = requestPersonId(req, q.person_id);
+      if (!personId) throw Object.assign(new Error('缺少当前人员身份'), { status: 401 });
+      const p = m01.getPerson(personId);
       const widgets = ['future_todos', 'past_results', 'personal_agent'].map(id => ({ id, visible: true }));
       const actions = [];
       if (p.capabilities.includes('hlc:request:create')) actions.push('hlc.service_request.create');
@@ -540,10 +589,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/v1/poms/me/work-items' && req.method === 'GET') {
-      const p = m01.getPerson(q.person_id);
+      const personId = requestPersonId(req, q.person_id);
+      if (!personId) throw Object.assign(new Error('缺少当前人员身份'), { status: 401 });
+      const p = m01.getPerson(personId);
       const isAdmin = p.capabilities.includes('hlc:request:read');
       let all, source = 'm07-mock';
-      try { all = await hlc.listRequests({ ...q, requester: q.person_id }, q.person_id); source = 'hlc-rest'; }
+      try { all = await hlc.listRequests({ ...q, requester: personId }, personId); source = 'hlc-rest'; }
       catch (e) { all = m07.listRequests(q); source = 'm07-mock-fallback'; }
       const items = all
         .filter(r => isAdmin || r.requester === p.person_id || r.assignee === p.person_id)
@@ -564,9 +615,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/v1/poms/me/results' && req.method === 'GET') {
-      const p = m01.getPerson(q.person_id);
+      const personId = requestPersonId(req, q.person_id);
+      if (!personId) throw Object.assign(new Error('缺少当前人员身份'), { status: 401 });
+      const p = m01.getPerson(personId);
       let all, source = 'm07-mock';
-      try { all = await hlc.listRequests({ ...q, requester: q.person_id }, q.person_id); source = 'hlc-rest'; }
+      try { all = await hlc.listRequests({ ...q, requester: personId }, personId); source = 'hlc-rest'; }
       catch (e) { all = m07.listRequests(q); source = 'm07-mock-fallback'; }
       const results = all
         .filter(r => r.state === 'CLOSED' || r.state === 'ARCHIVED')
@@ -588,23 +641,26 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'POST') {
       const body = await readBody(req);
+      const requester = requestPersonId(req, body.requester);
+      if (!requester) throw Object.assign(new Error('缺少申请人身份'), { status: 401 });
       const idempotency_key = req.headers['idempotency-key'] || body.idempotency_key;
       try {
-        const created = await hlc.createRequest({ ...body, idempotency_key }); // 真实 HLC：DRAFT
-        if (!created.replay) await hlc.submitRequest(created.id, body.requester);
-        const full = await hlc.getRequest(created.id, body.requester);
+        const created = await hlc.createRequest({ ...body, requester, idempotency_key }); // 真实 HLC：DRAFT
+        if (!created.replay) await hlc.submitRequest(created.id, requester);
+        const full = await hlc.getRequest(created.id, requester);
         return send(res, created.replay ? 200 : 201, { ...full, history: undefined, replay: created.replay, source: 'hlc-rest' });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e; // 业务错误如实上抛
         // HLC 不可达 → 降级 mock（与 PLM 读透降级同策略）
-        const created = m07.createRequest({ ...body, idempotency_key });
-        if (!created.replay) m07.submitRequest(created.id, body.requester);
+        const created = m07.createRequest({ ...body, requester, idempotency_key });
+        if (!created.replay) m07.submitRequest(created.id, requester);
         return send(res, created.replay ? 200 : 201, { ...m07.getRequest(created.id), history: undefined, replay: created.replay, source: 'm07-mock-fallback', hlc_error: e.message });
       }
     }
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'GET') {
+      const personId = requestPersonId(req, q.person_id);
       try {
-        return send(res, 200, { requests: await hlc.listRequests(q, q.person_id), source: 'hlc-rest' });
+        return send(res, 200, { requests: await hlc.listRequests({ ...q, person_id: personId }, personId), source: 'hlc-rest' });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
         return send(res, 200, { requests: m07.listRequests(q), source: 'm07-mock-fallback', hlc_error: e.message });
@@ -613,8 +669,9 @@ const server = http.createServer(async (req, res) => {
 
     let srMatch = pathname.match(/^\/api\/v1\/hlc\/service-requests\/([^/]+)$/);
     if (srMatch && req.method === 'GET') {
+      const personId = requestPersonId(req, q.person_id);
       try {
-        return send(res, 200, await hlc.getRequest(srMatch[1], q.person_id));
+        return send(res, 200, await hlc.getRequest(srMatch[1], personId));
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
         return send(res, 200, m07.getRequest(srMatch[1]));
@@ -624,17 +681,19 @@ const server = http.createServer(async (req, res) => {
     let trMatch = pathname.match(/^\/api\/v1\/hlc\/service-requests\/([^/]+)\/transitions$/);
     if (trMatch && req.method === 'POST') {
       const body = await readBody(req);
-      const actor = m01.getPerson(body.actor);
+      const actorId = requestPersonId(req, body.actor);
+      if (!actorId) throw Object.assign(new Error('缺少操作人身份'), { status: 401 });
+      const actor = m01.getPerson(actorId);
       const next = body.next_state;
       // 服务端执行前再鉴权（UI 隐藏 ≠ 权限控制）
       if (['TRIAGED', 'ASSIGNED'].includes(next) && !actor.capabilities.includes('hlc:request:assign')) throw Object.assign(new Error('permission denied'), { status: 403 });
       if (['APPROVED', 'REJECTED', 'POLICY_CHECKED'].includes(next) && !actor.capabilities.includes('hlc:request:approve')) throw Object.assign(new Error('permission denied'), { status: 403 });
       try {
-        const updated = await hlc.transition(trMatch[1], next, { actor: body.actor, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla, scope: body.scope, expectedVersion: body.expected_version });
+        const updated = await hlc.transition(trMatch[1], next, { actor: actorId, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla, scope: body.scope, expectedVersion: body.expected_version });
         return send(res, 200, { ...updated, source: 'hlc-rest' });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
-        const updated = m07.transition(trMatch[1], next, { actor: body.actor, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla });
+        const updated = m07.transition(trMatch[1], next, { actor: actorId, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla });
         return send(res, 200, { ...updated, source: 'm07-mock-fallback', hlc_error: e.message });
       }
     }
