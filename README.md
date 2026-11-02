@@ -146,7 +146,12 @@ M10 双端页面右上角可用 **PLM 账号登录**：BFF 调 PLM /api/auth/log
 - **输出到个人/部门待办 + 即时互传**：总库自有条目（抽取/确认/手工）即时进入 `/plm2` 我的待办（`taskhub` 段，可直接开始/完成）与部门待办（`/api/v1/tasks/dept`，按部门→人汇总）；变更经 SSE `/api/v1/tasks/stream` 推送到总库页与我的待办页，双向无需手动刷新。引用条目（会议/PLM/Hub）状态仍归源系统，改状态返回 409。
 - **接口**：`GET /api/v1/tasks`（owner/domain/source/status/q 过滤 + 源健康度）、`POST /tasks/refresh`、`POST /tasks/extract`、`GET /tasks/candidates`、`POST /tasks/candidates/:id/confirm|reject`、`POST /tasks/:id/assign`、`POST /tasks/:id/progress`、`GET /tasks/person|dept|activities`、`GET /tasks/stream`（SSE）（复核人/责任人角色服务端校验，非授权 403）。
 - **页面**：`/taskhub` 支持视图切换「总库 / 个人待办 / 部门待办」；`/plm2` 我的待办内含「总库任务」分组。
-- **自查**：`node services/tools-node/_selfcheck-taskhub.js`（独立端口 + 临时库，39 项）。
+- **与 PLM 互相同步**（写透/读透，走 PLM REST，不直连库）：
+  - 写透：总库/个人待办里 PLM 条目点「开始/完成」→ `PUT /api/project/{plmId}/nodes/{code}`（`IN_PROGRESS`/`DONE`，DONE 自动补 actualDate）；**先写 PLM 成功才改总库**，失败 502 且总库状态不变；PLM 要求计划日而节点无排期时返回 422。
+  - 读透：`POST /api/v1/tasks/plm-sync`（`plm2.syncPull` → 重建总库 → SSE 广播）；后台轮询 `PLM_POLL_MS`（默认 60s，只拉总库涉及的 PLM 项目，失败自动退避，`0` 关闭）。
+  - 观测：`GET /api/v1/plm2/sync-status`（api/待写队列/最近写读时间）；`/taskhub` 头部「同步 PLM」按钮；页面对 PLM 条目显示开始/完成（写透），会议/Hub 条目仍回源系统。
+  - 前提：`PLM_API`（默认 8081）、`PLM_USER/PLM_PASS` 有效；PLM 登录失败时如实 502/401，不伪造成功。
+- **自查**：`node services/tools-node/_selfcheck-taskhub.js`（独立端口 + 临时库，45 项）。
 
 ### Hub 接入（M11/M13 经营中心）
 

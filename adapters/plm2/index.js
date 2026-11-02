@@ -494,7 +494,7 @@ function nodeRow(p, i) {
   };
 }
 // 节点保存：待办类状态必须填计划日期；实际日期缺省当天；DONE 自动补实际日期
-function updateNode(projectNo, nodeCode, input) {
+function updateNode(projectNo, nodeCode, input, opts) {
   const p = projects.find(x => x.projectNo === projectNo);
   if (!p) throw Object.assign(new Error('project not found'), { status: 404 });
   const idx = D.nodeDefs.findIndex(d => d.code === nodeCode);
@@ -521,8 +521,9 @@ function updateNode(projectNo, nodeCode, input) {
   if (owner !== undefined) plmPayload.owner = owner || '';
   if (deliveryDesc !== undefined) plmPayload.deliveryDesc = deliveryDesc || '';
   if (remark !== undefined) plmPayload.remark = remark || '';
-  queueNodeWrite(p, nodeCode, plmPayload);
-  return { projectNo, node: nodeRow(p, idx), plmQueued: !!p.plmId };
+  // opts.noWrite：写透方已在 PLM 落库，这里只更新本地缓存，避免重复写
+  if (!(opts && opts.noWrite)) queueNodeWrite(p, nodeCode, plmPayload);
+  return { projectNo, node: nodeRow(p, idx), plmQueued: !(opts && opts.noWrite) && !!p.plmId };
 }
 
 // ============ M10 ↔ M04 PLM 实时同步（写透/读透，经 PLM REST） ============
@@ -580,11 +581,47 @@ async function syncPull(personName) {
 }
 function syncStatus() {
   return {
-    enabled: true, api: sync.API_BASE,
+    enabled: true, api: sync.apiBase(),
     projectsWithPlmId: projects.filter(x => x.plmId).length,
     lastWriteAt: lastSync.writeAt, lastPullAt: lastSync.pullAt,
     lastOk: lastSync.ok, lastMsg: lastSync.msg, pending: pendingWrites.length
   };
+}
+
+/**
+ * 总库/个人待办 → PLM 写透：先写 PLM，成功后再更新本地缓存（失败不落库，不假装成功）
+ * @param {string} projectNo
+ * @param {string} nodeCode
+ * @param {'in_progress'|'done'} taskStatus
+ * @param {{planDate?:string, actor?:string}} opts
+ */
+async function syncNodeStatus(projectNo, nodeCode, taskStatus, opts) {
+  const o = opts || {};
+  const p = projects.find(x => x.projectNo === projectNo);
+  if (!p) return { ok: false, status: 404, msg: '项目不存在：' + projectNo };
+  const idx = D.nodeDefs.findIndex(d => d.code === nodeCode);
+  if (idx < 0) return { ok: false, status: 422, msg: '未知节点：' + nodeCode };
+  if (!p.plmId) return { ok: false, status: 409, msg: '该项目未关联 PLM（plmId 缺失），无法写透' };
+
+  const MAP = { in_progress: 'IN_PROGRESS', done: 'DONE' };
+  const nodeStatus = MAP[taskStatus];
+  if (!nodeStatus) return { ok: false, status: 422, msg: '仅支持 in_progress/done 回写 PLM，收到 ' + taskStatus };
+
+  const planDate = o.planDate || (nodePlansRT[projectNo] || {})[nodeCode] || null;
+  if (nodeStatus === 'IN_PROGRESS' && !planDate) {
+    return { ok: false, status: 422, msg: 'PLM 要求计划日期：该节点无计划日，请先在 PLM 排期' };
+  }
+  const actualDate = nodeStatus === 'DONE' ? _today() : ((nodeActualRT[projectNo] || {})[nodeCode] || null);
+  const payload = { status: nodeStatus, planDate, actualDate };
+  if (o.actor) payload.remark = (nodeRemarkRT[projectNo] || {})[nodeCode] || '';
+
+  const r = await sync.putNode(p.plmId, nodeCode, payload);
+  lastSync.writeAt = new Date().toISOString(); lastSync.ok = r.ok; lastSync.msg = r.msg || '';
+  if (!r.ok) return { ok: false, status: 502, msg: 'PLM 写入失败：' + (r.msg || r.status), plmStatus: r.status };
+
+  // PLM 已落库 → 本地缓存对齐（不重复入队写回）
+  const local = updateNode(projectNo, nodeCode, { status: nodeStatus, planDate, actualDate }, { noWrite: true });
+  return { ok: true, status: 200, node: local.node, pulled: payload };
 }
 
 // ============ 资料制作生命周期：草稿→提交→上级审批→批准归档→同步 PLM 对应表 ============
@@ -817,7 +854,7 @@ module.exports = {
   getGates, getNodeDefs, listProjects, getProject, createEcn, completeStep,
   getWorksheetDefs, getNodeWorksheetMap, listWorksheets, submitWorksheet,
   listApprovalTodos,
-  updateProjectStatus, updateProject, updateNode, updateMaterial, todosFor, deptTodos, getProjectAsync, flushSync, syncPull, syncStatus, createInitiation, listInitiations, transitionInitiation, getWsTemplates, getWorksheetHistory, makeWorksheet, approveWorksheet, rejectWorksheet, listWorksheetsV2, listWorksheetApprovals, nodeWsStatus,
+  updateProjectStatus, updateProject, updateNode, updateMaterial, todosFor, deptTodos, getProjectAsync, flushSync, syncPull, syncStatus, syncNodeStatus, createInitiation, listInitiations, transitionInitiation, getWsTemplates, getWorksheetHistory, makeWorksheet, approveWorksheet, rejectWorksheet, listWorksheetsV2, listWorksheetApprovals, nodeWsStatus,
   getCaptureTypes, submitCapture, listCaptures,
   transitionMaterial, ecnTransition, completeWorkItem, overview, hasPerm, reset
 };

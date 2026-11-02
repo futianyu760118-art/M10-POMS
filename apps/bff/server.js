@@ -46,6 +46,34 @@ function taskhubBroadcast(kind, payload) {
   const line = 'data: ' + JSON.stringify({ kind, payload: payload || {}, at: Date.now() }) + '\n\n';
   for (const c of [...TASKHUB_SSE]) { try { c.write(line); } catch (e) { TASKHUB_SSE.delete(c); } }
 }
+
+// PLM → 总库 轮询：只看总库 PLM 条目涉及的项目（默认 60s，PLM_POLL_MS=0 关闭）
+function startPlmPoller() {
+  const ms = Number(process.env.PLM_POLL_MS == null ? 60000 : process.env.PLM_POLL_MS);
+  if (!(ms > 0)) return;
+  let running = false;
+  let skipLeft = 0; // PLM 连续不可用时降频，避免每分钟重复登录失败
+  setInterval(async () => {
+    if (running) return;
+    if (skipLeft > 0) { skipLeft--; return; }
+    running = true;
+    try {
+      const st = plm2.syncStatus();
+      if (st.lastOk === false) { skipLeft = 9; return; } // 上次拉取失败：退避 10 个周期
+      const before = taskhub.list({}).items.filter(x => x.source === 'PLM2');
+      const projects = [...new Set(before.map(x => x.refs && x.refs.projectNo).filter(Boolean))];
+      if (!projects.length) return;
+      for (const pn of projects) {
+        try { await plm2.getProjectAsync(pn, { fresh: true }); } catch (e) { /* PLM 不可达：保留本地快照 */ }
+      }
+      const r = await taskhub.refresh({});
+      const after = taskhub.list({}).items.filter(x => x.source === 'PLM2');
+      const sig = (arr) => arr.map(x => x.id + ':' + x.status).sort().join('|');
+      const changed = sig(before) !== sig(after);
+      if (changed) taskhubBroadcast('plm-sync', { poll: true, changed, total: r.total });
+    } catch (e) { /* 轮询失败不阻塞服务 */ } finally { running = false; }
+  }, ms).unref();
+}
 function mapPerson(vo) {
   const ppl = plm2.getPeople();
   const byUser = ppl.find(p => p.username === vo.username);
@@ -289,6 +317,14 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/v1/tasks/activities' && req.method === 'GET') {
       return send(res, 200, { activities: taskhub.activities(Number(q.limit) || 50) });
     }
+    /* 总库 ↔ PLM 双向同步：拉取 PLM 变更 → 重建总库 → SSE 推送 */
+    if (pathname === '/api/v1/tasks/plm-sync' && req.method === 'POST') {
+      const body = await readBody(req);
+      const pull = await plm2.syncPull(body.person || null);
+      const r = await taskhub.refresh({});
+      taskhubBroadcast('plm-sync', { pulled: pull.pulled, failed: pull.failed, total: r.total });
+      return send(res, 200, { pull, taskhub: { total: r.total, updatedAt: r.updatedAt }, plm: plm2.syncStatus() });
+    }
     /* 变更实时推送（SSE）：总库/个人/部门页面收到后立即重载 */
     if (pathname === '/api/v1/tasks/stream' && req.method === 'GET') {
       res.writeHead(200, {
@@ -325,7 +361,7 @@ const server = http.createServer(async (req, res) => {
       // 责任人本人可直接更新；其他需管理角色（服务端校验，不信任前端）
       const actorPerson = plm2.getPeople().find(x => x.name === body.actor || x.username === body.actor);
       if (!actorPerson) return send(res, 403, { error: 'actor 必须是 M10 人员库中的有效人员' });
-      const r = taskhub.updateProgress(decodeURIComponent(taskProgress[1]), { status: body.status, actor: actorPerson.name, note: body.note });
+      const r = await taskhub.updateProgress(decodeURIComponent(taskProgress[1]), { status: body.status, actor: actorPerson.name, note: body.note });
       if (r.status === 200) taskhubBroadcast('progress', { id: r.body.item.id, status: r.body.item.status, actor: actorPerson.name });
       return send(res, r.status, r.body);
     }
@@ -841,5 +877,6 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log('  恒剑 M07+M10: http://localhost:' + PORT + '/api/v1/poms/me/workspace?person_id=p-002');
   console.log('  API 示例:   http://localhost:' + PORT + '/poms/v1/me/manifest?actor_id=u-1001&product_family=led-light');
   console.log('  契约测试:   npm test');
-  console.log('  Hub 连接:   ' + (hub.HUB_CONNECTED ? '已连接' : '未连接（模拟模式，HUB_CONNECTED=1 可开启）'));
+  console.log('  Hub 连接:   ' + (hub.HUB_CONNECTED ? '已连接' : (hub.configured() ? 'HTTP 模式（经营事项/收件箱待办）' : '未连接（模拟模式，HUB_CONNECTED=1 可开启）')));
+  startPlmPoller();
 });

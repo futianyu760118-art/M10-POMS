@@ -98,6 +98,7 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
     <div class="sub">各系统任务汇总 → 按责任人分发 · 行政归会议中心 / 业务归 PLM · <span id="upd">未加载</span></div>
   </div>
   <div class="spacer"></div>
+  <button class="btn" id="btnPlmSync" title="从 PLM 拉取最新节点状态并重建总库">同步 PLM</button>
   <button class="btn" id="btnExtract">规则抽取候选</button>
   <button class="btn primary" id="btnRefresh">刷新归集</button>
   <a class="btn" href="/portal">返回门户</a>
@@ -289,9 +290,11 @@ function renderList() {
       </div>
       ${x.stale ? '<span class="tag orange" title="源系统不可用，显示本地短期快照">快照</span>' : ''}
       <span class="muted" style="font-size:12px;width:84px;text-align:right">${esc(x.due || '—')}</span>
-      ${x.origin === 'sync'
-        ? `<button class="btn small" onclick="assignTask('${x.id}')">分发</button>`
-        : `<button class="btn small" onclick="postProgress('${x.id}','in_progress')">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')">完成</button>`}
+      ${x.source === 'PLM2'
+        ? `<button class="btn small" onclick="postProgress('${x.id}','in_progress')" title="写透到 PLM 节点：IN_PROGRESS">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')" title="写透到 PLM 节点：DONE">完成</button>`
+        : (x.origin === 'sync'
+          ? `<button class="btn small" onclick="assignTask('${x.id}')">分发</button>`
+          : `<button class="btn small" onclick="postProgress('${x.id}','in_progress')">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')">完成</button>`)}
     </div>`;
 
   if (state.group) {
@@ -441,6 +444,7 @@ function connectStream() {
     es.onmessage = (ev) => {
       let m = {}; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.kind === 'hello') return;
+      if (m.kind === 'plm-sync') toast('PLM 状态已同步到总库');
       $('syncState').textContent = '实时同步：收到「' + m.kind + '」更新';
       clearTimeout(reloadTimer);
       reloadTimer = setTimeout(() => reloadAll(), 400);
@@ -553,6 +557,14 @@ $('btnRefresh').onclick = async () => {
   const b = $('btnRefresh'); b.disabled = true;
   try { const r = await api('/api/v1/tasks/refresh', 'POST', {}); toast('归集完成：' + r.total + ' 条'); state.data = await api('/api/v1/tasks'); await loadCands(); renderFilters(); renderAll(); }
   catch (e) { toast('归集失败：' + e.message); } finally { b.disabled = false; }
+};
+$('btnPlmSync').onclick = async () => {
+  const b = $('btnPlmSync'); b.disabled = true;
+  try {
+    const r = await api('/api/v1/tasks/plm-sync', 'POST', {});
+    toast('PLM 同步完成：拉取 ' + r.pull.pulled + ' 个项目（失败 ' + r.pull.failed + '），总库 ' + r.taskhub.total + ' 条');
+    await reloadAll();
+  } catch (e) { toast('PLM 同步失败：' + e.message); } finally { b.disabled = false; }
 };
 $('btnExtract').onclick = async () => {
   const b = $('btnExtract'); b.disabled = true;

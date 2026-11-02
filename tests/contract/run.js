@@ -682,11 +682,11 @@ test('总库输出与回写：个人/部门视图 + 进度回写（引用条目 
 
     // 回写：责任人本人可改；引用条目 409；无关员工 403
     const id = okC.body.item.id;
-    assert.strictEqual(taskhub.updateProgress(id, { status: 'done', actor: '包跃' }).status, 200, '本人可完成');
+    assert.strictEqual((await taskhub.updateProgress(id, { status: 'done', actor: '包跃' })).status, 200, '本人可完成');
     assert.strictEqual(taskhub.forPerson('包跃', { today: '2026-11-02' }).items[0].status, 'done', '回写即时可见');
     const syncItem = taskhub.load().items.find(x => x.origin === 'sync');
-    assert.strictEqual(taskhub.updateProgress(syncItem.id, { status: 'done', actor: '包跃' }).status, 409, '引用条目回源系统');
-    assert.strictEqual(taskhub.updateProgress(id, { status: 'in_progress', actor: '沈建凯' }).status, 403, '非责任人被拒');
+    assert.strictEqual((await taskhub.updateProgress(syncItem.id, { status: 'done', actor: '包跃' })).status, 409, '引用条目回源系统');
+    assert.strictEqual((await taskhub.updateProgress(id, { status: 'in_progress', actor: '沈建凯' })).status, 403, '非责任人被拒');
     assert(taskhub.activities(5).length >= 1, '回写须留痕');
   } finally {
     taskhub.reset();
@@ -694,6 +694,87 @@ test('总库输出与回写：个人/部门视图 + 进度回写（引用条目 
     if (prev.disabled === undefined) delete process.env.HUB_DISABLED; else process.env.HUB_DISABLED = prev.disabled;
     delete require.cache[require.resolve('../../packages/taskhub')];
     delete require.cache[require.resolve('../../adapters/hub')];
+    try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+  }
+});
+
+test('PLM 互相同步：总库改状态写透 PLM，PLM 失败不落库（不假装成功）', async () => {
+  const httpMod = require('http');
+  const calls = [];
+  const plm = httpMod.createServer((req, res) => {
+    let b = ''; req.on('data', c => b += c);
+    req.on('end', () => {
+      if (req.method === 'POST' && req.url === '/api/auth/login') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ code: 200, data: { token: 'mock-plm-token' } }));
+      }
+      if (req.method === 'PUT' && /^\/api\/project\/\d+\/nodes\//.test(req.url)) {
+        let body = {}; try { body = JSON.parse(b); } catch (e) { /* ignore */ }
+        calls.push({ url: req.url, body, auth: req.headers.authorization });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ code: 200, message: 'ok' }));
+      }
+      res.writeHead(404, { 'Content-Type': 'application/json' }); res.end('{}');
+    });
+  });
+  await new Promise(r => plm.listen(0, '127.0.0.1', r));
+  const port = plm.address().port;
+  const prevApi = process.env.PLM_API;
+  const tmp = path.join(os.tmpdir(), 'taskhub-plm-' + process.pid + '.json');
+  const prevStore = process.env.TASKHUB_STORE;
+  process.env.PLM_API = 'http://127.0.0.1:' + port;
+  process.env.TASKHUB_STORE = tmp;
+  process.env.HUB_DISABLED = '1';
+  delete require.cache[require.resolve('../../adapters/plm2')];
+  delete require.cache[require.resolve('../../adapters/plm2/sync')];
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  const plm2 = require('../../adapters/plm2');
+  const taskhub = require('../../packages/taskhub');
+  try {
+    // 1) 适配器层：写透成功 → PLM 收到 PUT，本地缓存对齐且不重复入队
+    const projectNo = plm2.listProjects().find(p => p.plmId).projectNo;
+    const r = await plm2.syncNodeStatus(projectNo, 'SPEC', 'done', { actor: '孙周杰' });
+    assert.strictEqual(r.ok, true, '写透应成功：' + r.msg);
+    assert.strictEqual(calls.length, 1, 'PLM 应收到 1 次 PUT');
+    assert.strictEqual(calls[0].body.status, 'DONE', 'PLM 节点状态应为 DONE');
+    assert(/^Bearer /.test(calls[0].auth || ''), '须带 PLM 令牌');
+    const localNode = plm2.getProject(projectNo).nodes.find(n => n.code === 'SPEC');
+    assert.strictEqual(localNode.status, 'DONE', '本地缓存对齐');
+    assert.strictEqual(plm2.syncStatus().pending, 0, '写透后不得重复入队');
+
+    // 2) 总库层：PLM 条目的进度回写走写透，并落盘
+    await taskhub.refresh({ today: '2026-11-02' });
+    const plmItem = taskhub.load().items.find(x => x.source === 'PLM2');
+    assert(plmItem, '总库应有 PLM 条目');
+    const before = calls.length;
+    const pr = await taskhub.updateProgress(plmItem.id, { status: 'in_progress', actor: plmItem.ownerName });
+    // 该节点可能无计划日 → 422（如实拒绝）；否则应 200 且 PLM 收到写
+    if (pr.status === 200) {
+      assert(calls.length === before + 1, 'PLM 应收到写请求');
+      assert.strictEqual(pr.body.plm.ok, true, '返回体须带 PLM 写透结果');
+      assert(taskhub.activities(3).some(a => a.kind === 'plm-progress'), '写透须留痕');
+    } else {
+      assert.strictEqual(pr.status, 422, '仅允许计划日缺失等原因的 422，实际 ' + pr.status + '：' + JSON.stringify(pr.body));
+    }
+
+    // 3) PLM 不可达：明确 502，且总库状态不变
+    const deadPort = port + 1;
+    process.env.PLM_API = 'http://127.0.0.1:' + deadPort;
+    const target = taskhub.load().items.find(x => x.source === 'PLM2' && x.status !== 'done');
+    const stBefore = target.status;
+    const fail = await taskhub.updateProgress(target.id, { status: 'done', actor: target.ownerName });
+    assert.strictEqual(fail.status, 502, 'PLM 不可达须 502');
+    assert.strictEqual(taskhub.load().items.find(x => x.id === target.id).status, stBefore, '写透失败不得改总库状态');
+  } finally {
+    plm.close();
+    plm2.reset();
+    taskhub.reset();
+    if (prevApi === undefined) delete process.env.PLM_API; else process.env.PLM_API = prevApi;
+    if (prevStore === undefined) delete process.env.TASKHUB_STORE; else process.env.TASKHUB_STORE = prevStore;
+    delete process.env.HUB_DISABLED;
+    delete require.cache[require.resolve('../../adapters/plm2')];
+    delete require.cache[require.resolve('../../adapters/plm2/sync')];
+    delete require.cache[require.resolve('../../packages/taskhub')];
     try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
   }
 });

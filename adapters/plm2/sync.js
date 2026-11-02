@@ -3,10 +3,12 @@
 // 用法：putNode / getNodeMatrix / putProject；登录令牌自动缓存与续期。
 const http = require('http');
 
-const API_BASE = process.env.PLM_API || 'http://127.0.0.1:8081';
-const _u = API_BASE.replace(/^https?:\/\//, '');
-const HOST = _u.split(':')[0];
-const PORT = Number(_u.split(':')[1] || 80);
+// 每次调用读取环境变量：便于运行期切换/测试注入（PLM_API 指向 mock 或不同实例）
+function apiBase() { return process.env.PLM_API || 'http://127.0.0.1:8081'; }
+function target() {
+  const u = new URL(apiBase());
+  return { host: u.hostname, port: Number(u.port || (u.protocol === 'https:' ? 443 : 80)) };
+}
 const USER = process.env.PLM_USER || 'admin';
 const PASS = process.env.PLM_PASS || '736669';
 
@@ -15,7 +17,8 @@ let token = null, tokenAt = 0;
 function call(method, apiPath, body) {
   return new Promise((resolve, reject) => {
     const s = body ? JSON.stringify(body) : null;
-    const o = { host: HOST, port: PORT, path: '/api' + apiPath, method, headers: { 'Content-Type': 'application/json' } };
+    const t = target();
+    const o = { host: t.host, port: t.port, path: '/api' + apiPath, method, headers: { 'Content-Type': 'application/json' } };
     if (token) o.headers.Authorization = 'Bearer ' + token;
     if (s) o.headers['Content-Length'] = Buffer.byteLength(s);
     const q = http.request(o, x => {
@@ -110,4 +113,4 @@ async function listSheets(type, projectNo) {
   throw Object.assign(new Error('历史模板拉取失败(' + r.status + ')'), { status: 502 });
 }
 
-module.exports = { putNode, getNodeMatrix, putProject, login, loginWith, infoWith, createSheet, listSheets, API_BASE };
+module.exports = { putNode, getNodeMatrix, putProject, login, loginWith, infoWith, createSheet, listSheets, apiBase };

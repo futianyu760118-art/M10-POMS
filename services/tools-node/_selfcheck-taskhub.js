@@ -27,8 +27,36 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   let pass = 0, fail = 0;
   const ck = (n, ok, d) => { if (ok) { pass++; console.log('  [PASS] ' + n + (d ? ' | ' + d : '')); } else { fail++; console.log('  [FAIL] ' + n + (d ? ' | ' + d : '')); } };
 
+  // mock PLM：验证「总库改 PLM 状态 → 写透 PLM」链路（不触真实 PLM 生产数据）
+  const plmCalls = [];
+  const plmMock = http.createServer((rq, rs) => {
+    let b = ''; rq.on('data', c => b += c);
+    rq.on('end', () => {
+      if (rq.method === 'POST' && rq.url === '/api/auth/login') {
+        rs.writeHead(200, { 'Content-Type': 'application/json' });
+        return rs.end(JSON.stringify({ code: 200, data: { token: 'mock' } }));
+      }
+      if (rq.method === 'PUT' && /^\/api\/project\/\d+\/nodes\//.test(rq.url)) {
+        let body = {}; try { body = JSON.parse(b); } catch (e) { /* ignore */ }
+        plmCalls.push({ url: rq.url, body });
+        rs.writeHead(200, { 'Content-Type': 'application/json' });
+        return rs.end(JSON.stringify({ code: 200 }));
+      }
+      if (rq.method === 'GET' && /^\/api\/project\/\d+\/nodes$/.test(rq.url)) {
+        rs.writeHead(200, { 'Content-Type': 'application/json' });
+        return rs.end(JSON.stringify({ code: 200, data: { project: {}, nodes: [], summary: {} } }));
+      }
+      rs.writeHead(404, { 'Content-Type': 'application/json' }); rs.end('{}');
+    });
+  });
+  await new Promise(r => plmMock.listen(0, '127.0.0.1', r));
+  const PLM_PORT = plmMock.address().port;
+
   const child = spawn(process.execPath, [path.join(ROOT, 'apps', 'bff', 'server.js')], {
-    cwd: ROOT, env: Object.assign({}, process.env, { PORT: String(PORT), TASKHUB_STORE: STORE }), stdio: 'ignore'
+    cwd: ROOT, env: Object.assign({}, process.env, {
+      PORT: String(PORT), TASKHUB_STORE: STORE,
+      PLM_API: 'http://127.0.0.1:' + PLM_PORT, PLM_POLL_MS: '0'
+    }), stdio: 'ignore'
   });
   try {
     let up = false;
@@ -136,6 +164,21 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ck('活动日志可追溯', (j(await req('/api/v1/tasks/activities?limit=5')).activities || []).length >= 1);
     sseReq.destroy();
 
+    /* ---- 总库 ↔ PLM 互相同步 ---- */
+    const plmItem = t.items.find(x => x.source === 'PLM2' && x.origin === 'sync');
+    ck('总库含 PLM 条目（可写透）', !!plmItem, plmItem ? plmItem.title : '');
+    if (plmItem) {
+      const pr2 = await req('/api/v1/tasks/' + encodeURIComponent(plmItem.id) + '/progress', 'POST', { status: 'done', actor: plmItem.ownerName });
+      ck('PLM 任务完成写透 PLM（200）', pr2.s === 200 && j(pr2).plm && j(pr2).plm.ok === true, j(pr2).error || '');
+      ck('PLM 收到节点写回（PUT status=DONE）', plmCalls.some(c => c.body && c.body.status === 'DONE'), plmCalls.length + ' 次');
+      const after2 = j(await req('/api/v1/tasks'));
+      ck('写透后总库状态为已完成', after2.items.some(x => x.id === plmItem.id && x.status === 'done'));
+      const act = j(await req('/api/v1/tasks/activities?limit=5')).activities || [];
+      ck('PLM 写透留痕（plm-progress）', act.some(a => a.kind === 'plm-progress'));
+      const plms = j(await req('/api/v1/plm2/sync-status'));
+      ck('PLM 同步状态可查（api/lastWriteAt）', !!plms.api && !!plms.lastWriteAt);
+    }
+
     // 源故障降级：篡改快照健康度后条目仍在且标 stale
     const meetBase = after.items.filter(x => x.source === 'MEETING').length;
     const store = JSON.parse(fs.readFileSync(STORE, 'utf8'));
@@ -148,6 +191,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ck('源故障条目标注 stale', mrows.every(x => x.stale === true));
   } finally {
     try { child.kill(); } catch (e) { /* ignore */ }
+    try { plmMock.close(); } catch (e) { /* ignore */ }
     try { fs.unlinkSync(STORE); } catch (e) { /* ignore */ }
   }
 

@@ -556,7 +556,7 @@ function forDept(deptName, opts) {
 }
 
 /** 个人/部门待办回传总库：仅总库自有条目可直接改状态；引用条目回源系统（409） */
-function updateProgress(id, opts) {
+async function updateProgress(id, opts) {
   const o = opts || {};
   const store = load();
   const it = store.items.find(x => x.id === id);
@@ -564,24 +564,37 @@ function updateProgress(id, opts) {
   if (!o.actor) return { status: 400, body: { error: 'actor required（变更须留痕）' } };
   const ALLOWED = ['pending', 'in_progress', 'done', 'blocked', 'cancelled'];
   if (!ALLOWED.includes(o.status)) return { status: 400, body: { error: 'status 仅支持 ' + ALLOWED.join('/') } };
-  if (it.origin === 'sync') {
-    return { status: 409, body: { error: '该任务状态由源系统持有，请回 ' + it.bizSysLabel + ' 更新（M10 不双写）', source: it.source, sourceId: it.sourceId } };
-  }
   const p = plm2.getPeople().find(x => x.name === o.actor);
   if (it.ownerName && o.actor !== it.ownerName && !(p && (p.realRoles || []).some(r => TASKHUB_PROGRESS_ROLES.includes(r)))) {
     return { status: 403, body: { error: '仅责任人本人或管理角色可更新该任务' } };
   }
+
+  // PLM 条目：经 PLM REST 写透（先写 PLM，成功才改总库；失败 502 不假装成功）
+  let plmSync = null;
+  if (it.source === 'PLM2') {
+    if (!['in_progress', 'done'].includes(o.status)) {
+      return { status: 422, body: { error: 'PLM 任务仅支持回写 in_progress/done（PLM 节点无该状态）', source: 'PLM2' } };
+    }
+    const refs = it.refs || {};
+    if (!refs.projectNo || !refs.nodeCode) return { status: 422, body: { error: 'PLM 条目缺少 projectNo/nodeCode 引用' } };
+    plmSync = await plm2.syncNodeStatus(refs.projectNo, refs.nodeCode, o.status, { planDate: it.due, actor: o.actor });
+    if (!plmSync.ok) return { status: plmSync.status || 502, body: { error: plmSync.msg || 'PLM 写入失败', source: 'PLM2', sourceId: it.sourceId } };
+  } else if (it.origin === 'sync') {
+    return { status: 409, body: { error: '该任务状态由源系统持有，请回 ' + it.bizSysLabel + ' 更新（M10 不双写）', source: it.source, sourceId: it.sourceId } };
+  }
+
   const before = it.status;
   it.status = o.status;
   it.updatedAt = new Date().toISOString();
   it.updatedBy = o.actor;
   if (o.status === 'done') it.completedAt = it.updatedAt;
+  if (plmSync) it.plmSyncedAt = it.updatedAt;
   store.activities = (store.activities || []).concat({
-    at: it.updatedAt, kind: 'progress', taskId: it.id, title: it.title,
+    at: it.updatedAt, kind: plmSync ? 'plm-progress' : 'progress', taskId: it.id, title: it.title,
     from: before, to: o.status, actor: o.actor, note: o.note || ''
   }).slice(-200);
   save(store);
-  return { status: 200, body: { ok: true, item: it, activity: store.activities[store.activities.length - 1] } };
+  return { status: 200, body: { ok: true, item: it, plm: plmSync || undefined, activity: store.activities[store.activities.length - 1] } };
 }
 
 function activities(limit) {
