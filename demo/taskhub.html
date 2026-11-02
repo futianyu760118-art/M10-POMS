@@ -89,6 +89,21 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 .grp .title{flex:1;min-width:220px;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .grp .occ{border-top:1px solid #f1f4f8;background:#fcfdff}
 .grp .occ .item{padding:7px 11px}
+/* 看板 */
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(240px,1fr);gap:10px;overflow-x:auto;align-items:start;padding-bottom:6px}
+.bcol{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:8px}
+.bhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px}
+.bcard{background:#fff;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;overflow:hidden}
+.bcard[open]{border-color:#cfdffb}
+.bcard summary{list-style:none;cursor:pointer;padding:8px 9px;display:flex;flex-direction:column;gap:4px}
+.bcard summary::-webkit-details-marker{display:none}
+.bcard summary:hover{background:#fafcff}
+.bcard .btitle{font-size:12px;font-weight:600;line-height:1.35}
+.bcard .cnt{align-self:flex-start}
+.bcard .occ{border-top:1px solid #f1f4f8;background:#fcfdff}
+.bcard .occ .item{padding:7px 9px}
+/* 表格内展开 */
+table .cnt{margin-left:4px}
 </style>
 </head>
 <body>
@@ -141,6 +156,13 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
     <div>
       <div class="panel">
         <h2>任务清单 <span class="tag" id="listCount">0</span> <span class="muted" style="font-size:11px;font-weight:400">点卡片穿透 · 点组头展开 · 可合并重复</span></h2>
+        <div class="filters" style="gap:6px;margin-bottom:8px">
+          <span class="muted" style="font-size:12px">呈现</span>
+          <button class="btn small" id="modeList" onclick="setMode('list')">列表</button>
+          <button class="btn small" id="modeBoard" onclick="setMode('board')">看板</button>
+          <button class="btn small" id="modeTable" onclick="setMode('table')">表格</button>
+          <span class="muted" id="modeHint" style="font-size:11px"></span>
+        </div>
         <div id="list"></div>
       </div>
     </div>
@@ -168,7 +190,7 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { data: null, cands: [], people: [], group: true, view: 'hub', person: '', dept: '', deptData: null, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
+const state = { data: null, cands: [], people: [], group: true, mode: (localStorage.getItem('taskhub-mode') || 'list'), view: 'hub', person: '', dept: '', deptData: null, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
 const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', confirmed: 'blue', candidate: 'gray', done: 'green', cancelled: 'gray' };
 const ST_TEXT = { overdue: '逾期', blocked: '异常', pending: '待办', in_progress: '进行中', confirmed: '已确认', candidate: '候选', done: '已完成', cancelled: '已取消' };
 const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green', OPS: 'blue' };
@@ -274,13 +296,16 @@ function renderHealth() {
   }).join('') || '<span class="muted" style="font-size:12px">尚无归集记录，点击「刷新归集」</span>';
 }
 
-function renderList() {
-  const rows = filtered();
-  const CAP = 200;
-  $('listCount').textContent = rows.length;
-  if (!rows.length) { $('list').innerHTML = '<div class="empty">无匹配任务</div>'; return; }
+function actionCell(x) {
+  if (x.source === 'PLM2') {
+    return `<button class="btn small" onclick="postProgress('${x.id}','in_progress')" title="写透到 PLM 节点：IN_PROGRESS">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')" title="写透到 PLM 节点：DONE">完成</button>`;
+  }
+  if (x.origin === 'sync') return `<button class="btn small" onclick="assignTask('${x.id}')">分发</button>`;
+  return `<button class="btn small" onclick="postProgress('${x.id}','in_progress')">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')">完成</button>`;
+}
 
-  const rowHtml = (x) => `
+function taskRowHtml(x) {
+  return `
     <div class="item">
       <span class="tag ${ST_TAG[x.status] || 'gray'}" style="width:52px;text-align:center">${ST_TEXT[x.status] || x.status}</span>
       <span class="tag ${DOM_TAG[x.bizDomain] || 'gray'}" title="业务域 → 分库系统">${esc(x.bizDomainLabel)}</span>
@@ -290,37 +315,125 @@ function renderList() {
       </div>
       ${x.stale ? '<span class="tag orange" title="源系统不可用，显示本地短期快照">快照</span>' : ''}
       <span class="muted" style="font-size:12px;width:84px;text-align:right">${esc(x.due || '—')}</span>
-      ${x.source === 'PLM2'
-        ? `<button class="btn small" onclick="postProgress('${x.id}','in_progress')" title="写透到 PLM 节点：IN_PROGRESS">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')" title="写透到 PLM 节点：DONE">完成</button>`
-        : (x.origin === 'sync'
-          ? `<button class="btn small" onclick="assignTask('${x.id}')">分发</button>`
-          : `<button class="btn small" onclick="postProgress('${x.id}','in_progress')">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')">完成</button>`)}
+      ${actionCell(x)}
     </div>`;
+}
 
+function domLabel(code) {
+  return (((state.data || {}).domains || []).find(d => d.code === code) || {}).label || code || '';
+}
+
+function groupStatusChips(g) {
+  return Object.keys(g.statusCounts).map(s => `<span class="tag ${ST_TAG[s] || 'gray'}">${ST_TEXT[s] || s}${g.statusCounts[s]}</span>`).join('');
+}
+
+function groupOwnerText(g) {
+  const o = g.owners || [];
+  return o.length > 3 ? o.slice(0, 3).join('、') + ' 等 ' + o.length + ' 人' : o.join('、');
+}
+
+// 列表 / 看板 / 表格 三种呈现（与 PLM 我的待办一致）
+function renderList() {
+  const rows = filtered();
+  $('listCount').textContent = rows.length;
+  renderModeBar();
+  if (!rows.length) { $('list').innerHTML = '<div class="empty">无匹配任务</div>'; return; }
+  if (state.mode === 'board') return renderBoardMode(rows);
+  if (state.mode === 'table') return renderTableMode(rows);
+  return renderListMode(rows);
+}
+
+function renderModeBar() {
+  const m = state.mode || 'list';
+  [['list', 'modeList'], ['board', 'modeBoard'], ['table', 'modeTable']].forEach(([k, id]) => {
+    const el = $(id); if (el) el.classList.toggle('primary', m === k);
+  });
+  const hint = $('modeHint');
+  if (hint) hint.textContent = m === 'board' ? '看板：按状态分列，点卡片展开每一条'
+    : (m === 'table' ? '表格：一行一组，合并时可展开逐条' : '列表：可合并重复、点组头展开');
+}
+
+function renderListMode(rows) {
+  const CAP = 200;
   if (state.group) {
     const groups = groupRows(rows);
     const shown = groups.slice(0, CAP);
     const more = groups.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${groups.length} 组，请用筛选或搜索缩小范围</div>` : '';
     const head = `<div class="muted" style="font-size:11px;margin:2px 0 8px">${rows.length} 条 → 合并为 <b>${groups.length}</b> 组（按标题判重），点组头展开看每一条</div>`;
-    $('list').innerHTML = head + shown.map(g => {
-      const chips = Object.keys(g.statusCounts).map(s => `<span class="tag ${ST_TAG[s] || 'gray'}">${ST_TEXT[s] || s}${g.statusCounts[s]}</span>`).join('');
-      const who = g.owners.length > 3 ? g.owners.slice(0, 3).join('、') + ' 等 ' + g.owners.length + ' 人' : g.owners.join('、');
-      return `<details class="grp">
+    $('list').innerHTML = head + shown.map(g => `
+      <details class="grp">
         <summary>
           <span class="cnt ${g.count === 1 ? 'one' : ''}" title="出现次数">×${g.count}</span>
-          <span class="tag ${DOM_TAG[g.bizDomain] || 'gray'}">${esc((((state.data.domains || []).find(d => d.code === g.bizDomain)) || {}).label || g.bizDomain || '')}</span>
+          <span class="tag ${DOM_TAG[g.bizDomain] || 'gray'}">${esc(domLabel(g.bizDomain))}</span>
           <span class="title" title="${esc(g.title)}">${esc(g.title)}</span>
-          ${chips}
-          <span class="muted" style="font-size:11px">${esc(who)}${g.earliestDue ? ' · 最早 ' + esc(g.earliestDue) : ''}</span>
+          ${groupStatusChips(g)}
+          <span class="muted" style="font-size:11px">${esc(groupOwnerText(g))}${g.earliestDue ? ' · 最早 ' + esc(g.earliestDue) : ''}</span>
         </summary>
-        <div class="occ">${g.items.map(rowHtml).join('')}</div>
-      </details>`;
-    }).join('') + more;
+        <div class="occ">${g.items.map(taskRowHtml).join('')}</div>
+      </details>`).join('') + more;
   } else {
     const shown = rows.slice(0, CAP);
     const more = rows.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${rows.length} 条，请用筛选或搜索缩小范围</div>` : '';
-    $('list').innerHTML = shown.map(rowHtml).join('') + more;
+    $('list').innerHTML = shown.map(taskRowHtml).join('') + more;
   }
+}
+
+function renderBoardMode(rows) {
+  const ORDER = ['overdue', 'pending', 'in_progress', 'blocked', 'confirmed', 'candidate', 'done', 'cancelled'];
+  const cols = ORDER.filter(k => rows.some(x => x.status === k)).map(k => ({ k, items: rows.filter(x => x.status === k) }));
+  const groups = state.group ? groupRows(rows) : null;
+  const byStatus = {};
+  if (groups) {
+    groups.forEach(g => {
+      const main = Object.keys(g.statusCounts).sort((a, b) => g.statusCounts[b] - g.statusCounts[a])[0];
+      (byStatus[main] = byStatus[main] || []).push(g);
+    });
+  }
+  $('list').innerHTML = `<div class="board">${cols.map(c => {
+    const cards = state.group
+      ? (byStatus[c.k] || [])
+      : c.items.map(x => ({ key: x.id, title: x.title, count: 1, items: [x], owners: [x.ownerName || '未分配'], earliestDue: x.due, statusCounts: { [x.status]: 1 } }));
+    return `<div class="bcol">
+      <div class="bhead"><span class="tag ${ST_TAG[c.k] || 'gray'}">${ST_TEXT[c.k] || c.k}</span><b>${c.items.length}</b></div>
+      ${cards.map(g => `
+        <details class="bcard">
+          <summary>
+            <span class="cnt ${g.count === 1 ? 'one' : ''}" title="出现次数">×${g.count}</span>
+            <span class="btitle" title="${esc(g.title)}">${esc(g.title)}</span>
+            <span class="muted" style="font-size:11px">${esc((g.owners || []).slice(0, 2).join('、'))}${g.earliestDue ? ' · ' + esc(g.earliestDue) : ''}</span>
+          </summary>
+          <div class="occ">${g.items.map(taskRowHtml).join('')}</div>
+        </details>`).join('') || '<div class="empty">无</div>'}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderTableMode(rows) {
+  const CAP = 200;
+  const groups = state.group ? groupRows(rows) : null;
+  const head = '<thead><tr><th>状态</th><th>业务域</th><th>事项</th><th>责任人</th><th>截止</th><th>来源</th><th>操作</th></tr></thead>';
+  let body;
+  if (groups) {
+    body = groups.slice(0, CAP).map(g => {
+      const main = Object.keys(g.statusCounts).sort((a, b) => g.statusCounts[b] - g.statusCounts[a])[0];
+      const titleCell = g.count > 1
+        ? `<details><summary style="cursor:pointer">${esc(g.title)} <span class="cnt">×${g.count}</span> <span class="muted" style="font-size:11px">展开逐条</span></summary>
+             <div class="occ" style="border:0">${g.items.map(x => `<div class="item" style="padding:4px 0;border:0"><small class="muted">${esc(x.ownerName || '未分配')} · ${esc(x.due || '—')} · ${esc(ST_TEXT[x.status] || x.status)}</small>${actionCell(x)}</div>`).join('')}</div></details>`
+        : esc(g.title);
+      return `<tr><td><span class="tag ${ST_TAG[main] || 'gray'}">${ST_TEXT[main] || main}</span></td>
+        <td><span class="tag ${DOM_TAG[g.bizDomain] || 'gray'}">${esc(domLabel(g.bizDomain))}</span></td>
+        <td>${titleCell}</td><td>${esc(groupOwnerText(g))}</td><td>${esc(g.earliestDue || '—')}</td>
+        <td>${esc(g.items[0].sourceLabel || '')}</td><td style="white-space:nowrap">${actionCell(g.items[0])}</td></tr>`;
+    }).join('');
+  } else {
+    body = rows.slice(0, CAP).map(x => `<tr><td><span class="tag ${ST_TAG[x.status] || 'gray'}">${esc(x.statusText || x.status)}</span></td>
+      <td><span class="tag ${DOM_TAG[x.bizDomain] || 'gray'}">${esc(x.bizDomainLabel)}</span></td>
+      <td>${esc(x.title)}</td><td>${esc(x.ownerName || '未分配')}</td><td>${esc(x.due || '—')}</td>
+      <td>${esc(x.sourceLabel)}</td><td style="white-space:nowrap">${actionCell(x)}</td></tr>`).join('');
+  }
+  const moreG = groups && groups.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${groups.length} 组</div>` : '';
+  const moreR = !groups && rows.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${rows.length} 条</div>` : '';
+  $('list').innerHTML = `<div class="panel" style="padding:0;border:0"><table>${head}<tbody>${body}</tbody></table></div>${moreG}${moreR}`;
 }
 
 function renderOwners() {
@@ -414,6 +527,11 @@ async function loadDept() {
   }
 }
 
+window.setMode = (m) => {
+  state.mode = m;
+  try { localStorage.setItem('taskhub-mode', m); } catch (e) { /* 隐私模式忽略 */ }
+  renderList();
+};
 window.setView = async (v) => {
   state.view = v;
   if (v === 'person' && !state.person) {
