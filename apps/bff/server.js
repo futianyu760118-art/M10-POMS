@@ -41,6 +41,11 @@ function taskhubReviewer(name) {
   const roles = p.realRoles && p.realRoles.length ? p.realRoles : [p.role].filter(Boolean);
   return roles.some(r => TASKHUB_REVIEWER_ROLES.includes(r)) ? p : null;
 }
+const TASKHUB_SSE = new Set();
+function taskhubBroadcast(kind, payload) {
+  const line = 'data: ' + JSON.stringify({ kind, payload: payload || {}, at: Date.now() }) + '\n\n';
+  for (const c of [...TASKHUB_SSE]) { try { c.write(line); } catch (e) { TASKHUB_SSE.delete(c); } }
+}
 function mapPerson(vo) {
   const ppl = plm2.getPeople();
   const byUser = ppl.find(p => p.username === vo.username);
@@ -204,11 +209,22 @@ const server = http.createServer(async (req, res) => {
       const plmTodos = plm2.todosFor(u ? u.name : '');
       // 会议助手待办（并入「我的待办」）
       let meeting = { source: 'meeting-assistant', live: false, connected: false, items: [], counts: { total: 0, overdue: 0, todo: 0, done: 0, anomaly: 0 } };
-      try { meeting = meetingAdapter.listMine(u ? { name: u.name, username: u.username } : { name: '' }, { meetingBase: process.env.MEETING_WEB || '' }); } catch (e) { meeting.error = e.message; }
-      return send(res, 200, Object.assign({ realName: u ? u.name : q.user }, plmTodos, { meeting }));
+    try { meeting = meetingAdapter.listMine(u ? { name: u.name, username: u.username } : { name: '' }, { meetingBase: process.env.MEETING_WEB || '' }); } catch (e) { meeting.error = e.message; }
+    // 总库输出的个人待办（总库自有条目，可在此直接更新状态）
+    let personal = { owner: u ? u.name : '', dept: '', items: [], counts: { total: 0 } };
+    try { personal = taskhub.forPerson(u ? u.name : '', {}); } catch (e) { personal.error = e.message; }
+    return send(res, 200, Object.assign({ realName: u ? u.name : q.user }, plmTodos, { meeting, taskhub: personal }));
     }
     if (pathname === '/api/v1/plm2/me/dept-todos' && req.method === 'GET') {
-      return send(res, 200, plm2.deptTodos(q.user));
+      const base = plm2.deptTodos(q.user);
+      // 为每个部门附加总库自有条目计数（明细走 /api/v1/tasks/dept）
+      try {
+        (base.departments || []).forEach(dp => {
+          const t = taskhub.forDept(dp.deptName || dp.deptCode, {});
+          dp.taskhub = { total: t.counts.total, overdue: t.counts.overdue || 0, items: [] };
+        });
+      } catch (e) { base.taskhubError = e.message; }
+      return send(res, 200, base);
     }
     if (pathname === '/api/v1/plm2/work-items' && req.method === 'GET') {
       const wsTodos = plm2.listApprovalTodos(q.user).filter(t => t.status === 'OPEN');
@@ -251,11 +267,42 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, s);
     }
     if (pathname === '/api/v1/tasks/refresh' && req.method === 'POST') {
-      return send(res, 200, await taskhub.refresh({}));
+      const r = await taskhub.refresh({});
+      taskhubBroadcast('refresh', { total: r.total });
+      return send(res, 200, r);
     }
     if (pathname === '/api/v1/tasks/extract' && req.method === 'POST') {
       const body = await readBody(req);
-      return send(res, 200, taskhub.extractCandidates({ text: body.text, actor: body.actor }));
+      const r = taskhub.extractCandidates({ text: body.text, actor: body.actor });
+      if (r.produced) taskhubBroadcast('extract', { produced: r.produced });
+      return send(res, 200, r);
+    }
+    /* 个人待办 / 部门待办输出（总库 → 个人/部门，即时读） */
+    if (pathname === '/api/v1/tasks/person' && req.method === 'GET') {
+      if (!q.name) return send(res, 400, { error: 'name required' });
+      return send(res, 200, taskhub.forPerson(q.name, {}));
+    }
+    if (pathname === '/api/v1/tasks/dept' && req.method === 'GET') {
+      if (!q.dept) return send(res, 400, { error: 'dept required' });
+      return send(res, 200, taskhub.forDept(q.dept, {}));
+    }
+    if (pathname === '/api/v1/tasks/activities' && req.method === 'GET') {
+      return send(res, 200, { activities: taskhub.activities(Number(q.limit) || 50) });
+    }
+    /* 变更实时推送（SSE）：总库/个人/部门页面收到后立即重载 */
+    if (pathname === '/api/v1/tasks/stream' && req.method === 'GET') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      });
+      res.write('retry: 3000\n\n');
+      res.write('data: ' + JSON.stringify({ kind: 'hello', at: Date.now() }) + '\n\n');
+      TASKHUB_SSE.add(res);
+      const hb = setInterval(() => { try { res.write(': ping\n\n'); } catch (e) { /* ignore */ } }, 25000);
+      req.on('close', () => { clearInterval(hb); TASKHUB_SSE.delete(res); });
+      return;
     }
     if (pathname === '/api/v1/tasks/candidates' && req.method === 'GET') {
       const s = taskhub.list({});
@@ -269,6 +316,17 @@ const server = http.createServer(async (req, res) => {
       const r = candReview[2] === 'confirm'
         ? taskhub.confirmCandidate(decodeURIComponent(candReview[1]), { reviewer: reviewer.name, ownerName: body.ownerName, due: body.due, bizDomain: body.bizDomain })
         : taskhub.rejectCandidate(decodeURIComponent(candReview[1]), { reviewer: reviewer.name, reason: body.reason });
+      if (r.status === 200) taskhubBroadcast('candidate', { action: candReview[2] });
+      return send(res, r.status, r.body);
+    }
+    const taskProgress = pathname.match(/^\/api\/v1\/tasks\/([^/]+)\/progress$/);
+    if (taskProgress && req.method === 'POST') {
+      const body = await readBody(req);
+      // 责任人本人可直接更新；其他需管理角色（服务端校验，不信任前端）
+      const actorPerson = plm2.getPeople().find(x => x.name === body.actor || x.username === body.actor);
+      if (!actorPerson) return send(res, 403, { error: 'actor 必须是 M10 人员库中的有效人员' });
+      const r = taskhub.updateProgress(decodeURIComponent(taskProgress[1]), { status: body.status, actor: actorPerson.name, note: body.note });
+      if (r.status === 200) taskhubBroadcast('progress', { id: r.body.item.id, status: r.body.item.status, actor: actorPerson.name });
       return send(res, r.status, r.body);
     }
     const taskAssign = pathname.match(/^\/api\/v1\/tasks\/([^/]+)\/assign$/);
@@ -277,6 +335,7 @@ const server = http.createServer(async (req, res) => {
       const reviewer = taskhubReviewer(body.reviewer);
       if (!reviewer) return send(res, 403, { error: '仅授权验证人可分发任务（角色不足或人员不存在）' });
       const r = taskhub.assignItem(decodeURIComponent(taskAssign[1]), { ownerName: body.ownerName, reviewer: reviewer.name });
+      if (r.status === 200) taskhubBroadcast('assign', { id: r.body.item.id, ownerName: r.body.item.ownerName });
       return send(res, r.status, r.body);
     }
     if (pathname === '/api/v1/skills' && req.method === 'GET') {

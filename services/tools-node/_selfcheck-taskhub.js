@@ -35,6 +35,26 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     for (let i = 0; i < 40; i++) { try { const r = await req('/api/v1/tasks'); if (r.s === 200) { up = true; break; } } catch (e) { /* 未就绪 */ } await sleep(250); }
     if (!up) throw new Error('BFF 未在端口 ' + PORT + ' 就绪');
 
+    // 实时同步通道（SSE）：订阅后再做变更，验证「总库/个人/部门」是否即时互传
+    const sseEvents = [];
+    const sseReq = http.get({ host: '127.0.0.1', port: PORT, path: '/api/v1/tasks/stream' }, res => {
+      res.setEncoding('utf8');
+      let buf = '';
+      res.on('data', d => {
+        buf += d;
+        const parts = buf.split('\n\n');
+        buf = parts.pop();
+        parts.forEach(p => {
+          const line = p.split('\n').find(l => l.indexOf('data: ') === 0);
+          if (!line) return;
+          try { sseEvents.push(JSON.parse(line.slice(6))); } catch (e) { /* ignore */ }
+        });
+      });
+    });
+    sseReq.on('error', () => {});
+    await sleep(300);
+    ck('SSE 通道可订阅（hello）', sseEvents.some(e => e.kind === 'hello'));
+
     const page = await req('/taskhub');
     ck('页面 /taskhub 可访问', page.s === 200 && page.b.includes('总任务库'));
     const portal = await req('/portal');
@@ -84,6 +104,37 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const after = j(await req('/api/v1/tasks'));
     ck('确认后总库 +1', after.total === t.total + 1, t.total + ' -> ' + after.total);
     ck('短期库文件已落地', fs.existsSync(STORE));
+
+    /* ---- 总库 → 个人/部门输出 & 双向即时同步 ---- */
+    const people = j(await req('/api/v1/plm2/people')).people || [];
+    const yu = people.find(p => p.name === '虞周峰');
+    const person = j(await req('/api/v1/tasks/person?name=' + encodeURIComponent('虞周峰')));
+    ck('GET /tasks/person 输出个人待办', person.counts && person.counts.total >= 1 && person.items.every(x => x.ownerName === '虞周峰'), 'total=' + (person.counts || {}).total);
+    const dept = j(await req('/api/v1/tasks/dept?dept=' + encodeURIComponent((person.dept || '研发中心'))));
+    ck('GET /tasks/dept 输出部门待办（含按人汇总）', dept.counts.total >= 1 && Array.isArray(dept.byOwner) && dept.byOwner.some(o => o.ownerName === '虞周峰'), 'total=' + dept.counts.total);
+
+    // 个人待办页（/me/todos）应包含总库输出的任务
+    const me = j(await req('/api/v1/plm2/me/todos?user=' + (yu ? yu.id : 0)));
+    ck('/me/todos 携带总库个人待办段', Array.isArray((me.taskhub || {}).items) && me.taskhub.items.length >= 1, 'n=' + ((me.taskhub || {}).items || []).length);
+
+    // 个人完成 → 即时回写总库（自有条目）
+    const localId = j(ok).item.id;
+    const pr = await req('/api/v1/tasks/' + encodeURIComponent(localId) + '/progress', 'POST', { status: 'done', actor: '虞周峰' });
+    ck('个人待办完成回写总库', pr.s === 200 && j(pr).item.status === 'done');
+    const afterDone = j(await req('/api/v1/tasks/person?name=' + encodeURIComponent('虞周峰')));
+    ck('回写后个人视图状态即时更新', afterDone.items.some(x => x.id === localId && x.status === 'done'));
+
+    // 引用条目不能在 M10 改状态（回源系统）
+    const prSync = await req('/api/v1/tasks/' + encodeURIComponent(syncItem.id) + '/progress', 'POST', { status: 'done', actor: '虞周峰' });
+    ck('引用条目改状态返回 409（不双写）', prSync.s === 409, j(prSync).error);
+    // 非责任人且非管理角色不可改
+    const prOther = await req('/api/v1/tasks/' + encodeURIComponent(localId) + '/progress', 'POST', { status: 'in_progress', actor: '沈建凯' });
+    ck('非责任人改他人任务被拒 403', prOther.s === 403 || prOther.s === 400, 'HTTP ' + prOther.s);
+
+    await sleep(500);
+    ck('SSE 推送变更事件（confirm/assign/progress）', ['candidate', 'assign', 'progress'].every(k => sseEvents.some(e => e.kind === k)), sseEvents.map(e => e.kind).join(','));
+    ck('活动日志可追溯', (j(await req('/api/v1/tasks/activities?limit=5')).activities || []).length >= 1);
+    sseReq.destroy();
 
     // 源故障降级：篡改快照健康度后条目仍在且标 stale
     const meetBase = after.items.filter(x => x.source === 'MEETING').length;

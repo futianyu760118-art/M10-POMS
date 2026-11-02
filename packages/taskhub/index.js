@@ -13,6 +13,7 @@ const hubAdapter = require('../../adapters/hub');
 const STORE = process.env.TASKHUB_STORE || path.join(__dirname, '..', '..', 'configs', 'tasks-master.json');
 const TTL_MINUTES = 60;
 const MAX_EXTRACT_PER_RUN = 200;
+const TASKHUB_PROGRESS_ROLES = ['ADMIN', 'admin', 'gm', 'rd_manager', 'project_manager', 'hr_manager', 'cw1', 'sales_director', 'sales_manager'];
 const HORIZON_DAYS = 30;
 
 const DOMAINS = {
@@ -55,10 +56,11 @@ function load() {
       horizonDays: s.horizonDays || HORIZON_DAYS,
       sources: s.sources || {},
       items: Array.isArray(s.items) ? s.items : [],
-      candidates: Array.isArray(s.candidates) ? s.candidates : []
+      candidates: Array.isArray(s.candidates) ? s.candidates : [],
+      activities: Array.isArray(s.activities) ? s.activities : []
     };
   } catch (e) {
-    return { version: 1, updatedAt: null, horizonDays: HORIZON_DAYS, sources: {}, items: [], candidates: [] };
+    return { version: 1, updatedAt: null, horizonDays: HORIZON_DAYS, sources: {}, items: [], candidates: [], activities: [] };
   }
 }
 
@@ -500,6 +502,93 @@ function assignItem(id, opts) {
   return { status: 200, body: { ok: true, item: it } };
 }
 
+// ── 总库输出：个人待办 / 部门待办 ──────────────────────────
+// 规则：总库自有条目（origin=extract/manual）输出到个人/部门；
+//       sync 条目（会议/PLM/Hub）已在各自系统视图呈现，避免重复计两份。
+function ownItems(d) {
+  const s = list({ today: d });
+  return s.items.filter(x => x.origin !== 'sync');
+}
+
+function deptOf(personName) {
+  const p = plm2.getPeople().find(x => x.name === personName);
+  return p ? (p.dept || '') : '';
+}
+
+/** 个人待办：总库自有条目按责任人 */
+function forPerson(name, opts) {
+  const d = (opts && opts.today) || today();
+  const items = ownItems(d).filter(x => x.ownerName === name);
+  const counts = { total: items.length };
+  items.forEach(i => { counts[i.status] = (counts[i.status] || 0) + 1; });
+  return { owner: name, dept: deptOf(name), items, counts, updatedAt: load().updatedAt };
+}
+
+/** 部门待办：总库自有条目 + 会议条目（按会议部门名）按部门聚合 */
+function forDept(deptName, opts) {
+  const d = (opts && opts.today) || today();
+  const s = list({ today: d });
+  const codeToName = {};
+  try {
+    plm2.getDepartments().forEach(dp => { codeToName[dp.code] = dp.name; codeToName[dp.name] = dp.name; });
+  } catch (e) { /* 组织不可用则用原始名 */ }
+  const match = (x) => {
+    if (x.source === 'MEETING' && x.refs && x.refs.dept) {
+      const dn = codeToName[x.refs.dept] || x.refs.dept;
+      return dn === deptName;
+    }
+    if (x.origin !== 'sync') return deptOf(x.ownerName) === deptName || codeToName[deptOf(x.ownerName)] === deptName;
+    return false;
+  };
+  const items = s.items.filter(match);
+  const byOwner = {};
+  items.forEach(i => {
+    const k = i.ownerName || '未分配';
+    byOwner[k] = byOwner[k] || { total: 0, overdue: 0, done: 0, other: 0 };
+    byOwner[k].total++;
+    if (i.status === 'overdue') byOwner[k].overdue++;
+    else if (i.status === 'done') byOwner[k].done++;
+    else byOwner[k].other++;
+  });
+  const counts = { total: items.length };
+  items.forEach(i => { counts[i.status] = (counts[i.status] || 0) + 1; });
+  return { dept: deptName, items, counts, byOwner: Object.keys(byOwner).map(k => Object.assign({ ownerName: k }, byOwner[k])).sort((a, b) => b.total - a.total), updatedAt: load().updatedAt };
+}
+
+/** 个人/部门待办回传总库：仅总库自有条目可直接改状态；引用条目回源系统（409） */
+function updateProgress(id, opts) {
+  const o = opts || {};
+  const store = load();
+  const it = store.items.find(x => x.id === id);
+  if (!it) return { status: 404, body: { error: 'task not found' } };
+  if (!o.actor) return { status: 400, body: { error: 'actor required（变更须留痕）' } };
+  const ALLOWED = ['pending', 'in_progress', 'done', 'blocked', 'cancelled'];
+  if (!ALLOWED.includes(o.status)) return { status: 400, body: { error: 'status 仅支持 ' + ALLOWED.join('/') } };
+  if (it.origin === 'sync') {
+    return { status: 409, body: { error: '该任务状态由源系统持有，请回 ' + it.bizSysLabel + ' 更新（M10 不双写）', source: it.source, sourceId: it.sourceId } };
+  }
+  const p = plm2.getPeople().find(x => x.name === o.actor);
+  if (it.ownerName && o.actor !== it.ownerName && !(p && (p.realRoles || []).some(r => TASKHUB_PROGRESS_ROLES.includes(r)))) {
+    return { status: 403, body: { error: '仅责任人本人或管理角色可更新该任务' } };
+  }
+  const before = it.status;
+  it.status = o.status;
+  it.updatedAt = new Date().toISOString();
+  it.updatedBy = o.actor;
+  if (o.status === 'done') it.completedAt = it.updatedAt;
+  store.activities = (store.activities || []).concat({
+    at: it.updatedAt, kind: 'progress', taskId: it.id, title: it.title,
+    from: before, to: o.status, actor: o.actor, note: o.note || ''
+  }).slice(-200);
+  save(store);
+  return { status: 200, body: { ok: true, item: it, activity: store.activities[store.activities.length - 1] } };
+}
+
+function activities(limit) {
+  const a = load().activities || [];
+  return a.slice(-(limit || 50)).reverse();
+}
+
 function summarize(store, d) {
   const s = list({ today: d });
   return {
@@ -509,11 +598,12 @@ function summarize(store, d) {
 }
 
 function reset() {
-  save({ version: 1, updatedAt: null, horizonDays: HORIZON_DAYS, sources: {}, items: [], candidates: [] });
+  save({ version: 1, updatedAt: null, horizonDays: HORIZON_DAYS, sources: {}, items: [], candidates: [], activities: [] });
 }
 
 module.exports = {
   STORE, DOMAINS, load, save, refresh, list, summarize,
   extractCandidates, confirmCandidate, rejectCandidate, assignItem, reset,
+  forPerson, forDept, updateProgress, activities,
   statusOf, domainOf, domainOfNode, parseDue, fingerprint, splitText
 };

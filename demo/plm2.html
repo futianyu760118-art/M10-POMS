@@ -429,6 +429,9 @@ const pages = {
     // 会议助手待办并入（来源 MEETING）
     state.meetingTodos = (t.meeting && t.meeting.items) || [];
     state.meetingMeta = { live: !!(t.meeting&&t.meeting.live), connected: !!(t.meeting&&t.meeting.connected), updatedAt: (t.meeting&&t.meeting.updatedAt)||null, counts: (t.meeting&&t.meeting.counts)||null };
+    // 总库输出的个人待办（origin!=sync，可直接在本页更新，实时回写总库）
+    state.taskhubTodos = (t.taskhub && t.taskhub.items) || [];
+    state.taskhubMeta = { dept: (t.taskhub && t.taskhub.dept) || '', counts: (t.taskhub && t.taskhub.counts) || null, owner: (t.taskhub && t.taskhub.owner) || '' };
     if (['RD_LEAD','ADMIN'].includes(state.role) || (state.auth && ['RD_LEAD','ADMIN'].includes(state.auth.role))) {
       try { state.wsApprovals = (await get('/ws-v2?approvals=1')).items; } catch(e){}
     }
@@ -1241,6 +1244,41 @@ function setTodoScope(v){ state.todoScope = v; renderTodosView(); }
 function setTodoView(v){ state.todoView = v; renderTodosView(); }
 function scopeRows(){ const r = state.todosData || []; if(state.todoScope==='assigned') return r.filter(x=>x.assigned); if(state.todoScope==='owned') return r.filter(x=>!x.assigned); return r; }
 // 会议助手待办行（来源 MEETING，点击查看详情）
+// 总库任务行（个人待办输出，可直接开始/完成并即时回写总库）
+function taskhubRowHtml(x){
+  const catCls = x.status==='overdue'||x.status==='blocked' ? 'red' : (x.status==='done'?'green':'blue');
+  return `<div class="todoitem">
+    <span class="tag ${catCls}" style="width:54px;text-align:center;flex:none">${esc(x.statusText||x.status)}</span>
+    <span class="t-ico" style="flex:none">📌</span>
+    <span class="t-body"><b style="font-size:13px">${esc(x.title)}</b><span class="muted" style="font-size:11px">总库 · ${esc(x.bizDomainLabel||'')} · ${esc(x.sourceLabel||'')}</span></span>
+    <span class="muted" style="font-size:12px;flex:none;width:82px;text-align:right">${esc(x.due||'—')}</span>
+    ${x.status!=='done'
+      ? `<button class="btn small" style="flex:none" onclick="event.stopPropagation();taskhubProgress('${x.id}','in_progress')">开始</button>
+         <button class="btn small primary" style="flex:none" onclick="event.stopPropagation();taskhubProgress('${x.id}','done')">完成</button>`
+      : '<span class="tag green" style="flex:none">已完成</span>'}
+  </div>`;
+}
+async function taskhubProgress(id, status){
+  const me = state.auth ? state.auth.realName : '';
+  try {
+    await fetch('/api/v1/tasks/'+encodeURIComponent(id)+'/progress', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status, actor: me }) });
+    renderTodosView();
+  } catch(e){ alert('更新失败：'+e.message); }
+}
+function taskhubDone(id){ return taskhubProgress(id,'done'); }
+let _taskhubES = null;
+function connectTaskhubStream(){
+  if (_taskhubES || !window.EventSource) return;
+  try {
+    _taskhubES = new EventSource('/api/v1/tasks/stream');
+    _taskhubES.onmessage = (ev) => {
+      let m = {}; try { m = JSON.parse(ev.data); } catch(e){ return; }
+      if (m.kind === 'hello') return;
+      if (state.page === 'todos') { clearTimeout(window._thT); window._thT = setTimeout(()=>{ pages.todos().catch(()=>{}); }, 500); }
+    };
+    _taskhubES.onerror = () => { /* 浏览器自动重连 */ };
+  } catch(e){ /* 忽略 */ }
+}
 function meetingRowHtml(m){
   const cat = m.category || '待办';
   const catCls = cat==='逾期'?'red':cat==='异常'?'red':cat==='已完成'?'green':'blue';
@@ -1274,12 +1312,14 @@ function renderTodosView(){
   const rows = scopeRows();
   const view = state.todoView || 'list';
   const mt = state.meetingTodos || [];
+  const th = state.taskhubTodos || [];
   const groups = TODO_GROUPS.map(cat=>({ cat, items: rows.filter(r=>r.cat===cat) }));
   // 会议待办按分类并入对应分组
   mt.forEach(m=>{ const g=groups.find(x=>x.cat===m.category); if(g) g.items.push(m); });
   const scopeSel = seg('ts', [{v:'all',l:'全部'},{v:'assigned',l:'指派给我'},{v:'owned',l:'我负责的项目'}], state.todoScope||'all', 'setTodoScope');
   const viewSel = seg('tv', [{v:'list',l:'列表'},{v:'board',l:'看板'},{v:'table',l:'表格'}], view, 'setTodoView');
-  const rowHtml = (r) => r.source==='MEETING' ? meetingRowHtml(r) : todoRowHtml(r);
+  const rowHtml = (r) => r.source==='MEETING' ? meetingRowHtml(r) : (r.origin && r.origin!=='sync' ? taskhubRowHtml(r) : todoRowHtml(r));
+  const total = rows.length + mt.length + th.length;
   let body = '';
   if(view==='board'){
     body = `<div class="grid g4" style="align-items:start">${groups.map(g=>`
@@ -1289,6 +1329,7 @@ function renderTodosView(){
     body = `<div class="panel"><table><thead><tr><th>分类</th><th>截止</th><th>来源</th><th>事项</th><th>状态</th></tr></thead><tbody>
       ${rows.map(r=>{ const [c,l]=TODO_NODE_ST[r.status]||['gray',r.status]; return `<tr style="cursor:pointer" onclick="editNode('${r.projectNo}','${r.nodeCode}')"><td><span class="tag ${r.cat==='逾期'?'red':r.cat==='异常'?'red':r.cat==='已完成'?'green':r.cat==='无节点'?'gray':'blue'}">${r.cat}</span></td><td>${esc(r.planDate||'—')}</td><td>PLM</td><td>${esc(r.projectNo)} · ${esc(r.nodeName)}</td><td><span class="tag ${c}">${l}</span></td></tr>`; }).join('')}
       ${mt.map(m=>`<tr style="cursor:pointer" onclick="meetingDetail('${m.id}')"><td><span class="tag ${m.category==='已完成'?'green':m.category==='逾期'||m.category==='异常'?'red':'blue'}">${m.category}</span></td><td>${esc(m.due||'—')}</td><td><span class="tag blue">会议</span></td><td>${esc(m.title)}</td><td>${esc(m.status)}</td></tr>`).join('')}
+      ${th.map(x=>`<tr><td><span class="tag ${x.status==='done'?'green':x.status==='overdue'?'red':'blue'}">${esc(x.statusText||x.status)}</span></td><td>${esc(x.due||'—')}</td><td><span class="tag gray">总库</span></td><td>${esc(x.title)}</td><td>${x.status==='done'?'':`<button class="btn small" onclick="taskhubDone('${x.id}')">完成</button>`}</td></tr>`).join('')}
     </tbody></table></div>`;
   } else {
     body = groups.map(g=>`
@@ -1299,6 +1340,20 @@ function renderTodosView(){
   }
   const mm = state.meetingMeta || {};
   const meetingBanner = mt.length ? `<div class="notice" style="border-color:#c9d9ee;background:#f4f8ff;color:#2b4c77">📅 会议助手待办已并入：<b>${mt.length}</b> 条（${mm.live?'实时同步':'快照 '+esc((mm.updatedAt||'').slice(0,16).replace('T',' '))}）· 处理请回会议助手（M10 仅引用，不写专业事实）</div>` : '';
+  const tm = state.taskhubMeta || {};
+  const taskhubBlock = (th.length || (tm.dept && tm.counts)) ? `<div class="panel" style="border-color:#d7e3f7">
+      <h2>总库任务（个人待办输出） <span class="tag blue">${th.length} 条</span>
+        ${tm.dept?`<span class="tag">部门 ${esc(tm.dept)}</span><button class="btn small" onclick="window.open('/taskhub','_blank')">部门待办视图</button>`:''}
+        <span class="muted" style="font-size:11px;font-weight:400">在此完成/开始会即时回写总库</span></h2>
+      ${th.length?th.map(x=>`<div class="task" style="padding:8px 0;border-bottom:1px solid #eef2f7">
+        <div class="body"><b style="font-size:13px">${esc(x.title)}</b><br>
+          <small>${esc(x.bizDomainLabel||'')} · ${esc(x.sourceLabel||'总库')} · 截止 ${esc(x.due||'—')} · 状态 ${esc(x.statusText||x.status)}</small></div>
+        <div class="row" style="gap:6px">
+          ${x.status!=='done'?`<button class="btn small" onclick="taskhubProgress('${x.id}','in_progress')">开始</button>
+          <button class="btn small primary" onclick="taskhubProgress('${x.id}','done')">完成</button>`:'<span class="tag green">已完成</span>'}
+        </div>
+      </div>`).join(''):'<div class="muted" style="font-size:12px;padding:6px 0">暂无总库指派给你的任务</div>'}
+    </div>` : '';
     document.getElementById('content').innerHTML = `
     ${(state.anomalies&&state.anomalies.length)?`<div class="panel" style="border:2px solid #d64545;background:#fef5f5;margin-bottom:14px">
       <h2 style="color:#c33a4e">⚠️ 当前异常（${state.anomalies.length}）<span class="tag red">需优先处理</span></h2>
@@ -1318,6 +1373,7 @@ function renderTodosView(){
       </div>
     </div>
     ${meetingBanner}
+    ${taskhubBlock}
     ${body}
     ${(state.wsApprovals&&state.wsApprovals.length)?`<div class="panel"><h2>资料审批 <span class="tag orange">${state.wsApprovals.length} 份待审</span> <span class="tag">批准即归档并同步 PLM</span></h2>
       ${state.wsApprovals.map(w=>`<div class="task" style="padding:10px 0;border-bottom:1px solid #eef2f7">
@@ -2382,6 +2438,7 @@ async function watermarkFile(){
 (async function preload(){ try{ const { roles, modules } = await get('/roles'); state._mods = modules; state._rolePerms = {}; roles.forEach(r=>{ state._rolePerms[r.code] = r.perms; }); }catch(e){} })();
 
 init();
+connectTaskhubStream();
 </script>
 </body>
 </html>

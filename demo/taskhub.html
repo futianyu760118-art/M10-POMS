@@ -110,6 +110,15 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
   <div class="kpis" id="kpis" style="margin-top:12px"></div>
 
   <div class="panel">
+    <div class="filters" style="margin-bottom:8px">
+      <span class="muted" style="font-size:12px">视图</span>
+      <button class="btn small" id="viewHub" onclick="setView('hub')">总库</button>
+      <button class="btn small" id="viewPerson" onclick="setView('person')">个人待办</button>
+      <button class="btn small" id="viewDept" onclick="setView('dept')">部门待办</button>
+      <span id="viewExtra" class="filters" style="gap:6px"></span>
+      <span class="spacer" style="flex:1"></span>
+      <span class="muted" id="syncState" style="font-size:11px">实时同步：连接中…</span>
+    </div>
     <div class="filters">
       <select id="fOwner"><option value="">全部责任人</option></select>
       <select id="fDomain"><option value="">全部业务域</option></select>
@@ -158,7 +167,7 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { data: null, cands: [], people: [], group: true, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
+const state = { data: null, cands: [], people: [], group: true, view: 'hub', person: '', dept: '', deptData: null, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
 const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', confirmed: 'blue', candidate: 'gray', done: 'green', cancelled: 'gray' };
 const ST_TEXT = { overdue: '逾期', blocked: '异常', pending: '待办', in_progress: '进行中', confirmed: '已确认', candidate: '候选', done: '已完成', cancelled: '已取消' };
 const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green', OPS: 'blue' };
@@ -177,8 +186,10 @@ function filtered() {
   const d = state.data; if (!d) return [];
   const f = state.filters;
   const st = f.statuses || [];
-  return d.items.filter(x =>
-    (!f.owner || x.ownerName === f.owner) &&
+  const source = state.view === 'dept' && state.deptData ? (state.deptData.items || []) : d.items;
+  const owner = state.view === 'person' ? state.person : f.owner;
+  return source.filter(x =>
+    (!owner || x.ownerName === owner) &&
     (!f.domain || x.bizDomain === f.domain) &&
     (!f.source || x.source === f.source) &&
     (!st.length || st.includes(x.status)) &&
@@ -278,7 +289,9 @@ function renderList() {
       </div>
       ${x.stale ? '<span class="tag orange" title="源系统不可用，显示本地短期快照">快照</span>' : ''}
       <span class="muted" style="font-size:12px;width:84px;text-align:right">${esc(x.due || '—')}</span>
-      <button class="btn small" onclick="assignTask('${x.id}')">分发</button>
+      ${x.origin === 'sync'
+        ? `<button class="btn small" onclick="assignTask('${x.id}')">分发</button>`
+        : `<button class="btn small" onclick="postProgress('${x.id}','in_progress')">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')">完成</button>`}
     </div>`;
 
   if (state.group) {
@@ -363,7 +376,83 @@ function renderStatusMenu() {
 function renderAll() {
   const d = state.data;
   $('upd').textContent = d && d.updatedAt ? '归集于 ' + d.updatedAt.slice(0, 16).replace('T', ' ') : '未归集';
+  renderViewBar();
   renderHealth(); renderKpis(); renderChips(); renderList(); renderOwners(); renderCands();
+}
+
+// ── 视图：总库 / 个人待办 / 部门待办 ──────────────────
+function renderViewBar() {
+  const map = { hub: 'viewHub', person: 'viewPerson', dept: 'viewDept' };
+  Object.keys(map).forEach(k => $(map[k]).classList.toggle('primary', state.view === k));
+  const d = state.data || {};
+  const owners = Object.keys((d.counts && d.counts.byOwner) || {});
+  const depts = [...new Set((state.people || []).map(p => p.dept).filter(Boolean))];
+  let extra = '';
+  if (state.view === 'person') {
+    extra = `<select id="selPerson">${owners.map(o => `<option ${state.person === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+  } else if (state.view === 'dept') {
+    extra = `<select id="selDept">${depts.map(x => `<option ${state.dept === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+      <span class="muted" style="font-size:11px">${state.deptData ? '部门任务 ' + state.deptData.counts.total + ' 条' : '加载中…'}</span>`;
+  }
+  $('viewExtra').innerHTML = extra;
+  if (state.view === 'person') $('selPerson').onchange = (e) => { state.person = e.target.value; renderAll(); };
+  if (state.view === 'dept') $('selDept').onchange = async (e) => { state.dept = e.target.value; await loadDept(); renderAll(); };
+}
+
+async function loadDept() {
+  if (!state.dept) {
+    const depts = [...new Set((state.people || []).map(p => p.dept).filter(Boolean))];
+    state.dept = depts[0] || '研发中心';
+  }
+  try {
+    state.deptData = await api('/api/v1/tasks/dept?dept=' + encodeURIComponent(state.dept));
+  } catch (e) {
+    state.deptData = { dept: state.dept, items: [], counts: { total: 0 }, byOwner: [], error: e.message };
+  }
+}
+
+window.setView = async (v) => {
+  state.view = v;
+  if (v === 'person' && !state.person) {
+    const owners = Object.keys(((state.data || {}).counts || {}).byOwner || {});
+    state.person = owners[0] || '';
+  }
+  if (v === 'dept') await loadDept();
+  renderAll();
+};
+
+window.postProgress = async (id, status) => {
+  const actor = state.view === 'person' ? state.person : prompt('操作人（M10 人员姓名）', state.person || '');
+  if (!actor) return toast('需要操作人才能留痕');
+  try {
+    await api('/api/v1/tasks/' + encodeURIComponent(id) + '/progress', 'POST', { status, actor });
+    toast(status === 'done' ? '已完成（已同步到总库）' : '已开始（已同步到总库）');
+    await reloadAll();
+  } catch (e) { toast('更新失败：' + e.message); }
+};
+
+// 即时同步：总库/个人/部门任一变更 → 服务端 SSE 推送 → 页面重载
+let reloadTimer = null;
+function connectStream() {
+  try {
+    const es = new EventSource('/api/v1/tasks/stream');
+    es.onopen = () => { $('syncState').textContent = '实时同步：已连接'; };
+    es.onerror = () => { $('syncState').textContent = '实时同步：重连中…'; };
+    es.onmessage = (ev) => {
+      let m = {}; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.kind === 'hello') return;
+      $('syncState').textContent = '实时同步：收到「' + m.kind + '」更新';
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => reloadAll(), 400);
+    };
+  } catch (e) { $('syncState').textContent = '实时同步：不可用'; }
+}
+
+async function reloadAll() {
+  state.data = await api('/api/v1/tasks');
+  await loadCands();
+  if (state.view === 'dept') await loadDept();
+  renderFilters(); renderAll();
 }
 
 // 驾驶舱穿透
@@ -500,7 +589,7 @@ document.addEventListener('click', (e) => {
 });
 $('btnClear').onclick = () => resetFilters();
 loadPeople();
-load().catch(e => { toast('加载失败：' + e.message); });
+load().then(() => { connectStream(); }).catch(e => { toast('加载失败：' + e.message); });
 </script>
 </body>
 </html>

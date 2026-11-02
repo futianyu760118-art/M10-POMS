@@ -143,8 +143,10 @@ M10 双端页面右上角可用 **PLM 账号登录**：BFF 调 PLM /api/auth/log
 - **只存引用**：条目只含 `source/sourceId/责任人/期限/状态/标题/快照时间`，业务事实仍回源系统；分发引用条目返回 409（M10 不双写）。
 - **本地短期库**：`configs/tasks-master.json` 是带 TTL(60min) 的快照，源系统故障时条目保留并标 `stale`，页面标注「快照」，不伪造成功。
 - **规则抽取 + 人工确认**：`POST /api/v1/tasks/extract` 按分隔符拆分子任务、识别期限/紧急度/业务域/责任人（人员字典），产物一律 `pending-review` 入候选池，标注 `engine: rule-based`（非大模型）；须授权验证人确认才入总库（done ≠ verified）。编码损坏的源文本明确跳过并回报原因。
-- **接口**：`GET /api/v1/tasks`（owner/domain/source/status/q 过滤 + 源健康度）、`POST /tasks/refresh`、`POST /tasks/extract`、`GET /tasks/candidates`、`POST /tasks/candidates/:id/confirm|reject`、`POST /tasks/:id/assign`（复核人角色服务端校验，非授权 403）。
-- **自查**：`node services/tools-node/_selfcheck-taskhub.js`（独立端口 + 临时库，29 项）。
+- **输出到个人/部门待办 + 即时互传**：总库自有条目（抽取/确认/手工）即时进入 `/plm2` 我的待办（`taskhub` 段，可直接开始/完成）与部门待办（`/api/v1/tasks/dept`，按部门→人汇总）；变更经 SSE `/api/v1/tasks/stream` 推送到总库页与我的待办页，双向无需手动刷新。引用条目（会议/PLM/Hub）状态仍归源系统，改状态返回 409。
+- **接口**：`GET /api/v1/tasks`（owner/domain/source/status/q 过滤 + 源健康度）、`POST /tasks/refresh`、`POST /tasks/extract`、`GET /tasks/candidates`、`POST /tasks/candidates/:id/confirm|reject`、`POST /tasks/:id/assign`、`POST /tasks/:id/progress`、`GET /tasks/person|dept|activities`、`GET /tasks/stream`（SSE）（复核人/责任人角色服务端校验，非授权 403）。
+- **页面**：`/taskhub` 支持视图切换「总库 / 个人待办 / 部门待办」；`/plm2` 我的待办内含「总库任务」分组。
+- **自查**：`node services/tools-node/_selfcheck-taskhub.js`（独立端口 + 临时库，39 项）。
 
 ### Hub 接入（M11/M13 经营中心）
 

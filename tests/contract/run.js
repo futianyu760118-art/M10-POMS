@@ -656,6 +656,48 @@ test('总任务库：Hub 接入——经营事项/收件箱映射为待办（排
   }
 });
 
+test('总库输出与回写：个人/部门视图 + 进度回写（引用条目 409、他人 403）', async () => {
+  const tmp = path.join(os.tmpdir(), 'taskhub-out-' + process.pid + '.json');
+  const prev = { store: process.env.TASKHUB_STORE, disabled: process.env.HUB_DISABLED };
+  process.env.TASKHUB_STORE = tmp;
+  process.env.HUB_DISABLED = '1';
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  delete require.cache[require.resolve('../../adapters/hub')];
+  const taskhub = require('../../packages/taskhub');
+  try {
+    taskhub.reset();
+    await taskhub.refresh({ today: '2026-11-02' });
+    const ex = taskhub.extractCandidates({ today: '2026-11-02', text: '整理本周行政考勤异常并汇总' });
+    const okC = taskhub.confirmCandidate(ex.candidates[0].id, { reviewer: '系统管理员', ownerName: '包跃' });
+    assert.strictEqual(okC.status, 200, '确认入总库');
+
+    // 个人视图：只含总库自有条目且归属正确
+    const per = taskhub.forPerson('包跃', { today: '2026-11-02' });
+    assert.strictEqual(per.counts.total, 1, '个人待办应收到该任务');
+    assert(per.items.every(x => x.ownerName === '包跃' && x.origin !== 'sync'), '个人视图只含自有条目');
+    // 部门视图：按部门聚合，带按人汇总
+    const dep = taskhub.forDept(per.dept || '研发中心', { today: '2026-11-02' });
+    assert(dep.counts.total >= 1, '部门待办应聚合到该部门');
+    assert(Array.isArray(dep.byOwner) && dep.byOwner.some(o => o.ownerName === '包跃'), '部门视图按人汇总');
+
+    // 回写：责任人本人可改；引用条目 409；无关员工 403
+    const id = okC.body.item.id;
+    assert.strictEqual(taskhub.updateProgress(id, { status: 'done', actor: '包跃' }).status, 200, '本人可完成');
+    assert.strictEqual(taskhub.forPerson('包跃', { today: '2026-11-02' }).items[0].status, 'done', '回写即时可见');
+    const syncItem = taskhub.load().items.find(x => x.origin === 'sync');
+    assert.strictEqual(taskhub.updateProgress(syncItem.id, { status: 'done', actor: '包跃' }).status, 409, '引用条目回源系统');
+    assert.strictEqual(taskhub.updateProgress(id, { status: 'in_progress', actor: '沈建凯' }).status, 403, '非责任人被拒');
+    assert(taskhub.activities(5).length >= 1, '回写须留痕');
+  } finally {
+    taskhub.reset();
+    if (prev.store === undefined) delete process.env.TASKHUB_STORE; else process.env.TASKHUB_STORE = prev.store;
+    if (prev.disabled === undefined) delete process.env.HUB_DISABLED; else process.env.HUB_DISABLED = prev.disabled;
+    delete require.cache[require.resolve('../../packages/taskhub')];
+    delete require.cache[require.resolve('../../adapters/hub')];
+    try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+  }
+});
+
 (async () => {
   for (const [name, fn] of QUEUE) {
     try { await fn(); passed++; console.log('  ✔ ' + name); }
