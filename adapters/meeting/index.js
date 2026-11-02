@@ -37,23 +37,8 @@ function classify(item, today) {
 function listMine(person, opts) {
   const snap = loadSnapshot();
   const today = (opts && opts.today) || new Date().toISOString().slice(0, 10);
-  const items = (snap.items || []).filter(x => matchOwner(x, person)).map(x => ({
-    id: x.id,
-    title: x.description,
-    source: 'MEETING',
-    sourceLabel: '会议助手',
-    meetingTitle: x.meetingTitle || '',
-    meetingDate: x.meetingDate || '',
-    proposer: x.proposer || '',
-    due: x.dueDate || null,
-    priority: x.priority || 'medium',
-    status: x.status,
-    blockedReason: x.blockReason || null,
-    completedAt: x.completedAt || null,
-    category: classify(x, today),
-    action: 'openMeeting',
-    link: (opts && opts.meetingBase || '')
-  }));
+  const items = (snap.items || []).filter(x => matchOwner(x, person)).map(x => normalize(x, today, opts));
+
   const counts = { total: items.length, overdue: 0, todo: 0, done: 0, anomaly: 0 };
   items.forEach(i => {
     if (i.category === '逾期') counts.overdue++;
@@ -70,4 +55,42 @@ function listMine(person, opts) {
   };
 }
 
-module.exports = { listMine, loadSnapshot };
+/**
+ * 全量会议待办（总任务库归集/抽取用，不按人过滤）
+ * @returns {{source:string, live:boolean, updatedAt:string|null, items:Array}}
+ */
+function listAll(opts) {
+  const snap = loadSnapshot();
+  const today = (opts && opts.today) || new Date().toISOString().slice(0, 10);
+  return {
+    source: snap.source || 'meeting-assistant',
+    live: !!snap.live,
+    updatedAt: snap.updatedAt || null,
+    items: (snap.items || []).map(x => normalize(x, today, opts))
+  };
+}
+
+function normalize(x, today, opts) {
+  return {
+    id: x.id,
+    title: x.description,
+    owner: x.owner || '',
+    ownerLoginId: x.ownerLoginId || '',
+    source: 'MEETING',
+    sourceLabel: '会议助手',
+    meetingId: x.meetingId || null,
+    meetingTitle: x.meetingTitle || '',
+    meetingDate: x.meetingDate || '',
+    proposer: x.proposer || '',
+    due: x.dueDate || null,
+    priority: x.priority || 'medium',
+    status: x.status,
+    blockedReason: x.blockReason || null,
+    completedAt: x.completedAt || null,
+    category: classify(x, today),
+    action: 'openMeeting',
+    link: (opts && opts.meetingBase || '')
+  };
+}
+
+module.exports = { listMine, listAll, loadSnapshot };

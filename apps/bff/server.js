@@ -18,6 +18,7 @@ const org = require('../../adapters/org');
 const plm2 = require('../../adapters/plm2');
 const plmSync = require('../../adapters/plm2/sync');
 const meetingAdapter = require('../../adapters/meeting');
+const taskhub = require('../../packages/taskhub');
 const TOOLS = require('../../configs/tools.json');
 const SKILLS = require('../../configs/skills.json');
 const hub = require('../../adapters/hub');
@@ -31,6 +32,14 @@ function deriveRole(roleCodeStr) {
   const rs = String(roleCodeStr || '').split(',').map(s => s.trim()).filter(Boolean);
   const primary = ROLE_PRIORITY.find(p => rs.includes(p));
   return ROLE_MAP[primary] || 'VIEWER';
+}
+const TASKHUB_REVIEWER_ROLES = ['ADMIN', 'admin', 'gm', 'rd_manager', 'project_manager', 'hr_manager', 'cw1', 'sales_director', 'sales_manager'];
+function taskhubReviewer(name) {
+  if (!name) return null;
+  const p = plm2.getPeople().find(x => x.name === name || x.username === name);
+  if (!p) return null;
+  const roles = p.realRoles && p.realRoles.length ? p.realRoles : [p.role].filter(Boolean);
+  return roles.some(r => TASKHUB_REVIEWER_ROLES.includes(r)) ? p : null;
 }
 function mapPerson(vo) {
   const ppl = plm2.getPeople();
@@ -136,6 +145,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/simple' || pathname === '/simple/') return serveStatic('/apps/simple/index.html', res);
     if (pathname === '/plm2' || pathname === '/plm2/') return serveStatic('/demo/plm2.html', res);
     if (pathname === '/hlc' || pathname === '/hlc/') return serveStatic('/demo/hlc.html', res);
+    if (pathname === '/taskhub' || pathname === '/taskhub/') return serveStatic('/demo/taskhub.html', res);
     if (pathname.startsWith('/demo/') || pathname.startsWith('/apps/') || pathname.startsWith('/vendor/')) return serveStatic(pathname, res);
     if (pathname.startsWith('/favicon')) return send(res, 204, '');
 
@@ -223,6 +233,51 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/plm2/tools' && req.method === 'GET') {
       return send(res, 200, { tools: TOOLS.tools });
+    }
+    /* ---- 总任务库（引用索引 + 本地短期库；不写专业库）---- */
+    if (pathname === '/api/v1/tasks' && req.method === 'GET') {
+      let s = taskhub.list({
+        owner: q.owner, domain: q.domain, source: q.source, status: q.status,
+        q: q.q, activeOnly: q.active === '1'
+      });
+      // 首次访问自动归集一次（本地短期库为空时），避免入口空白
+      if (s.total === 0 && !s.updatedAt) {
+        try { taskhub.refresh({}); } catch (e) { /* 源不可用由 sources 健康度体现 */ }
+        s = taskhub.list({
+          owner: q.owner, domain: q.domain, source: q.source, status: q.status,
+          q: q.q, activeOnly: q.active === '1'
+        });
+      }
+      return send(res, 200, s);
+    }
+    if (pathname === '/api/v1/tasks/refresh' && req.method === 'POST') {
+      return send(res, 200, taskhub.refresh({}));
+    }
+    if (pathname === '/api/v1/tasks/extract' && req.method === 'POST') {
+      const body = await readBody(req);
+      return send(res, 200, taskhub.extractCandidates({ text: body.text, actor: body.actor }));
+    }
+    if (pathname === '/api/v1/tasks/candidates' && req.method === 'GET') {
+      const s = taskhub.list({});
+      return send(res, 200, { total: s.candidates.length, candidates: s.candidates, engine: 'rule-based', reviewRequired: true });
+    }
+    const candReview = pathname.match(/^\/api\/v1\/tasks\/candidates\/([^/]+)\/(confirm|reject)$/);
+    if (candReview && req.method === 'POST') {
+      const body = await readBody(req);
+      const reviewer = taskhubReviewer(body.reviewer);
+      if (!reviewer) return send(res, 403, { error: '仅授权验证人可确认抽取结果（角色不足或人员不存在）' });
+      const r = candReview[2] === 'confirm'
+        ? taskhub.confirmCandidate(decodeURIComponent(candReview[1]), { reviewer: reviewer.name, ownerName: body.ownerName, due: body.due, bizDomain: body.bizDomain })
+        : taskhub.rejectCandidate(decodeURIComponent(candReview[1]), { reviewer: reviewer.name, reason: body.reason });
+      return send(res, r.status, r.body);
+    }
+    const taskAssign = pathname.match(/^\/api\/v1\/tasks\/([^/]+)\/assign$/);
+    if (taskAssign && req.method === 'POST') {
+      const body = await readBody(req);
+      const reviewer = taskhubReviewer(body.reviewer);
+      if (!reviewer) return send(res, 403, { error: '仅授权验证人可分发任务（角色不足或人员不存在）' });
+      const r = taskhub.assignItem(decodeURIComponent(taskAssign[1]), { ownerName: body.ownerName, reviewer: reviewer.name });
+      return send(res, r.status, r.body);
     }
     if (pathname === '/api/v1/skills' && req.method === 'GET') {
       const skill = q.id ? SKILLS.skills.find(s => s.id === q.id) : null;

@@ -132,6 +132,17 @@ M10 双端页面右上角可用 **PLM 账号登录**：BFF 调 PLM /api/auth/log
 - 角色映射：PLM ADMIN/admin/hr_manager→hr_admin；gm/rd_manager/project_manager/sales_*→manager；inance/cw1→inance；其余→employee\n- 交换失败语义：PLM 令牌无效 401、映射停用 403、PLM 不可达 502（不伪造成功）
 - 演示演员（p-002★/p-003★）与真实 PLM 身份可混用：演员操作走映射账号，真实登录走交换令牌
 
+## 总任务库（统一待办 · 按责任人分发）
+
+门户新增入口 `/taskhub`（`packages/taskhub` + `configs/tasks-master.json`）：
+
+- **总库/分库**：各系统任务汇总到总库统一分发，分库保留业务属性——行政类归**会议中心**（`bizSys=meeting`），业务类归 **PLM**（订单/采购/生产/研发）。当前归集源：`MEETING` + `PLM2`（节点计划任务 + 待审工作表 + 立项审批）。
+- **只存引用**：条目只含 `source/sourceId/责任人/期限/状态/标题/快照时间`，业务事实仍回源系统；分发引用条目返回 409（M10 不双写）。
+- **本地短期库**：`configs/tasks-master.json` 是带 TTL(60min) 的快照，源系统故障时条目保留并标 `stale`，页面标注「快照」，不伪造成功。
+- **规则抽取 + 人工确认**：`POST /api/v1/tasks/extract` 按分隔符拆分子任务、识别期限/紧急度/业务域/责任人（人员字典），产物一律 `pending-review` 入候选池，标注 `engine: rule-based`（非大模型）；须授权验证人确认才入总库（done ≠ verified）。编码损坏的源文本明确跳过并回报原因。
+- **接口**：`GET /api/v1/tasks`（owner/domain/source/status/q 过滤 + 源健康度）、`POST /tasks/refresh`、`POST /tasks/extract`、`GET /tasks/candidates`、`POST /tasks/candidates/:id/confirm|reject`、`POST /tasks/:id/assign`（复核人角色服务端校验，非授权 403）。
+- **自查**：`node services/tools-node/_selfcheck-taskhub.js`（独立端口 + 临时库，26 项）。
+
 ## 契约 API（对齐恒剑信息包 03 章）
 
 ```

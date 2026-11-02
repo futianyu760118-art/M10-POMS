@@ -9,3 +9,6 @@ __pycache__/
 services/ai-entry/__pycache__/
 database/backups/
 *.dump
+
+# 总任务库本地短期库（运行时缓存，首次访问自动归集）
+configs/tasks-master.json

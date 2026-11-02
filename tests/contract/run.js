@@ -2,6 +2,9 @@
 // tests/contract/run.js — L0 契约测试（模块级，无需外部依赖）。
 // 覆盖：装配、兼岗、跨租户拒绝、产品包匹配、done≠verified、幂等、Agent 未连接不虚假成功。
 const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const assembly = require('../../packages/assembly');
 const capture = require('../../packages/capture');
 const m01 = require('../../adapters/m01');
@@ -466,6 +469,98 @@ test('HLC 适配：真实响应 camelCase → M10 snake_case 契约', () => {
   assert.strictEqual(m.sla, '2026-10-20T09:00:00');
   assert.deepStrictEqual(m.evidence_refs, ['ev-1']);
   assert.strictEqual(m.history, undefined, '列表不携带 history');
+});
+
+test('总任务库：归集会议(行政→会议中心)与 PLM 节点(业务域)，条目只带引用与快照', () => {
+  const tmp = path.join(os.tmpdir(), 'taskhub-contract-' + process.pid + '.json');
+  const prev = process.env.TASKHUB_STORE;
+  process.env.TASKHUB_STORE = tmp;
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  const taskhub = require('../../packages/taskhub');
+  taskhub.reset();
+  const r = taskhub.refresh({ today: '2026-11-02' });
+  assert(r.total > 0, '归集后总库应有条目');
+  const s = taskhub.list({ today: '2026-11-02' });
+  const meeting = s.items.filter(x => x.source === 'MEETING');
+  const plm = s.items.filter(x => x.source === 'PLM2');
+  assert(meeting.length > 0 && plm.length > 0, '两个源都应归集');
+  assert(meeting.every(x => x.bizDomain === 'ADMIN' && x.bizSys === 'meeting'), '行政类必须归会议中心');
+  assert(plm.every(x => x.bizSys === 'plm2' && ['RD', 'ORDER', 'PURCHASE', 'PRODUCTION'].includes(x.bizDomain)), '业务类必须归 PLM 对应业务域');
+  assert(s.items.every(x => x.origin === 'sync' && x.sourceId && x.fetchedAt), '条目须为 sync 引用并带快照时间');
+  assert(s.sources.MEETING && s.sources.PLM2, '须记录源健康度');
+
+  // 本地短期库降级：源故障时保留旧快照并标 stale，不丢数据
+  const store = taskhub.load();
+  store.sources.MEETING.ok = false; store.sources.MEETING.cachedAt = '2026-10-01T00:00:00Z';
+  taskhub.save(store);
+  const degraded = taskhub.list({ today: '2026-11-02' });
+  assert.strictEqual(degraded.items.filter(x => x.source === 'MEETING').length, meeting.length, '源故障不应丢条目');
+  assert(degraded.items.filter(x => x.source === 'MEETING').every(x => x.stale), '源故障条目须标 stale');
+
+  taskhub.reset();
+  if (prev === undefined) delete process.env.TASKHUB_STORE; else process.env.TASKHUB_STORE = prev;
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+});
+
+test('总任务库：规则抽取拆分文本并识别期限/紧急度/业务域/责任人；编码损坏跳过', () => {
+  const tmp = path.join(os.tmpdir(), 'taskhub-extract-' + process.pid + '.json');
+  const prev = process.env.TASKHUB_STORE;
+  process.env.TASKHUB_STORE = tmp;
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  const taskhub = require('../../packages/taskhub');
+  taskhub.reset();
+  const r = taskhub.extractCandidates({ today: '2026-11-02', text: '补充三角支架试模照片；通知采购准备来料检验 2026-11-20。虞周峰负责推进驱动电源送检 ASAP' });
+  assert.strictEqual(r.engine, 'rule-based', '须标注规则抽取（非大模型）');
+  assert.strictEqual(r.reviewRequired, true, '抽取结果必须待复核');
+  assert.strictEqual(r.produced, 3, '应拆出 3 条候选，实际 ' + r.produced);
+  const buy = r.candidates.find(c => /采购/.test(c.title));
+  assert.strictEqual(buy.bizDomain, 'PURCHASE', '采购类应归 PURCHASE 而非行政');
+  assert.strictEqual(buy.due, '2026-11-20', '应识别期限');
+  assert(!/2026-11-20/.test(buy.title), '标题应剥离日期');
+  const urgent = r.candidates.find(c => /ASAP/.test(c.title));
+  assert.strictEqual(urgent.priority, 'high', 'ASAP 应为高优先级');
+  assert.strictEqual(urgent.ownerName, '虞周峰', '应按人员字典识别责任人');
+  assert.strictEqual(urgent.bizDomain, 'PRODUCTION', '送检应归生产/品质业务域');
+  assert(r.candidates.every(c => c.status === 'pending-review'), '候选一律 pending-review（done≠verified）');
+  const corrupt = taskhub.extractCandidates({ today: '2026-11-02', text: '??????；正常补充来料检验记录' });
+  assert.strictEqual(corrupt.produced, 1, '正常片段照常产出');
+  assert(corrupt.skipped.length > r.skipped.length, '编码损坏片段须跳过并记录');
+  assert(/编码损坏/.test(corrupt.skipped[corrupt.skipped.length - 1].reason), '跳过原因须可追溯');
+  taskhub.reset();
+  if (prev === undefined) delete process.env.TASKHUB_STORE; else process.env.TASKHUB_STORE = prev;
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+});
+
+test('总任务库：确认须授权人、分发不双写（引用条目 409）', () => {
+  const tmp = path.join(os.tmpdir(), 'taskhub-review-' + process.pid + '.json');
+  const prev = process.env.TASKHUB_STORE;
+  process.env.TASKHUB_STORE = tmp;
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  const taskhub = require('../../packages/taskhub');
+  taskhub.reset();
+  taskhub.refresh({ today: '2026-11-02' });
+  const ex = taskhub.extractCandidates({ today: '2026-11-02', text: '整理本周行政考勤异常并汇总' });
+  const c = ex.candidates[0];
+  assert(c, '应产出候选');
+  assert.strictEqual(taskhub.confirmCandidate(c.id, {}).status, 400, '无复核人不得入总库');
+  const ok = taskhub.confirmCandidate(c.id, { reviewer: '系统管理员', ownerName: '包跃' });
+  assert.strictEqual(ok.status, 200, '授权人确认后应入总库');
+  assert.strictEqual(ok.body.item.origin, 'extract');
+  assert.strictEqual(ok.body.item.verifiedBy, '系统管理员');
+
+  const syncItem = taskhub.load().items.find(x => x.origin === 'sync');
+  const blocked = taskhub.assignItem(syncItem.id, { ownerName: '虞周峰', reviewer: '系统管理员' });
+  assert.strictEqual(blocked.status, 409, '引用条目责任人归源系统，M10 不得双写');
+  const local = taskhub.assignItem(ok.body.item.id, { ownerName: '虞周峰', reviewer: '系统管理员' });
+  assert.strictEqual(local.status, 200, '本地抽取条目可分发');
+  assert.strictEqual(local.body.item.ownerName, '虞周峰');
+
+  taskhub.reset();
+  if (prev === undefined) delete process.env.TASKHUB_STORE; else process.env.TASKHUB_STORE = prev;
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
 });
 
 console.log('\n结果: ' + passed + ' 项通过' + (process.exitCode ? '（存在失败）' : ''));

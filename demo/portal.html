@@ -38,6 +38,7 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
   <p>岗位与个人运营微系统（M10 POMS）· 选择业务系统进入工作台</p>
   <div class="pills">
     <span class="pill">已接入：PLM（真实数据 166 项目）</span>
+    <span class="pill">总任务库：会议 + PLM 统一待办</span>
     <span class="pill">HLC 报修/请假闭环</span>
     <span class="pill">AI 录入 8002 · 水印 8003</span>
   </div>
@@ -45,6 +46,12 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
 <div class="wrap">
   <h2 class="sec">业务系统（按系统选择进入）</h2>
   <div class="grid">
+    <div class="card">
+      <div class="top"><b class="t">总任务库 · 统一待办</b><span class="tag ok">已接入 · 会议 + PLM</span></div>
+      <span class="code">M10 · /taskhub</span>
+      <p>各业务系统任务汇总总库并按责任人分发：行政类归会议中心，业务类（订单/采购/生产/研发）归 PLM。本地短期快照保底，源系统故障仍可查看（标注过期）；规则抽取先入候选池，人工确认后才进总库。</p>
+      <a class="btn primary" href="/taskhub">进入总任务库</a>
+    </div>
     <div class="card">
       <div class="top"><b class="t">PLM 研发自治中心</b><span class="tag ok">已接入 · 真实数据</span></div>
       <span class="code">M04 · /plm2</span>
