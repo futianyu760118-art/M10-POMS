@@ -155,8 +155,10 @@ MEETING_API=... MEETING_LOGINID=... MEETING_SCOPE=mine node scripts/sync-meeting
 MEETING_API=... MEETING_LOGINID=... MEETING_STATUS=pending,in_progress node scripts/sync-meeting-todos.js
 ```
 
-- 快照写入 `configs/meeting-actions.json`（`live:true`、`scope`、`counts`），M10「我的待办」按责任人过滤（`owner`/`ownerLoginId` 双匹配），已取消不进我的待办但保留在总库。
-- 登录接口为 `POST /api/auth/login {loginid}`（Cookie 名 `meeting_session`）；未配置鉴权时脚本以退出码 1 明确失败，不伪造成功。
+- 快照写入 `configs/meeting-actions.live.json`（`live:true`、`scope`、`counts`；含生产数据，已 gitignore；仓库内 `meeting-actions.json` 保留 5 条 sample 供演示/测试，适配器优先取 live）。M10「我的待办」按责任人过滤（`owner`/`ownerLoginId` 双匹配），已取消不进我的待办但保留在总库。
+- **本机实测（2026-11-02）**：`MEETING_API=http://192.168.0.127:18081`、`MEETING_LOGINID=朱剑军`（admin）→ **2038 条 / 33 位责任人**（待办 86 / 进行中 77 / 已完成 1344 / 阻塞 528 / 候选 1 / 已确认 1），已并入总库（会议 2038 + PLM 28 = 2066 条）。
+- 登录接口为 `POST /api/auth/login {loginid}`（账号为中文姓名，需在 OA 中存在；Cookie 名 `meeting_session`）；未配置鉴权时脚本以退出码 1 明确失败，不伪造成功。
+- 一次性同步：`npm run sync:meeting`（读取 `MEETING_API`/`MEETING_LOGINID` 或 `MEETING_COOKIE` 环境变量）。
 - **M10 不写会议库**：仅读快照；处理动作回会议助手。
 - 链路自查（本地 mock 会议助手，不触真实库）：`node services/tools-node/_selfcheck-meeting-full.js`（16 项）。
 

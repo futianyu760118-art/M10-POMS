@@ -20,7 +20,7 @@ const COOKIE = process.env.MEETING_COOKIE || '';
 const LOGINID = process.env.MEETING_LOGINID || '';
 const SCOPE = (process.env.MEETING_SCOPE || 'all').toLowerCase() === 'mine' ? 'mine' : 'all';
 const STATUS = process.env.MEETING_STATUS || '';
-const OUT = process.env.MEETING_OUT || path.join(__dirname, '..', 'configs', 'meeting-actions.json');
+const OUT = process.env.MEETING_OUT || path.join(__dirname, '..', 'configs', 'meeting-actions.live.json');
 
 if (!API) {
   console.error('[sync-meeting] 缺少配置：MEETING_API');
@@ -132,8 +132,8 @@ const todayStr = () => {
     meetingStatus: x.meetingStatus || x.meeting_status || ''
   })).filter(x => x.id && x.description);
 
-  const counts = { total: items.length, pending: 0, in_progress: 0, done: 0, blocked: 0, cancelled: 0 };
-  items.forEach(x => { if (counts[x.status] !== undefined) counts[x.status]++; });
+  const counts = { total: items.length };
+  items.forEach(x => { const k = x.status || 'pending'; counts[k] = (counts[k] || 0) + 1; });
 
   const out = {
     source: 'meeting-assistant',
@@ -150,7 +150,8 @@ const todayStr = () => {
   fs.writeFileSync(OUT, JSON.stringify(out, null, 2) + '\n', 'utf8');
 
   console.log('[sync-meeting] 已写入 ' + OUT);
-  console.log('[sync-meeting] 范围=' + SCOPE + ' 共 ' + items.length + ' 条：待办 ' + counts.pending + ' / 进行中 ' + counts.in_progress + ' / 逾期未单列 / 完成 ' + counts.done + ' / 阻塞 ' + counts.blocked + ' / 取消 ' + counts.cancelled);
+  const brief = Object.keys(counts).filter(k => k !== 'total').map(k => k + ' ' + counts[k]).join(' / ');
+  console.log('[sync-meeting] 范围=' + SCOPE + ' 共 ' + items.length + ' 条：' + brief);
   if (!items.length) console.warn('[sync-meeting] 警告：接口返回 0 条，已如实写空（请确认权限/范围/状态过滤）');
 })().catch(e => {
   console.error('[sync-meeting] 失败：' + (e && e.message ? e.message : e));

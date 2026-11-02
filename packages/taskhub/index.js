@@ -11,6 +11,7 @@ const meeting = require('../../adapters/meeting');
 
 const STORE = process.env.TASKHUB_STORE || path.join(__dirname, '..', '..', 'configs', 'tasks-master.json');
 const TTL_MINUTES = 60;
+const MAX_EXTRACT_PER_RUN = 200;
 const HORIZON_DAYS = 30;
 
 const DOMAINS = {
@@ -65,12 +66,14 @@ function save(store) {
 }
 
 function statusOf(item, d) {
-  const st = String(item.status || '');
-  if (st === 'done' || st === '已完成' || st === 'DONE') return 'done';
+  const st = String(item.status || '').toLowerCase();
+  if (st === 'done' || st === 'verified' || st === '已完成') return 'done';
   if (st === 'cancelled' || st === 'canceled' || st === '已取消') return 'cancelled';
   if (st === 'blocked' || st === '异常') return 'blocked';
   if (item.due && item.due < d) return 'overdue';
   if (st === 'in_progress' || st === 'in-progress') return 'in_progress';
+  if (st === 'confirmed' || st === '已确认') return 'confirmed';
+  if (st === 'candidate' || st === '候选') return 'candidate';
   return 'pending';
 }
 
@@ -259,7 +262,7 @@ function list(opts) {
     const src = health[x.source] || {};
     return Object.assign({}, x, {
       status: st,
-      statusText: { done: '已完成', blocked: '异常', overdue: '逾期', in_progress: '进行中', pending: '待办', cancelled: '已取消' }[st] || st,
+      statusText: { done: '已完成', blocked: '异常', overdue: '逾期', in_progress: '进行中', pending: '待办', cancelled: '已取消', confirmed: '已确认', candidate: '候选' }[st] || st,
       bizDomainLabel: dom.label, bizSys: dom.bizSys, bizSysLabel: dom.bizLabel,
       stale: !!(src.ok === false || src.expired)
     });
@@ -270,7 +273,9 @@ function list(opts) {
   if (o.status) items = items.filter(x => x.status === o.status);
   if (o.q) { const q = String(o.q); items = items.filter(x => (x.title + x.detail + x.ownerName).includes(q)); }
   if (o.activeOnly) items = items.filter(x => x.status !== 'done');
-  items.sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')) || a.title.localeCompare(b.title));
+  // 排序：未完成优先（逾期最前），已完成/已取消沉底，再按截止日升序
+  const RANK = { overdue: 0, pending: 1, blocked: 2, in_progress: 3, confirmed: 4, candidate: 5, done: 8, cancelled: 9 };
+  items.sort((a, b) => (RANK[a.status] - RANK[b.status]) || String(a.due || '9999').localeCompare(String(b.due || '9999')) || a.title.localeCompare(b.title));
 
   const byOwner = {}, byDomain = {}, byStatus = {};
   items.forEach(x => {
@@ -344,6 +349,7 @@ function extractCandidates(opts) {
   const skipped = [];
 
   function push(seg, meta) {
+    if (produced.length >= MAX_EXTRACT_PER_RUN) return;
     const raw = String(seg).replace(/\s+/g, ' ').trim();
     const dueRaw = parseDue(raw, d);
     const title = cleanTitle(raw);
@@ -385,7 +391,10 @@ function extractCandidates(opts) {
   }
 
   // 分库 1：会议待办（长描述可再拆为多条子任务）
+  // 只抽未完成项（已完成/已取消是历史记录，拆分只会制造噪音）
+  const ACTIVE = ['pending', 'candidate', 'confirmed', 'in_progress', 'blocked'];
   meeting.listAll({ today: d }).items.forEach(it => {
+    if (!ACTIVE.includes(String(it.status || ''))) return;
     splitText(it.title).forEach(seg => {
       push(seg, { source: 'MEETING', sourceId: it.id, sourceLabel: '会议助手', bizDomain: 'ADMIN', owner: it.owner, due: it.due, full: it.title });
     });
@@ -407,7 +416,7 @@ function extractCandidates(opts) {
 
   store.candidates = [...store.candidates, ...produced];
   save(store);
-  return { produced: produced.length, skipped, candidates: produced, totalPending: store.candidates.filter(c => c.status === 'pending-review').length, engine: 'rule-based', reviewRequired: true };
+  return { produced: produced.length, truncated: produced.length >= MAX_EXTRACT_PER_RUN, limit: MAX_EXTRACT_PER_RUN, skipped, candidates: produced, totalPending: store.candidates.filter(c => c.status === 'pending-review').length, engine: 'rule-based', reviewRequired: true };
 }
 
 function confirmCandidate(id, opts) {

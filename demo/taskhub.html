@@ -86,6 +86,8 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
         <option value="overdue">逾期</option>
         <option value="pending">待办</option>
         <option value="in_progress">进行中</option>
+        <option value="confirmed">已确认</option>
+        <option value="candidate">候选</option>
         <option value="blocked">异常</option>
         <option value="done">已完成</option>
         <option value="cancelled">已取消</option>
@@ -127,8 +129,8 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const state = { data: null, cands: [], people: [], filters: { owner: '', domain: '', source: '', status: '', q: '' } };
-const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', done: 'green', cancelled: 'gray' };
-const ST_TEXT = { overdue: '逾期', blocked: '异常', pending: '待办', in_progress: '进行中', done: '已完成', cancelled: '已取消' };
+const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', confirmed: 'blue', candidate: 'gray', done: 'green', cancelled: 'gray' };
+const ST_TEXT = { overdue: '逾期', blocked: '异常', pending: '待办', in_progress: '进行中', confirmed: '已确认', candidate: '候选', done: '已完成', cancelled: '已取消' };
 const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green' };
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200); }
@@ -159,6 +161,8 @@ function renderKpis() {
     ['总任务', d.total, ''], ['逾期', st.overdue || 0, 'red'], ['待办', st.pending || 0, 'blue'],
     ['进行中', st.in_progress || 0, 'orange'], ['异常', st.blocked || 0, 'red'], ['已完成', st.done || 0, 'green']
   ];
+  if (st.confirmed) cards.push(['已确认', st.confirmed, 'blue']);
+  if (st.candidate) cards.push(['候选', st.candidate, 'gray']);
   $('kpis').innerHTML = cards.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
   const doms = (d.counts && d.counts.byDomain) || {};
   $('kpis').innerHTML += Object.keys(doms).map(k => {
@@ -177,9 +181,12 @@ function renderHealth() {
 
 function renderList() {
   const rows = filtered();
+  const CAP = 200;
+  const shown = rows.slice(0, CAP);
   $('listCount').textContent = rows.length;
   if (!rows.length) { $('list').innerHTML = '<div class="empty">无匹配任务</div>'; return; }
-  $('list').innerHTML = rows.map(x => `
+  const more = rows.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${rows.length} 条，请用上方筛选或搜索缩小范围</div>` : '';
+  $('list').innerHTML = shown.map(x => `
     <div class="item">
       <span class="tag ${ST_TAG[x.status] || 'gray'}" style="width:52px;text-align:center">${ST_TEXT[x.status] || x.status}</span>
       <span class="tag ${DOM_TAG[x.bizDomain] || 'gray'}" title="业务域 → 分库系统">${esc(x.bizDomainLabel)}</span>
@@ -190,7 +197,7 @@ function renderList() {
       ${x.stale ? '<span class="tag orange" title="源系统不可用，显示本地短期快照">快照</span>' : ''}
       <span class="muted" style="font-size:12px;width:84px;text-align:right">${esc(x.due || '—')}</span>
       <button class="btn small" onclick="assignTask('${x.id}')">分发</button>
-    </div>`).join('');
+    </div>`).join('') + more;
 }
 
 function renderOwners() {

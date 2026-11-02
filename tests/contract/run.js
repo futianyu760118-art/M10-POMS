@@ -12,6 +12,8 @@ const m07 = require('../../adapters/m07');
 const m08 = require('../../adapters/m08');
 const org = require('../../adapters/org');
 const plm2 = require('../../adapters/plm2');
+// 契约测试固定使用仓库内 sample 快照，避免受本机 live 快照（真实数据）影响
+process.env.MEETING_SNAPSHOT_FILE = process.env.MEETING_SNAPSHOT_FILE || path.join(__dirname, '..', '..', 'configs', 'meeting-actions.json');
 const hub = require('../../adapters/hub');
 
 let passed = 0;

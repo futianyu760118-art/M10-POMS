@@ -14,7 +14,7 @@ const STORE = path.join(os.tmpdir(), 'taskhub-selfcheck-' + process.pid + '.json
 function req(p, method, body) {
   return new Promise((resolve, reject) => {
     const q = http.request({ host: '127.0.0.1', port: PORT, path: p, method: method || 'GET', headers: body ? { 'Content-Type': 'application/json' } : {} },
-      x => { let d = ''; x.on('data', c => d += c); x.on('end', () => resolve({ s: x.statusCode, b: d })); });
+      x => { let d = ''; x.setEncoding('utf8'); x.on('data', c => d += c); x.on('end', () => resolve({ s: x.statusCode, b: d })); });
     q.on('error', reject);
     if (body) q.write(JSON.stringify(body));
     q.end();
@@ -51,16 +51,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const rf = j(await req('/api/v1/tasks/refresh', 'POST', {}));
     ck('POST /refresh 幂等（条数不膨胀）', rf.total === t.total, t.total + ' -> ' + rf.total);
 
-    const ex = j(await req('/api/v1/tasks/extract', 'POST', { text: '通知采购准备来料检验 2026-11-20；虞周峰负责推进驱动电源送检 ASAP' }));
-    ck('POST /extract 拆出候选', ex.produced === 2, 'produced=' + ex.produced);
+    const TEXT = '通知采购准备来料检验 2026-11-20；虞周峰负责推进驱动电源送检 ASAP';
+    const ex = j(await req('/api/v1/tasks/extract', 'POST', { text: TEXT }));
+    const textCands = (ex.candidates || []).filter(c => c.source === 'TEXT');
+    ck('POST /extract 从粘贴文本拆出候选', textCands.length === 2, 'text=' + textCands.length + ' total=' + ex.produced);
     ck('抽取标注规则引擎且需复核', ex.engine === 'rule-based' && ex.reviewRequired === true);
-    ck('期限识别 2026-11-20', (ex.candidates || []).some(c => c.due === '2026-11-20'));
-    ck('责任人识别 虞周峰', (ex.candidates || []).some(c => c.ownerName === '虞周峰'));
-    ck('紧急度识别 high', (ex.candidates || []).some(c => c.priority === 'high'));
-    ck('采购类归 PURCHASE（不误归行政）', (ex.candidates || []).some(c => /采购/.test(c.title) && c.bizDomain === 'PURCHASE'));
-    ck('重复抽取不重复产出（去重）', j(await req('/api/v1/tasks/extract', 'POST', { text: '通知采购准备来料检验 2026-11-20；虞周峰负责推进驱动电源送检 ASAP' })).produced === 0);
+    ck('期限识别 2026-11-20', textCands.some(c => c.due === '2026-11-20'));
+    ck('责任人识别 虞周峰', textCands.some(c => c.ownerName === '虞周峰'));
+    ck('紧急度识别 high', textCands.some(c => c.priority === 'high'));
+    ck('采购类归 PURCHASE（不误归行政）', textCands.some(c => /采购/.test(c.title) && c.bizDomain === 'PURCHASE'));
+    ck('重复抽取不重复产出（去重）', (j(await req('/api/v1/tasks/extract', 'POST', { text: TEXT })).candidates || []).filter(c => c.source === 'TEXT').length === 0);
 
-    const c0 = (ex.candidates || [])[0];
+    const c0 = textCands[0];
     const noAuth = await req('/api/v1/tasks/candidates/' + encodeURIComponent(c0.id) + '/confirm', 'POST', { reviewer: '查无此人' });
     ck('非授权复核人确认被拒 403', noAuth.s === 403, j(noAuth).error);
     ck('缺复核人确认被拒 403（服务端鉴权）', (await req('/api/v1/tasks/candidates/' + encodeURIComponent(c0.id) + '/confirm', 'POST', {})).s === 403);
@@ -79,13 +81,14 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ck('短期库文件已落地', fs.existsSync(STORE));
 
     // 源故障降级：篡改快照健康度后条目仍在且标 stale
+    const meetBase = after.items.filter(x => x.source === 'MEETING').length;
     const store = JSON.parse(fs.readFileSync(STORE, 'utf8'));
     store.sources.MEETING.ok = false;
     store.sources.MEETING.cachedAt = '2026-10-01T00:00:00Z';
     fs.writeFileSync(STORE, JSON.stringify(store, null, 2), 'utf8');
     const deg = j(await req('/api/v1/tasks'));
     const mrows = deg.items.filter(x => x.source === 'MEETING');
-    ck('源故障时本地短期库顶住（条目不丢）', mrows.length === t.items.filter(x => x.source === 'MEETING').length, mrows.length + ' 条');
+    ck('源故障时本地短期库顶住（条目不丢）', mrows.length === meetBase, mrows.length + '/' + meetBase + ' 条');
     ck('源故障条目标注 stale', mrows.every(x => x.stale === true));
   } finally {
     try { child.kill(); } catch (e) { /* ignore */ }

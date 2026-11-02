@@ -4,7 +4,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const SNAPSHOT = process.env.MEETING_SNAPSHOT_FILE || path.join(__dirname, '..', '..', 'configs', 'meeting-actions.json');
+const SAMPLE = path.join(__dirname, '..', '..', 'configs', 'meeting-actions.json');
+const LIVE = path.join(__dirname, '..', '..', 'configs', 'meeting-actions.live.json');
+// 优先真实同步快照（live，含生产数据，gitignore），否则回退到仓库内 sample
+const SNAPSHOT = process.env.MEETING_SNAPSHOT_FILE || (fs.existsSync(LIVE) ? LIVE : SAMPLE);
 
 function loadSnapshot() {
   try { return JSON.parse(fs.readFileSync(SNAPSHOT, 'utf8')); }

@@ -12,3 +12,4 @@ database/backups/
 
 # 总任务库本地短期库（运行时缓存，首次访问自动归集）
 configs/tasks-master.json
+configs/meeting-actions.live.json
