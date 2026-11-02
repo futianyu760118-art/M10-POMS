@@ -88,6 +88,7 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
         <option value="in_progress">进行中</option>
         <option value="blocked">异常</option>
         <option value="done">已完成</option>
+        <option value="cancelled">已取消</option>
       </select>
       <input id="fQ" placeholder="搜索任务 / 项目 / 责任人" style="flex:1;min-width:200px">
       <button class="btn small" id="btnClear">清空</button>
@@ -126,8 +127,8 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const state = { data: null, cands: [], people: [], filters: { owner: '', domain: '', source: '', status: '', q: '' } };
-const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', done: 'green' };
-const ST_TEXT = { overdue: '逾期', blocked: '异常', pending: '待办', in_progress: '进行中', done: '已完成' };
+const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', done: 'green', cancelled: 'gray' };
+const ST_TEXT = { overdue: '逾期', blocked: '异常', pending: '待办', in_progress: '进行中', done: '已完成', cancelled: '已取消' };
 const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green' };
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200); }

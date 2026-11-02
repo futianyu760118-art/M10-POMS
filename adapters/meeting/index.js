@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const SNAPSHOT = path.join(__dirname, '..', '..', 'configs', 'meeting-actions.json');
+const SNAPSHOT = process.env.MEETING_SNAPSHOT_FILE || path.join(__dirname, '..', '..', 'configs', 'meeting-actions.json');
 
 function loadSnapshot() {
   try { return JSON.parse(fs.readFileSync(SNAPSHOT, 'utf8')); }
@@ -25,6 +25,7 @@ function matchOwner(item, person) {
 function classify(item, today) {
   if (item.status === 'done') return '已完成';
   if (item.status === 'blocked') return '异常';
+  if (item.status === 'cancelled') return '已取消';
   if (item.dueDate && item.dueDate < today) return '逾期';
   return '待办';
 }
@@ -37,7 +38,11 @@ function classify(item, today) {
 function listMine(person, opts) {
   const snap = loadSnapshot();
   const today = (opts && opts.today) || new Date().toISOString().slice(0, 10);
-  const items = (snap.items || []).filter(x => matchOwner(x, person)).map(x => normalize(x, today, opts));
+  // 已取消不算待办，不进「我的待办」（总库仍可见）
+  const items = (snap.items || [])
+    .filter(x => matchOwner(x, person))
+    .map(x => normalize(x, today, opts))
+    .filter(x => x.category !== '已取消');
 
   const counts = { total: items.length, overdue: 0, todo: 0, done: 0, anomaly: 0 };
   items.forEach(i => {
@@ -62,11 +67,21 @@ function listMine(person, opts) {
 function listAll(opts) {
   const snap = loadSnapshot();
   const today = (opts && opts.today) || new Date().toISOString().slice(0, 10);
+  const items = (snap.items || []).map(x => normalize(x, today, opts));
+  const counts = { total: items.length, overdue: 0, todo: 0, done: 0, anomaly: 0, cancelled: 0 };
+  items.forEach(i => {
+    if (i.category === '逾期') counts.overdue++;
+    else if (i.category === '异常') counts.anomaly++;
+    else if (i.category === '已完成') counts.done++;
+    else if (i.category === '已取消') counts.cancelled++;
+    else counts.todo++;
+  });
   return {
     source: snap.source || 'meeting-assistant',
     live: !!snap.live,
+    scope: snap.scope || 'mine',
     updatedAt: snap.updatedAt || null,
-    items: (snap.items || []).map(x => normalize(x, today, opts))
+    items, counts
   };
 }
 
@@ -76,16 +91,21 @@ function normalize(x, today, opts) {
     title: x.description,
     owner: x.owner || '',
     ownerLoginId: x.ownerLoginId || '',
+    dept: x.dept || '',
+    sourceType: x.sourceType || '',
     source: 'MEETING',
     sourceLabel: '会议助手',
     meetingId: x.meetingId || null,
     meetingTitle: x.meetingTitle || '',
     meetingDate: x.meetingDate || '',
+    meetingOrganizer: x.meetingOrganizer || '',
+    meetingStatus: x.meetingStatus || '',
     proposer: x.proposer || '',
+    proposerDept: x.proposerDept || '',
     due: x.dueDate || null,
     priority: x.priority || 'medium',
     status: x.status,
-    blockedReason: x.blockReason || null,
+    blockedReason: x.blockReason || x.blockedBy || null,
     completedAt: x.completedAt || null,
     category: classify(x, today),
     action: 'openMeeting',

@@ -143,6 +143,23 @@ M10 双端页面右上角可用 **PLM 账号登录**：BFF 调 PLM /api/auth/log
 - **接口**：`GET /api/v1/tasks`（owner/domain/source/status/q 过滤 + 源健康度）、`POST /tasks/refresh`、`POST /tasks/extract`、`GET /tasks/candidates`、`POST /tasks/candidates/:id/confirm|reject`、`POST /tasks/:id/assign`（复核人角色服务端校验，非授权 403）。
 - **自查**：`node services/tools-node/_selfcheck-taskhub.js`（独立端口 + 临时库，26 项）。
 
+### 会议中心全量接入
+
+```bash
+# 全量（默认）：登录 → GET /api/actions（管理员可见全部会议+批次任务）
+MEETING_API=http://<会议助手> MEETING_LOGINID=<管理员loginid> node scripts/sync-meeting-todos.js
+
+# 已有会话 / 仅本人 / 状态过滤
+MEETING_API=... MEETING_COOKIE="meeting_session=..." node scripts/sync-meeting-todos.js
+MEETING_API=... MEETING_LOGINID=... MEETING_SCOPE=mine node scripts/sync-meeting-todos.js
+MEETING_API=... MEETING_LOGINID=... MEETING_STATUS=pending,in_progress node scripts/sync-meeting-todos.js
+```
+
+- 快照写入 `configs/meeting-actions.json`（`live:true`、`scope`、`counts`），M10「我的待办」按责任人过滤（`owner`/`ownerLoginId` 双匹配），已取消不进我的待办但保留在总库。
+- 登录接口为 `POST /api/auth/login {loginid}`（Cookie 名 `meeting_session`）；未配置鉴权时脚本以退出码 1 明确失败，不伪造成功。
+- **M10 不写会议库**：仅读快照；处理动作回会议助手。
+- 链路自查（本地 mock 会议助手，不触真实库）：`node services/tools-node/_selfcheck-meeting-full.js`（16 项）。
+
 ## 契约 API（对齐恒剑信息包 03 章）
 
 ```

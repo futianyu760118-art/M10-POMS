@@ -67,6 +67,7 @@ function save(store) {
 function statusOf(item, d) {
   const st = String(item.status || '');
   if (st === 'done' || st === '已完成' || st === 'DONE') return 'done';
+  if (st === 'cancelled' || st === 'canceled' || st === '已取消') return 'cancelled';
   if (st === 'blocked' || st === '异常') return 'blocked';
   if (item.due && item.due < d) return 'overdue';
   if (st === 'in_progress' || st === 'in-progress') return 'in_progress';
@@ -109,17 +110,26 @@ function makeItem(o) {
 // ── 归集器 ────────────────────────────────────────────────
 function collectMeeting(d) {
   const all = meeting.listAll({ today: d });
+  const people = plm2.getPeople();
   return {
     ok: true,
-    meta: { live: all.live, sourceUpdatedAt: all.updatedAt },
-    items: all.items.map(x => makeItem({
-      source: 'MEETING', sourceId: x.id, sourceLabel: '会议助手',
-      bizDomain: 'ADMIN',
-      title: x.title, detail: x.blockedReason || '',
-      ownerName: x.owner, due: x.due, priority: x.priority, status: x.status,
-      refs: { meetingId: x.meetingId, meetingTitle: x.meetingTitle, meetingDate: x.meetingDate, proposer: x.proposer, category: x.category },
-      link: x.link
-    }))
+    meta: { live: all.live, sourceUpdatedAt: all.updatedAt, scope: all.scope, counts: all.counts },
+    items: all.items.map(x => {
+      const p = people.find(v => v.name === x.owner) || people.find(v => v.username && v.ownerLoginId && v.username === x.ownerLoginId);
+      return makeItem({
+        source: 'MEETING', sourceId: x.id, sourceLabel: '会议助手',
+        bizDomain: 'ADMIN',
+        title: x.title, detail: [x.blockedReason, x.dept, x.meetingTitle].filter(Boolean).join(' · '),
+        ownerName: x.owner, ownerId: p ? p.id : null,
+        due: x.due, priority: x.priority, status: x.status,
+        refs: {
+          meetingId: x.meetingId, meetingTitle: x.meetingTitle, meetingDate: x.meetingDate,
+          meetingOrganizer: x.meetingOrganizer, meetingStatus: x.meetingStatus,
+          proposer: x.proposer, dept: x.dept, sourceType: x.sourceType, category: x.category
+        },
+        link: x.link
+      });
+    })
   };
 }
 
@@ -249,7 +259,7 @@ function list(opts) {
     const src = health[x.source] || {};
     return Object.assign({}, x, {
       status: st,
-      statusText: { done: '已完成', blocked: '异常', overdue: '逾期', in_progress: '进行中', pending: '待办' }[st] || st,
+      statusText: { done: '已完成', blocked: '异常', overdue: '逾期', in_progress: '进行中', pending: '待办', cancelled: '已取消' }[st] || st,
       bizDomainLabel: dom.label, bizSys: dom.bizSys, bizSysLabel: dom.bizLabel,
       stale: !!(src.ok === false || src.expired)
     });
