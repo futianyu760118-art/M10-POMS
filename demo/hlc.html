@@ -46,7 +46,10 @@ th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
 .step.done{background:#e7f5ef;color:var(--green)}
 .step.now{background:var(--pale);color:var(--blue);font-weight:700}
 .notice{background:#fff8e5;border:1px solid #f0d48b;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5b12;margin-bottom:14px}
+.notice.ok{background:#e9f7f0;border-color:#a9dfc5;color:#0d6b4f}
 .notice.warn{background:#fdeeee;border-color:#f0b9b9;color:#8a2525}
+#demoLog{font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.9;background:#0e1c30;color:#c8e2ff;border-radius:10px;padding:12px 14px;margin-top:12px;white-space:pre-wrap;display:none}
+#demoLog .ok{color:#7fe3a8}#demoLog .err{color:#ff9d9d}#demoLog .dim{color:#7c93b3}
 .field{display:block;margin-bottom:10px}
 .field span{font-size:12px;color:var(--muted);display:block;margin-bottom:5px}
 .field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13px}
@@ -64,16 +67,22 @@ th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
     <div class="brand">M07 × M10 <span style="color:#62a7ff">双端</span><small>恒剑 · 人事行政协同（报修/请假）</small></div>
     <div class="navlabel">M07 · 人力后勤自治中心</div><div id="nav07"></div>
     <div class="navlabel">M10 · 员工个人端</div><div id="nav10"></div>
-    <div class="side-foot">首条 MVP 闭环：员工发起 → M01 Guard → M07 受理/派单/审批 → 处理留证 → 验收（done≠verified）→ 归档 → M10 报告<br>数据经 BFF API（内存 mock）</div>
+    <div class="side-foot">首条 MVP 闭环：员工发起 → M01 Guard → M07 受理/派单/审批 → 处理留证 → 验收（done≠verified）→ 归档 → M10 报告<br>数据经 BFF API（真实 HLC 优先，不可达降级 mock）</div>
   </aside>
   <main class="main">
     <div class="top">
       <div class="title" id="pageTitle">总览工作台</div>
       <div class="topright">
         <span class="pill">宁波恒剑光电科技有限公司</span>
+        <span class="pill" id="authPill">
+          <input id="plmUser" placeholder="PLM 账号" style="width:86px;border:0;outline:none;font-size:12px;background:none" autocomplete="username">
+          <input id="plmPass" type="password" placeholder="密码" style="width:64px;border:0;outline:none;font-size:12px;background:none" autocomplete="current-password">
+          <button class="btn small primary" onclick="plmLogin()">登录</button>
+        </span>
         <span class="pill">当前身份：<select id="personSel" onchange="switchPerson()"></select></span>
       </div>
     </div>
+    <div class="notice" id="hlcBanner" style="display:none"></div>
     <div class="notice" id="rolebar"></div>
     <div id="content"><div class="empty">加载中…</div></div>
     <div class="footer">AEOS M07 HLC × M10 POMS · 报修/请假首条闭环演示 · 状态机与权限由服务端（BFF /api/v1/hlc）执行，UI 仅投影。</div>
@@ -92,14 +101,36 @@ const SM = {
 };
 const CLOSED_STATES = ['CLOSED','ARCHIVED','REJECTED','CANCELLED'];
 
-let state = { person:'p-001', page:'overview', people:[], requests:[], ws:{actions:[]} };
+let state = { person:'p-001', page:'overview', people:[], requests:[], ws:{actions:[]}, hlc:null, auth:null };
+const AUTH_KEY = 'hlc.plmAuth.v1';
 
-async function get(p){ const r = await fetch(p); if(!r.ok) throw new Error(r.status); return r.json(); }
+function authHeader(){ return state.auth && state.auth.plmToken ? { Authorization: 'Bearer ' + state.auth.plmToken } : {}; }
+async function get(p){ const r = await fetch(p, { headers: authHeader() }); if(!r.ok) throw new Error(r.status); return r.json(); }
 function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function stTag(s){ const g=['CLOSED','ARCHIVED','APPROVED','APPLIED']; const r=['REJECTED','CANCELLED']; const o=['APPROVAL_PENDING','AWAITING_ACCEPTANCE','NEEDS_INFO']; const c=g.includes(s)?'green':r.includes(s)?'red':o.includes(s)?'orange':'blue'; return `<span class="tag ${c}">${STATE_LABEL[s]||s}</span>`; }
 function pname(id){ const p = state.people.find(x=>x.person_id===id); return p ? p.name : (id||'—'); }
 function me(){ return state.people.find(p=>p.person_id===state.person); }
 function can(act){ return state.ws.actions.includes(act); }
+
+function renderBanner(){
+  const el = document.getElementById('hlcBanner');
+  const h = state.hlc;
+  if(!h){ el.style.display='none'; return; }
+  if(h.connected){
+    const real = state.people.filter(p=>p.hlc_real).map(p=>`${esc(p.name)}${p.plm?'(PLM)':`(${p.person_id}★)`}`).join('、');
+    const who = state.auth && state.auth.user ? `<br>当前已登录真实身份：<b>${esc(state.auth.user.name||'')}</b>（HLC 角色 ${esc(state.auth.user.role||'—')}）——界面操作以该身份经 HLC 服务端鉴权。` : '';
+    el.className = 'notice ok';
+    el.innerHTML = `✅ <b>已连接真实 HLC 后端</b>（恒聘通 Flask · ${esc(h.api)} · 租户 ${esc(h.tenant)}）——本页全部工单读写直达真实 M07 数据库，状态机/权限/幂等由服务端终审。真实账号演员：${real||'无'}；其余演示身份由服务账号（${esc(h.serviceUser)}）代理。${who}`;
+  } else {
+    el.className = 'notice warn';
+    el.innerHTML = `⚠️ 真实 HLC 未连接（${esc(h.error||'不可达')}），当前为 mock 降级模式。启动方式：HLC 仓库 docker compose 预览栈（端口 18280）。`;
+  }
+  el.style.display='block';
+}
+
+async function loadHlcStatus(){
+  try{ state.hlc = await get(HLC+'/status'); }catch(e){ state.hlc = { connected:false, error:e.message }; }
+}
 
 function nav(){ for(const [el,items] of [['nav07',NAV07],['nav10',NAV10]]) document.getElementById(el).innerHTML = items.map(([k,v])=>`<button class="navitem ${state.page===k?'active':''}" onclick="go('${k}')">${v}</button>`).join(''); }
 function go(k){ state.page=k; render(); }
@@ -108,19 +139,78 @@ async function loadAll(){
   const [p, r, w] = await Promise.all([
     get(HLC+'/people'),
     get(HLC+'/service-requests'),
-    get(POMS+'/me/workspace?person_id='+encodeURIComponent(state.person))
+    get(POMS+'/me/workspace?person_id='+encodeURIComponent(state.person)).catch(()=>({actions:[]}))
   ]);
   state.people = p.people;
   state.requests = r.requests;
-  state.ws = w;
+  state.ws = w && w.actions ? w : {actions:[]};
 }
 
 async function init(){
+  // 恢复已登录的真实身份（PLM 统一认证）
+  try{
+    const saved = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+    if(saved && saved.plmToken){
+      state.auth = saved;
+      try{
+        const me = await get(HLC+'/auth/me');
+        state.auth.user = me.hlcUser || saved.user;
+        if(me.hlcUser && me.hlcUser.personId) state.person = me.hlcUser.personId;
+      }catch(e){ state.auth = null; localStorage.removeItem(AUTH_KEY); }
+    }
+  }catch(e){ /* ignore */ }
+  renderAuth();
   const p = await get(HLC+'/people');
   state.people = p.people;
   const sel = document.getElementById('personSel');
-  sel.innerHTML = p.people.map(x=>`<option value="${x.person_id}" ${x.person_id===state.person?'selected':''}>${x.name} · ${x.position}</option>`).join('');
+  sel.innerHTML = p.people.map(x=>`<option value="${x.person_id}" ${x.person_id===state.person?'selected':''}>${x.name} · ${x.position}${x.hlc_real?' ★':''}</option>`).join('');
+  await loadHlcStatus();
   await loadAll(); render();
+}
+
+/* ---- 真实身份（M04 PLM 统一认证 → HLC 令牌交换） ---- */
+function renderAuth(){
+  const el = document.getElementById('authPill');
+  if(!el) return;
+  if(state.auth && state.auth.user){
+    const u = state.auth.user;
+    el.innerHTML = `已登录：<b>${esc(u.name||u.username||'')}</b> ${u.role?`<span class="tag blue">${esc(u.role)}</span>`:''} <button class="btn small" onclick="plmLogout()">退出</button>`;
+  }
+}
+async function plmLogin(){
+  const username = (document.getElementById('plmUser').value || '').trim();
+  const password = document.getElementById('plmPass').value || '';
+  if(!username || !password){ alert('请输入 PLM 账号与密码'); return; }
+  try{
+    const r = await fetch(HLC+'/auth/plm-login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password }) });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || (r.status + ' 错误'));
+    state.auth = { plmToken: j.plmToken, user: j.hlcUser };
+    localStorage.setItem(AUTH_KEY, JSON.stringify(state.auth));
+    if(j.hlcUser && j.hlcUser.personId) state.person = j.hlcUser.personId;
+    // 先按 HLC 角色立即派生能力，保证 UI 可用（随后由服务端 workspace 校准）
+    const role = (j.hlcUser && j.hlcUser.role) || '';
+    const acts = ['hlc.service_request.create'];
+    if(['hr_admin','admin'].includes(role)) acts.push('hlc.request.assign','hlc.request.approve','hlc.request.verify','hlc.request.read');
+    else if(['manager','executive','finance'].includes(role)) acts.push('hlc.request.approve','hlc.request.verify','hlc.request.read');
+    state.ws = { actions: acts };
+    renderAuth();
+  }catch(e){ alert('登录失败：'+e.message); return; }
+  const name = state.auth.user.name || '';
+  const role = state.auth.user.role || '';
+  try{
+    const p = await get(HLC+'/people');
+    state.people = p.people;
+    const sel = document.getElementById('personSel');
+    sel.innerHTML = p.people.map(x=>`<option value="${x.person_id}" ${x.person_id===state.person?'selected':''}>${x.name} · ${x.position}${x.hlc_real?' ★':''}</option>`).join('');
+    await loadAll().catch(()=>{});
+  }catch(e){ /* 列表加载失败不影响登录态 */ }
+  render();
+  alert(`已登录：${name}（HLC 角色 ${role}）`);
+}
+function plmLogout(){
+  state.auth = null; localStorage.removeItem(AUTH_KEY);
+  location.reload();
 }
 async function switchPerson(){ state.person = document.getElementById('personSel').value; await loadAll(); render(); }
 
@@ -157,7 +247,7 @@ function reqRow(r, actions=true){
     <div class="row" style="justify-content:space-between;align-items:flex-start">
       <div style="flex:1;min-width:0">
         <b>${esc(r.subject)}</b>
-        <div class="muted" style="font-size:12px">${r.id} · ${TYPE_LABEL[r.type]||r.type} · 申请人 ${esc(pname(r.requester))} · 执行 ${esc(pname(r.assignee))} · SLA ${esc(r.sla||'—')}${r.done_by?` · 处理人 ${esc(pname(r.done_by))}`:''}${(r.evidence_refs&&r.evidence_refs.length)?` · 证据 ${r.evidence_refs.map(esc).join('，')}`:''}${r.verified_by?` · 验收人 ${esc(pname(r.verified_by))}`:''}</div>
+        <div class="muted" style="font-size:12px">${r.id} · ${TYPE_LABEL[r.type]||r.type} · 申请人 ${esc(r.requester_name || pname(r.requester))} · 执行 ${esc(r.assignee_name || pname(r.assignee))} · SLA ${esc(r.sla||'—')}${r.done_by?` · 处理人 ${esc(pname(r.done_by))}`:''}${(r.evidence_refs&&r.evidence_refs.length)?` · 证据 ${r.evidence_refs.map(esc).join('，')}`:''}${r.verified_by?` · 验收人 ${esc(pname(r.verified_by))}`:''}</div>
         ${stepBar(r)}${selfBlock}
       </div>
       <div class="row" style="flex-direction:column;align-items:flex-end">${stTag(r.state)}${actions?actsFor(r):''}</div>
@@ -172,7 +262,13 @@ const pages = {
       ${[['待分派',cnt(x=>['SUBMITTED','TRIAGED'].includes(x.state))],['处理中',cnt(x=>['ASSIGNED','IN_PROGRESS'].includes(x.state))],['待审批',cnt(x=>x.state==='APPROVAL_PENDING')],['待验收',cnt(x=>x.state==='AWAITING_ACCEPTANCE')],['已关闭',cnt(x=>['CLOSED','ARCHIVED'].includes(x.state))]]
         .map(([a,b])=>`<div class="metric"><span>${a}</span><b>${b}</b></div>`).join('')}
     </div>
-    <div class="panel"><h2>业务事务池 <span class="tag">M07 专业处理</span></h2>${r.map(x=>reqRow(x)).join('')||'<div class="empty">暂无</div>'}</div>
+    <div class="panel"><h2>一键演示闭环 <span class="tag">${state.hlc&&state.hlc.connected?'走真实 HLC（'+esc(state.hlc.api)+'）':'mock 降级'}</span></h2>
+      <div class="row">
+        <button class="btn primary" id="demoBtn" onclick="demoLoop()">▶ 发起演示：包跃报修 → 马雅雯受理/派单 → 王栌鑫处理 → 自验被拒(403) → 验收关闭</button>
+      </div>
+      <div id="demoLog"></div>
+    </div>
+    <div class="panel"><h2>业务事务池 <span class="tag">M07 专业处理 · ${state.hlc&&state.hlc.connected?'真实数据':'mock'}</span></h2>${r.map(x=>reqRow(x)).join('')||'<div class="empty">暂无</div>'}</div>
     <div class="notice" style="margin:0">闭环：员工 M10 发起 → M01 Guard → M07 受理/分派/审批 → 处理上传证据 → <b>申请人/授权验收人验收</b>（done ≠ verified）→ 关闭归档 → M10 查看报告。</div>`;
   },
   pool(){
@@ -219,15 +315,17 @@ const pages = {
 async function render(){
   nav();
   document.getElementById('pageTitle').textContent = [...NAV07,...NAV10].find(x=>x[0]===state.page)[1];
-  const m = me();
-  document.getElementById('rolebar').innerHTML = `<b>${m.name}</b>（${m.dept} · ${m.position}）· 能力：${state.ws.actions.length?state.ws.actions.map(a=>`<span class="chip">${a}</span>`).join(' '):'<span class="tag gray">无管理能力（仅本人申请/查看）</span>'}　UI 仅投影，服务端再鉴权。`;
+  const m = me() || { name:'—', dept:'', position:'' };
+  const acts = (state.ws && state.ws.actions) || [];
+  renderBanner();
+  document.getElementById('rolebar').innerHTML = `<b>${m.name}</b>（${m.dept} · ${m.position}${m.hlc_real?' · ★真实HLC账号':''}）· 能力：${acts.length?acts.map(a=>`<span class="chip">${a}</span>`).join(' '):'<span class="tag gray">无管理能力（仅本人申请/查看）</span>'}　UI 仅投影，服务端再鉴权。`;
   try { document.getElementById('content').innerHTML = pages[state.page](); }
   catch(e){ document.getElementById('content').innerHTML = `<div class="empty">加载失败（${e.message}），请确认 BFF 已启动。</div>`; }
 }
 
 /* ---- 操作（全部走服务端状态机） ---- */
 async function post(path, body){
-  const r = await fetch(HLC+path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const r = await fetch(HLC+path, { method:'POST', headers:Object.assign({'Content-Type':'application/json'}, authHeader()), body: JSON.stringify(body) });
   const j = await r.json().catch(()=>({}));
   if(!r.ok){ throw new Error(j.error || (r.status+' 错误')); }
   return j;
@@ -259,6 +357,64 @@ async function createReq(){
     await loadAll(); render();
   }catch(e){ alert('创建失败：'+e.message); }
 }
+
+/* ---- 一键演示闭环：全程真实 HLC 状态机，逐步回显服务端返回 ---- */
+function dlog(html){
+  const el = document.getElementById('demoLog');
+  if(!el) return;
+  el.style.display = 'block';
+  el.innerHTML += html + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+async function rawTr(id, actor, next, extra={}){
+  const r = await fetch(`${HLC}/service-requests/${id}/transitions`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ next_state: next, actor, ...extra }) });
+  return { status: r.status, body: await r.json().catch(()=>({})) };
+}
+async function demoLoop(){
+  const btn = document.getElementById('demoBtn');
+  btn.disabled = true; btn.textContent = '演示执行中…';
+  const log = document.getElementById('demoLog'); log.innerHTML = '';
+  const ts = new Date().toISOString().slice(11,19);
+  const steps = [];
+  const step = (icon, text, cls='') => { dlog(`<span class="${cls}">${icon} ${text}</span>`); };
+  try{
+    step('▶','演示开始 '+ts+' — 全部操作经 BFF → 真实 HLC 状态机执行','dim');
+    await sleep(300);
+    const c = await post('/service-requests', { type:'logistics_repair', subject:'演示闭环·车间工作灯故障 '+ts, description:'一键演示：包跃(p-001)发起报修', requester:'p-001', idempotency_key:'ik-demo-'+Date.now() });
+    steps.push(`HTTP 201 · id=${c.id.slice(0,8)}… · 状态=${c.state} · 来源=${c.source||'hlc-rest'}`);
+    step('1️⃣','包跃(p-001) 创建报修 → ' + steps[0], 'ok');
+    await loadAll(); render(); demoRestore(log.innerHTML); await sleep(600);
+
+    let r = await rawTr(c.id, 'p-002', 'TRIAGED');
+    step('2️⃣',`马雅雯(p-002★hr_admin) 受理 → HTTP ${r.status} · 状态=${r.body.state||r.body.error}`,'ok');
+    await sleep(600);
+    r = await rawTr(c.id, 'p-002', 'ASSIGNED', { assignee:'p-003', sla:'2 天', note:'派单给王栌鑫' });
+    step('3️⃣',`马雅雯 派单 → HTTP ${r.status} · 执行人=${r.body.assignee_name||r.body.error} · SLA=${r.body.sla||'—'}`,'ok');
+    await loadAll(); render(); demoRestore(log.innerHTML); await sleep(600);
+
+    r = await rawTr(c.id, 'p-003', 'IN_PROGRESS');
+    step('4️⃣',`王栌鑫(p-003★manager) 开始处理 → HTTP ${r.status} · 状态=${r.body.state||r.body.error}`,'ok');
+    await sleep(600);
+    r = await rawTr(c.id, 'p-003', 'AWAITING_ACCEPTANCE', { evidence_ref:'EVD-DEMO-'+Date.now()%10000, note:'更换灯管并通电测试正常' });
+    step('5️⃣',`王栌鑫 处理完成并留证 → HTTP ${r.status} · 证据=${(r.body.evidence_refs||[]).join(',')||r.body.error}（无证据会被 422 拒绝）`,'ok');
+    await loadAll(); render(); demoRestore(log.innerHTML); await sleep(600);
+
+    r = await rawTr(c.id, 'p-003', 'CLOSED');
+    step('6️⃣',`王栌鑫 尝试验收自己的工单 → HTTP ${r.status} · ${r.body.error}（maker-checker：真实 HLC 拒绝执行人自验）`,'err');
+    await sleep(600);
+    r = await rawTr(c.id, 'p-002', 'CLOSED', { note:'验收通过' });
+    step('7️⃣',`马雅雯 验收关闭 → HTTP ${r.status} · ResultRef=${(r.body.result_ref||r.body.error||'').slice(0,24)} · 验收人=${r.body.verified_by||'—'}`,'ok');
+    await loadAll(); render(); demoRestore(log.innerHTML);
+    step('✅','闭环完成。数据已写入真实 HLC MySQL（logistics_requests / logistics_transitions / hlc_event_outbox）','dim');
+  }catch(e){
+    step('✗','演示中断：'+e.message,'err');
+  }
+  const nb = document.getElementById('demoBtn');
+  if(nb){ nb.disabled = false; nb.textContent = '▶ 再演示一轮（每次生成新工单）'; }
+}
+/* render() 会重建 DOM，切换前保存/恢复日志 */
+function demoRestore(saved){ const el = document.getElementById('demoLog'); if(el && saved){ el.innerHTML = saved; el.style.display='block'; el.scrollTop = el.scrollHeight; } }
 
 init().catch(e=>{ document.getElementById('content').innerHTML = `<div class="empty">无法连接 BFF（${e.message}），请先 npm start。</div>`; });
 </script>

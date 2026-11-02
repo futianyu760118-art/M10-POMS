@@ -88,10 +88,13 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
       <button class="btn" disabled>规划中</button>
     </div>
     <div class="card">
-      <div class="top"><b class="t">EBMS 企业经营管理</b><span class="tag run">本机运行 · 待导入</span></div>
-      <span class="code">M03 · ebms:3010</span>
-      <p>经营看板/项目推进（PLM 项目数据曾由 EBMS 同步而来，rd_project_progress 可作数据源）。</p>
-      <button class="btn" disabled>待接入</button>
+      <div class="top"><b class="t">EBMS 企业经营管理</b><span class="tag ok">已接入 · 微系统</span></div>
+      <span class="code">M03 · 192.168.0.71:3010</span>
+      <p>经营看板、SOP Action、AI 经营行动与执行结果；已接入 M10 POMS 工作台，可与 PLM 项目进度、组织角色联动。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn primary" href="http://192.168.0.71:3010/m10.html" target="_blank" rel="noopener">进入 EBMS 微系统</a>
+        <a class="btn" href="http://192.168.0.71:3010/" target="_blank" rel="noopener">EBMS 主页</a>
+      </div>
     </div>
   </div>
 

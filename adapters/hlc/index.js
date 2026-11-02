@@ -23,6 +23,8 @@ const tokens = new Map();
 // person_id(UUID) → person_id(M10) 反查
 const realToPerson = new Map();
 Object.keys(ACTORS).forEach(pid => { if (ACTORS[pid].personId) realToPerson.set(ACTORS[pid].personId, pid); });
+// 真实 PLM 身份展示名（person_id 'plm:<name>' → name）
+const personLabels = new Map();
 // 幂等重放标记（真实 HLC 重复 key 返回原资源，这里本地记 key→id 以还原 replay 语义）
 const idemSeen = new Map();
 
@@ -73,15 +75,63 @@ async function tokenFor(personId) {
   return s;
 }
 
-async function authed(personId, method, apiPath, body, extraHeaders) {
-  let s = await tokenFor(personId);
+async function authed(personId, method, apiPath, body, extraHeaders, rawAuth) {
+  let s = await tokenForActor(rawAuth, personId);
   let r = await call(method, apiPath, body, s.token, extraHeaders);
   if (r.status === 401) { // 令牌失效重登一次
     tokens.delete(ACTORS[personId] ? personId : 'service');
-    s = await tokenFor(personId);
+    s = await tokenForActor(rawAuth, personId, true);
     r = await call(method, apiPath, body, s.token, extraHeaders);
   }
   return r;
+}
+
+/* ---------- M04 PLM 统一认证 → HLC 令牌交换（真实业务身份） ---------- */
+
+/** 用 PLM 令牌换 HLC 令牌（服务端经 PLM /auth/info 验证 + JIT 开户），缓存 20 分钟 */
+async function exchangePlm(plmToken) {
+  if (!plmToken) throw Object.assign(new Error('缺少 PLM 令牌'), { status: 401 });
+  const key = 'raw:' + plmToken;
+  const hit = tokens.get(key);
+  if (hit && hit.exp > Date.now()) return hit;
+  const r = await call('POST', '/api/auth/exchange-plm', { token: plmToken });
+  const b = r.body || {};
+  if (r.status !== 200 || !b.token || !b.user) {
+    throw Object.assign(new Error(b.error || ('PLM 身份交换失败(' + r.status + ')')), { status: r.status === 200 ? 502 : r.status });
+  }
+  const s = {
+    token: b.token,
+    userId: b.user.id,
+    name: b.user.name,
+    role: b.user.role,
+    provisioned: !!b.provisioned,
+    personId: 'plm:' + (b.user.name || b.user.id),
+    exp: Date.now() + 20 * 60 * 1000
+  };
+  tokens.set(key, s);
+  realToPerson.set(s.userId, s.personId);
+  personLabels.set(s.personId, s.name);
+  return s;
+}
+
+/** 由 Authorization 头取 HLC 身份；无头或非 Bearer 则回退演示演员映射 */
+async function tokenForActor(rawAuth, personId, forceFresh) {
+  if (rawAuth) {
+    const m = String(rawAuth).match(/^Bearer\s+(.+)$/i);
+    if (m) {
+      if (forceFresh) tokens.delete('raw:' + m[1]);
+      return exchangePlm(m[1]);
+    }
+  }
+  if (forceFresh) tokens.delete(ACTORS[personId] ? personId : 'service');
+  return tokenFor(personId);
+}
+
+/** 已登录 PLM 身份清单（供 people 列表合并展示） */
+function plmPeople() {
+  const out = [];
+  personLabels.forEach((name, pid) => out.push({ person_id: pid, name, dept: 'M04 PLM 统一认证', position: '真实业务账号', roles: [], hlc_real: true, plm: true }));
+  return out;
 }
 
 /* ---------- 契约映射：HLC camelCase ↔ M10 snake_case ---------- */
@@ -155,12 +205,12 @@ function resolveAction(current, next) {
 }
 
 async function createRequest(input) {
-  const { type, subject, description, requester, idempotency_key, attachments, site_ref } = input || {};
+  const { type, subject, description, requester, idempotency_key, attachments, site_ref, auth } = input || {};
   if (!idempotency_key) throw Object.assign(new Error('Idempotency-Key required'), { status: 400 });
   const body = { type: type || 'logistics_repair', subject, description: description || '' };
   if (attachments && attachments.length) body.attachments = attachments;
   if (site_ref) body.siteRef = site_ref;
-  const r = await authed(requester, 'POST', '/api/v1/hlc/service-requests', body, { 'Idempotency-Key': idempotency_key });
+  const r = await authed(requester, 'POST', '/api/v1/hlc/service-requests', body, { 'Idempotency-Key': idempotency_key }, auth);
   if (r.status === 201 && r.body && r.body.id) {
     const prev = idemSeen.get(idempotency_key);
     if (prev === undefined) idemSeen.set(idempotency_key, r.body.id);
@@ -169,12 +219,12 @@ async function createRequest(input) {
   throw Object.assign(new Error((r.body && r.body.error) || ('创建失败(' + r.status + ')')), { status: r.status });
 }
 
-async function submitRequest(id, actor) {
-  return transition(id, 'SUBMITTED', { actor });
+async function submitRequest(id, actor, auth) {
+  return transition(id, 'SUBMITTED', { actor, auth });
 }
 
-async function getRequest(id, actor) {
-  const r = await authed(actor || 'service', 'GET', '/api/v1/hlc/service-requests/' + encodeURIComponent(id));
+async function getRequest(id, actor, auth) {
+  const r = await authed(actor || 'service', 'GET', '/api/v1/hlc/service-requests/' + encodeURIComponent(id), null, null, auth);
   if (r.status !== 200 || !r.body || !r.body.id) {
     throw Object.assign(new Error((r.body && r.body.error) || ('request not found(' + r.status + ')')), { status: r.status === 404 ? 404 : r.status });
   }
@@ -183,7 +233,7 @@ async function getRequest(id, actor) {
   return mapped;
 }
 
-async function listRequests(filter, actor) {
+async function listRequests(filter, actor, auth) {
   const qs = new URLSearchParams();
   if (filter && filter.state) qs.set('status', String(filter.state).toUpperCase());
   if (filter && filter.type) qs.set('type', filter.type);
@@ -191,7 +241,7 @@ async function listRequests(filter, actor) {
   if (filter && filter.pageSize) qs.set('pageSize', filter.pageSize);
   const path = '/api/v1/hlc/service-requests' + (qs.toString() ? '?' + qs.toString() : '');
   const who = (filter && filter.requester) || actor || 'service';
-  const r = await authed(who, 'GET', path);
+  const r = await authed(who, 'GET', path, null, null, auth);
   if (r.status === 200 && r.body && Array.isArray(r.body.items)) return r.body.items.map(mapRequest);
   throw Object.assign(new Error((r.body && r.body.error) || ('列表拉取失败(' + r.status + ')')), { status: r.status });
 }
@@ -199,7 +249,7 @@ async function listRequests(filter, actor) {
 /** M10 式 transition(id, next_state, {actor, note, assignee, evidence_ref, verifier, sla}) → HLC action */
 async function transition(id, nextState, opts) {
   opts = opts || {};
-  const cur = await getRequest(id, opts.actor); // 读当前状态以解析 action
+  const cur = await getRequest(id, opts.actor, opts.auth); // 读当前状态以解析 action
   const action = resolveAction(cur.state, nextState);
   const body = { action };
   if (opts.note) body.remark = opts.note;
@@ -229,7 +279,7 @@ async function transition(id, nextState, opts) {
       throw Object.assign(new Error('executor cannot self-verify (done != verified)'), { status: 403 });
     }
   }
-  const r = await authed(opts.actor, 'POST', '/api/v1/hlc/service-requests/' + encodeURIComponent(id) + '/transitions', body);
+  const r = await authed(opts.actor, 'POST', '/api/v1/hlc/service-requests/' + encodeURIComponent(id) + '/transitions', body, null, opts.auth);
   if (r.status === 200 && r.body && r.body.id) return mapRequest(r.body);
   throw Object.assign(new Error((r.body && r.body.error) || ('转换失败(' + r.status + ')')), { status: r.status });
 }
@@ -246,6 +296,6 @@ async function status() {
 module.exports = {
   enabled, call, tokenFor, realUserIdOf,
   createRequest, submitRequest, getRequest, listRequests, transition,
-  mapRequest, parseSla, resolveAction, status,
+  mapRequest, parseSla, resolveAction, status, exchangePlm, tokenForActor, plmPeople,
   API_BASE, ACTORS
 };

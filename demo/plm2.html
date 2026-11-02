@@ -426,6 +426,9 @@ const pages = {
       });
     }catch(e){}
     state.wsApprovals = [];
+    // 会议助手待办并入（来源 MEETING）
+    state.meetingTodos = (t.meeting && t.meeting.items) || [];
+    state.meetingMeta = { live: !!(t.meeting&&t.meeting.live), connected: !!(t.meeting&&t.meeting.connected), updatedAt: (t.meeting&&t.meeting.updatedAt)||null, counts: (t.meeting&&t.meeting.counts)||null };
     if (['RD_LEAD','ADMIN'].includes(state.role) || (state.auth && ['RD_LEAD','ADMIN'].includes(state.auth.role))) {
       try { state.wsApprovals = (await get('/ws-v2?approvals=1')).items; } catch(e){}
     }
@@ -1237,6 +1240,24 @@ function seg(id, opts, cur, cb){ return `<div class="row" style="gap:4px">${opts
 function setTodoScope(v){ state.todoScope = v; renderTodosView(); }
 function setTodoView(v){ state.todoView = v; renderTodosView(); }
 function scopeRows(){ const r = state.todosData || []; if(state.todoScope==='assigned') return r.filter(x=>x.assigned); if(state.todoScope==='owned') return r.filter(x=>!x.assigned); return r; }
+// 会议助手待办行（来源 MEETING，点击查看详情）
+function meetingRowHtml(m){
+  const cat = m.category || '待办';
+  const catCls = cat==='逾期'?'red':cat==='异常'?'red':cat==='已完成'?'green':'blue';
+  const pr = { high:'red', medium:'orange', low:'gray' }[m.priority] || 'gray';
+  return `<div class="todoitem" onclick="meetingDetail('${m.id}')" title="会议助手待办，点击查看详情">
+    <span class="tag ${catCls}" style="width:54px;text-align:center;flex:none">${cat}</span>
+    <span class="t-ico" style="flex:none">📅</span>
+    <span class="t-body"><b style="font-size:13px">${esc(m.title)}</b><span class="muted" style="font-size:11px">会议：${esc(m.meetingTitle||'—')} · 交办 ${esc(m.proposer||'—')}${m.blockedReason?(' · 阻塞：'+esc(m.blockedReason)):''}</span></span>
+    <span class="muted" style="font-size:12px;flex:none;width:82px;text-align:right">${esc(m.due||'—')}</span>
+    <span class="tag ${pr}" style="flex:none">${m.priority}</span>
+    <span class="tag blue" style="flex:none">会议</span>
+  </div>`;
+}
+function meetingDetail(id){
+  const it = (state.meetingTodos||[]).find(x=>x.id===id); if(!it) return;
+  alert(`【会议助手待办】${it.title}\n\n来源：${it.sourceLabel}（${state.meetingMeta&&state.meetingMeta.live?'实时同步':'快照'}）\n会议：${it.meetingTitle||'—'}（${it.meetingDate||'—'}）\n交办人：${it.proposer||'—'}\n截止：${it.due||'—'} · 优先级：${it.priority}\n状态：${it.status}${it.blockedReason?(' · 阻塞：'+it.blockedReason):''}${it.completedAt?('\n完成于：'+it.completedAt):''}\n\n处理请在会议助手内进行（M10 仅引用，不写专业事实）`);
+}
 function todoRowHtml(r){
   const [c,l] = TODO_NODE_ST[r.status] || ['gray', r.status];
   const mkBtn = ((state.wsNodeMap && state.wsNodeMap[r.nodeCode]) || (NODE_TOOLS[r.nodeCode]&&NODE_TOOLS[r.nodeCode].length)) ? `<button class="btn small" style="flex:none" title="打开该节点对应工具/模板制作" onclick="event.stopPropagation();makeDoc('${r.projectNo}','${r.nodeCode}')">制作</button>` : '';
@@ -1252,24 +1273,32 @@ function todoRowHtml(r){
 function renderTodosView(){
   const rows = scopeRows();
   const view = state.todoView || 'list';
+  const mt = state.meetingTodos || [];
   const groups = TODO_GROUPS.map(cat=>({ cat, items: rows.filter(r=>r.cat===cat) }));
+  // 会议待办按分类并入对应分组
+  mt.forEach(m=>{ const g=groups.find(x=>x.cat===m.category); if(g) g.items.push(m); });
   const scopeSel = seg('ts', [{v:'all',l:'全部'},{v:'assigned',l:'指派给我'},{v:'owned',l:'我负责的项目'}], state.todoScope||'all', 'setTodoScope');
   const viewSel = seg('tv', [{v:'list',l:'列表'},{v:'board',l:'看板'},{v:'table',l:'表格'}], view, 'setTodoView');
+  const rowHtml = (r) => r.source==='MEETING' ? meetingRowHtml(r) : todoRowHtml(r);
   let body = '';
   if(view==='board'){
     body = `<div class="grid g4" style="align-items:start">${groups.map(g=>`
       <div class="panel" style="padding:12px;margin:0"><h2 style="font-size:13px">${g.cat} <span class="tag">${g.items.length}</span></h2>
-        <div class="todo-col">${g.items.map(todoRowHtml).join('')||'<div class="muted" style="font-size:11px;padding:8px 0">空</div>'}</div></div>`).join('')}</div>`;
+        <div class="todo-col">${g.items.map(rowHtml).join('')||'<div class="muted" style="font-size:11px;padding:8px 0">空</div>'}</div></div>`).join('')}</div>`;
   } else if(view==='table'){
-    body = `<div class="panel"><table><thead><tr><th>分类</th><th>计划日</th><th>项目</th><th>节点</th><th>状态</th></tr></thead><tbody>
-      ${rows.map(r=>{ const [c,l]=TODO_NODE_ST[r.status]||['gray',r.status]; return `<tr style="cursor:pointer" onclick="editNode('${r.projectNo}','${r.nodeCode}')"><td><span class="tag ${r.cat==='逾期'?'red':r.cat==='已完成'?'green':r.cat==='无节点'?'gray':'blue'}">${r.cat}</span></td><td>${esc(r.planDate||'—')}</td><td>${esc(r.projectNo)}</td><td>${esc(r.nodeName)}</td><td><span class="tag ${c}">${l}</span></td></tr>`; }).join('')}</tbody></table></div>`;
+    body = `<div class="panel"><table><thead><tr><th>分类</th><th>截止</th><th>来源</th><th>事项</th><th>状态</th></tr></thead><tbody>
+      ${rows.map(r=>{ const [c,l]=TODO_NODE_ST[r.status]||['gray',r.status]; return `<tr style="cursor:pointer" onclick="editNode('${r.projectNo}','${r.nodeCode}')"><td><span class="tag ${r.cat==='逾期'?'red':r.cat==='已完成'?'green':r.cat==='无节点'?'gray':'blue'}">${r.cat}</span></td><td>${esc(r.planDate||'—')}</td><td>PLM</td><td>${esc(r.projectNo)} · ${esc(r.nodeName)}</td><td><span class="tag ${c}">${l}</span></td></tr>`; }).join('')}
+      ${mt.map(m=>`<tr style="cursor:pointer" onclick="meetingDetail('${m.id}')"><td><span class="tag ${m.category==='已完成'?'green':m.category==='逾期'||m.category==='异常'?'red':'blue'}">${m.category}</span></td><td>${esc(m.due||'—')}</td><td><span class="tag blue">会议</span></td><td>${esc(m.title)}</td><td>${esc(m.status)}</td></tr>`).join('')}
+    </tbody></table></div>`;
   } else {
     body = groups.map(g=>`
       <details class="panel" style="margin-bottom:10px" ${g.cat!=='已完成'&&g.cat!=='无节点'?'open':''}>
         <summary style="cursor:pointer;font-weight:600;font-size:14px">${g.cat} <span class="tag">${g.items.length}</span></summary>
-        <div class="todo-col" style="margin-top:8px">${g.items.map(todoRowHtml).join('')||'<div class="muted" style="font-size:12px;padding:6px 0">无</div>'}</div>
+        <div class="todo-col" style="margin-top:8px">${g.items.map(rowHtml).join('')||'<div class="muted" style="font-size:12px;padding:6px 0">无</div>'}</div>
       </details>`).join('');
   }
+  const mm = state.meetingMeta || {};
+  const meetingBanner = mt.length ? `<div class="notice" style="border-color:#c9d9ee;background:#f4f8ff;color:#2b4c77">📅 会议助手待办已并入：<b>${mt.length}</b> 条（${mm.live?'实时同步':'快照 '+esc((mm.updatedAt||'').slice(0,16).replace('T',' '))}）· 处理请回会议助手（M10 仅引用，不写专业事实）</div>` : '';
     document.getElementById('content').innerHTML = `
     ${(state.anomalies&&state.anomalies.length)?`<div class="panel" style="border:2px solid #d64545;background:#fef5f5;margin-bottom:14px">
       <h2 style="color:#c33a4e">⚠️ 当前异常（${state.anomalies.length}）<span class="tag red">需优先处理</span></h2>
@@ -1288,6 +1317,7 @@ function renderTodosView(){
         ${viewSel}
       </div>
     </div>
+    ${meetingBanner}
     ${body}
     ${(state.wsApprovals&&state.wsApprovals.length)?`<div class="panel"><h2>资料审批 <span class="tag orange">${state.wsApprovals.length} 份待审</span> <span class="tag">批准即归档并同步 PLM</span></h2>
       ${state.wsApprovals.map(w=>`<div class="task" style="padding:10px 0;border-bottom:1px solid #eef2f7">

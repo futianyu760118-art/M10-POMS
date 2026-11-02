@@ -233,6 +233,18 @@
       "mapping": { "next_state→action": "SUBMITTED→submit, TRIAGED→triage/provide_info, ASSIGNED→assign/reassign, IN_PROGRESS→start, AWAITING_ACCEPTANCE→submit_resolution, CLOSED→close, NEEDS_INFO→needs_info, REJECTED→reject, CANCELLED→cancel, REOPENED→reopen", "camelCase→snake_case": "requestType→type, status→state, stateVersion→object_version, slaDueAt→sla" },
       "constraints": ["演员令牌各自缓存25min(兼岗互不越权)", "4xx业务错误如实上抛不降级", "网络错误降级m07-mock并带hlc_error", "幂等Key本地记重放", "leave流程真实HLC未实现(422→S6)", "maker-checker由真实HLC终审"],
       "usage": "M10 双端页面操作真实恒聘通 M07 数据，与 adapters/plm2 同一套接入范式"
+    },
+    {
+      "id": "m10.hlc.plm-exchange",
+      "name": "PLM 统一认证换 HLC 身份（真实业务账号）",
+      "category": "认证",
+      "description": "M04 PLM 账号登录后，服务端实调 PLM /auth/info 验证令牌并换取 HLC JWT；未映射身份按角色映射 JIT 建号并写 ExternalIdentityMapping",
+      "input": { "username": "string", "password": "string" },
+      "output": { "plmToken": "string", "hlcToken": "string", "hlcUser": { "id": "string", "name": "string", "role": "string", "personId": "string" }, "provisioned": "boolean" },
+      "api": "POST /api/v1/hlc/auth/plm-login（BFF）→ HLC POST /api/auth/exchange-plm",
+      "roleMapping": { "ADMIN/admin/hr_manager": "hr_admin", "gm/rd_manager/project_manager/sales_director/sales_manager": "manager", "finance/cw1": "finance", "engineer/QUALITY/sales/viewer/其他": "employee" },
+      "constraints": ["令牌由服务端到服务端验证（不信任客户端自报角色）", "JIT 幂等：同 external_user_id 复用既有映射", "映射停用即 403", "HLC 角色决定服务端权限（员工仅本人）", "PLM 不可达返回 502，不伪造成功"],
+      "usage": "任何需要以真实 M04 账号操作 M07/HLC 的系统；M10 双端页面「PLM 账号登录」即走此链路"
     }
   ],
   "plmRealAgents": [

@@ -125,6 +125,13 @@ GET /api/v1/org/assemble?company=&department=&position=  装配（职责/任务/
 - **观测**：响应带 `source: 'hlc-rest' | 'm07-mock-fallback'`；`GET /api/v1/hlc/status` 查看连接与演员映射；people 列表带 `hlc_real` 标注
 - **范围**：请假流程真实 HLC 暂未实现（返回 422，候选 Backlog S6）；maker-checker/幂等/证据约束由真实 HLC 终审
 
+### 真实业务身份（M04 PLM 统一认证 → HLC）
+
+M10 双端页面右上角可用 **PLM 账号登录**：BFF 调 PLM /api/auth/login，再经 HLC POST /api/auth/exchange-plm 换取 HLC JWT（服务端实调 PLM /auth/info 验证，未映射账号按角色映射 JIT 建号并写 external_identity_mappings）。之后所有工单操作以该真实身份经 HLC 鉴权（员工仅本人、专员可派单、执行人才能处理、maker-checker 拦截自验）。
+
+- 角色映射：PLM ADMIN/admin/hr_manager→hr_admin；gm/rd_manager/project_manager/sales_*→manager；inance/cw1→inance；其余→employee\n- 交换失败语义：PLM 令牌无效 401、映射停用 403、PLM 不可达 502（不伪造成功）
+- 演示演员（p-002★/p-003★）与真实 PLM 身份可混用：演员操作走映射账号，真实登录走交换令牌
+
 ## 契约 API（对齐恒剑信息包 03 章）
 
 ```

@@ -17,6 +17,7 @@ const hlc = require('../../adapters/hlc');
 const org = require('../../adapters/org');
 const plm2 = require('../../adapters/plm2');
 const plmSync = require('../../adapters/plm2/sync');
+const meetingAdapter = require('../../adapters/meeting');
 const TOOLS = require('../../configs/tools.json');
 const SKILLS = require('../../configs/skills.json');
 const hub = require('../../adapters/hub');
@@ -190,7 +191,11 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/plm2/me/todos' && req.method === 'GET') {
       const u = plm2.getPeople().find(p => p.id === Number(q.user));
-      return send(res, 200, Object.assign({ realName: u ? u.name : q.user }, plm2.todosFor(u ? u.name : '')));
+      const plmTodos = plm2.todosFor(u ? u.name : '');
+      // 会议助手待办（并入「我的待办」）
+      let meeting = { source: 'meeting-assistant', live: false, connected: false, items: [], counts: { total: 0, overdue: 0, todo: 0, done: 0, anomaly: 0 } };
+      try { meeting = meetingAdapter.listMine(u ? { name: u.name, username: u.username } : { name: '' }, { meetingBase: process.env.MEETING_WEB || '' }); } catch (e) { meeting.error = e.message; }
+      return send(res, 200, Object.assign({ realName: u ? u.name : q.user }, plmTodos, { meeting }));
     }
     if (pathname === '/api/v1/plm2/me/dept-todos' && req.method === 'GET') {
       return send(res, 200, plm2.deptTodos(q.user));
@@ -519,8 +524,31 @@ const server = http.createServer(async (req, res) => {
 
     // ---- 恒剑 M07+M10 契约（来自《AEOS_M07_M10_可开发资料包 V1.0》03 章，候选） ----
     if (pathname === '/api/v1/poms/me/workspace' && req.method === 'GET') {
-      const p = m01.getPerson(q.person_id);
+      let p = null;
+      try { p = m01.getPerson(q.person_id); } catch (e) { p = null; }
       const widgets = ['future_todos', 'past_results', 'personal_agent'].map(id => ({ id, visible: true }));
+      if (!p) {
+        // 真实业务身份（PLM 令牌）→ 按 HLC 角色派生 actions（服务端仍终审）
+        const rawAuth = req.headers['authorization'] || '';
+        const m = rawAuth.match(/^Bearer\s+(.+)$/i);
+        if (!m) return send(res, 401, { error: 'person not found' });
+        const sess = await hlc.exchangePlm(m[1]);
+        const actions = ['hlc.service_request.create'];
+        if (['hr_admin', 'admin'].includes(sess.role)) actions.push('hlc.request.assign', 'hlc.request.approve', 'hlc.request.verify', 'hlc.request.read');
+        else if (['manager', 'executive', 'finance'].includes(sess.role)) actions.push('hlc.request.approve', 'hlc.request.verify', 'hlc.request.read');
+        return send(res, 200, {
+          tenant_id: 'HPT-00000001',
+          person_id: sess.personId,
+          name: sess.name,
+          positions: ['PLM 统一认证'],
+          policy_version: 'candidate-v1',
+          expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+          industry_pack_ref: 'lighting_demo',
+          widgets,
+          actions,
+          source: 'hlc-rest'
+        });
+      }
       const actions = [];
       if (p.capabilities.includes('hlc:request:create')) actions.push('hlc.service_request.create');
       if (p.capabilities.includes('hlc:request:assign')) actions.push('hlc.request.assign');
@@ -540,33 +568,34 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/v1/poms/me/work-items' && req.method === 'GET') {
-      const p = m01.getPerson(q.person_id);
-      const isAdmin = p.capabilities.includes('hlc:request:read');
+      let p = null;
+      try { p = m01.getPerson(q.person_id); } catch (e) { p = null; }
+      const who = p || { person_id: q.person_id, tenant_id: 'HPT-00000001', capabilities: [] };
+      const isAdmin = who.capabilities.includes('hlc:request:read');
       let all, source = 'm07-mock';
-      try { all = await hlc.listRequests({ ...q, requester: q.person_id }, q.person_id); source = 'hlc-rest'; }
+      try { all = await hlc.listRequests({ ...q, requester: q.person_id }, q.person_id, req.headers['authorization'] || null); source = 'hlc-rest'; }
       catch (e) { all = m07.listRequests(q); source = 'm07-mock-fallback'; }
       const items = all
-        .filter(r => isAdmin || r.requester === p.person_id || r.assignee === p.person_id)
+        .filter(r => isAdmin || r.requester === who.person_id || r.assignee === who.person_id)
         .filter(r => ['CLOSED', 'ARCHIVED', 'REJECTED', 'CANCELLED'].indexOf(r.state) < 0)
         .map(r => ({
           work_item_id: 'wi_' + r.id,
-          tenant_id: p.tenant_id,
-          assignee_person_id: p.person_id,
+          tenant_id: who.tenant_id,
+          assignee_person_id: who.person_id,
           source_system: 'M07',
           source_object_type: r.type === 'leave' ? 'LeaveRequest' : 'LogisticsRequest',
           source_object_id: r.id,
           title: r.subject,
           display_status: r.state.toLowerCase(),
           due_at: r.sla && /^\d{4}/.test(r.sla) ? r.sla : (r.sla ? '2026-' + r.sla + 'T09:00:00+08:00' : null),
-          allowed_action_refs: allowedActions(p, r)
+          allowed_action_refs: allowedActions(who, r)
         }));
       return send(res, 200, { items, source });
     }
 
     if (pathname === '/api/v1/poms/me/results' && req.method === 'GET') {
-      const p = m01.getPerson(q.person_id);
       let all, source = 'm07-mock';
-      try { all = await hlc.listRequests({ ...q, requester: q.person_id }, q.person_id); source = 'hlc-rest'; }
+      try { all = await hlc.listRequests({ ...q, requester: q.person_id }, q.person_id, req.headers['authorization'] || null); source = 'hlc-rest'; }
       catch (e) { all = m07.listRequests(q); source = 'm07-mock-fallback'; }
       const results = all
         .filter(r => r.state === 'CLOSED' || r.state === 'ARCHIVED')
@@ -583,16 +612,42 @@ const server = http.createServer(async (req, res) => {
       const st = await hlc.status();
       // 标注哪些演示演员已映射真实 HLC 账号（未映射的写操作走服务账号）
       people.forEach(p => { p.hlc_real = !!hlc.ACTORS[p.person_id]; });
-      return send(res, 200, { people, source: st.connected ? 'hlc-rest' : 'm07-mock', hlc: st });
+      // 合并已登录的真实 PLM 身份（令牌交换后的 M04 账号）
+      const extra = hlc.plmPeople();
+      return send(res, 200, { people: [...people, ...extra], source: st.connected ? 'hlc-rest' : 'm07-mock', hlc: st });
+    }
+
+    // M04 PLM 统一认证登录 → HLC 令牌（真实业务身份入口）
+    if (pathname === '/api/v1/hlc/auth/plm-login' && req.method === 'POST') {
+      const body = await readBody(req);
+      const { token: plmToken, vo } = await plmSync.loginWith(body.username, body.password);
+      const sess = await hlc.exchangePlm(plmToken);
+      return send(res, 200, {
+        plmToken,
+        hlcToken: sess.token,
+        plm: { userId: vo.userId, username: vo.username, realName: vo.realName, roles: vo.roles },
+        hlcUser: { id: sess.userId, name: sess.name, role: sess.role, personId: sess.personId },
+        provisioned: sess.provisioned
+      });
+    }
+
+    // 当前登录身份（Authorization: Bearer <PLM 令牌>）
+    if (pathname === '/api/v1/hlc/auth/me' && req.method === 'GET') {
+      const h = req.headers['authorization'] || '';
+      const m = h.match(/^Bearer\s+(.+)$/i);
+      if (!m) return send(res, 401, { error: '未登录' });
+      const sess = await hlc.exchangePlm(m[1]);
+      return send(res, 200, { hlcUser: { id: sess.userId, name: sess.name, role: sess.role, personId: sess.personId } });
     }
 
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'POST') {
       const body = await readBody(req);
       const idempotency_key = req.headers['idempotency-key'] || body.idempotency_key;
+      const auth = req.headers['authorization'] || null;
       try {
-        const created = await hlc.createRequest({ ...body, idempotency_key }); // 真实 HLC：DRAFT
-        if (!created.replay) await hlc.submitRequest(created.id, body.requester);
-        const full = await hlc.getRequest(created.id, body.requester);
+        const created = await hlc.createRequest({ ...body, idempotency_key, auth }); // 真实 HLC：DRAFT
+        if (!created.replay) await hlc.submitRequest(created.id, body.requester, auth);
+        const full = await hlc.getRequest(created.id, body.requester, auth);
         return send(res, created.replay ? 200 : 201, { ...full, history: undefined, replay: created.replay, source: 'hlc-rest' });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e; // 业务错误如实上抛
@@ -604,7 +659,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/hlc/service-requests' && req.method === 'GET') {
       try {
-        return send(res, 200, { requests: await hlc.listRequests(q, q.person_id), source: 'hlc-rest' });
+        return send(res, 200, { requests: await hlc.listRequests(q, q.person_id, req.headers['authorization'] || null), source: 'hlc-rest' });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
         return send(res, 200, { requests: m07.listRequests(q), source: 'm07-mock-fallback', hlc_error: e.message });
@@ -614,7 +669,7 @@ const server = http.createServer(async (req, res) => {
     let srMatch = pathname.match(/^\/api\/v1\/hlc\/service-requests\/([^/]+)$/);
     if (srMatch && req.method === 'GET') {
       try {
-        return send(res, 200, await hlc.getRequest(srMatch[1], q.person_id));
+        return send(res, 200, await hlc.getRequest(srMatch[1], q.person_id, req.headers['authorization'] || null));
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
         return send(res, 200, m07.getRequest(srMatch[1]));
@@ -624,16 +679,20 @@ const server = http.createServer(async (req, res) => {
     let trMatch = pathname.match(/^\/api\/v1\/hlc\/service-requests\/([^/]+)\/transitions$/);
     if (trMatch && req.method === 'POST') {
       const body = await readBody(req);
-      const actor = m01.getPerson(body.actor);
+      const rawAuth = req.headers['authorization'] || null;
       const next = body.next_state;
-      // 服务端执行前再鉴权（UI 隐藏 ≠ 权限控制）
-      if (['TRIAGED', 'ASSIGNED'].includes(next) && !actor.capabilities.includes('hlc:request:assign')) throw Object.assign(new Error('permission denied'), { status: 403 });
-      if (['APPROVED', 'REJECTED', 'POLICY_CHECKED'].includes(next) && !actor.capabilities.includes('hlc:request:approve')) throw Object.assign(new Error('permission denied'), { status: 403 });
+      // 真实身份模式（PLM 令牌）跳过 mock 演员校验，由真实 HLC 服务端鉴权；
+      // 演示演员模式沿用 M01 能力预校验（UI 隐藏 ≠ 权限控制）。
+      if (!rawAuth) {
+        const actor = m01.getPerson(body.actor);
+        if (['TRIAGED', 'ASSIGNED'].includes(next) && !actor.capabilities.includes('hlc:request:assign')) throw Object.assign(new Error('permission denied'), { status: 403 });
+        if (['APPROVED', 'REJECTED', 'POLICY_CHECKED'].includes(next) && !actor.capabilities.includes('hlc:request:approve')) throw Object.assign(new Error('permission denied'), { status: 403 });
+      }
       try {
-        const updated = await hlc.transition(trMatch[1], next, { actor: body.actor, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla, scope: body.scope, expectedVersion: body.expected_version });
+        const updated = await hlc.transition(trMatch[1], next, { actor: body.actor, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla, scope: body.scope, expectedVersion: body.expected_version, auth: rawAuth });
         return send(res, 200, { ...updated, source: 'hlc-rest' });
       } catch (e) {
-        if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) throw e;
+        if (rawAuth || (e.status && e.status >= 400 && e.status < 500 && e.status !== 401)) throw e;
         const updated = m07.transition(trMatch[1], next, { actor: body.actor, note: body.note, assignee: body.assignee, evidence_ref: body.evidence_ref, verifier: body.verifier, sla: body.sla });
         return send(res, 200, { ...updated, source: 'm07-mock-fallback', hlc_error: e.message });
       }
