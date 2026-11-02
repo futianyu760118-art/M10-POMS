@@ -40,6 +40,11 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const portal = await req('/portal');
     ck('门户含总任务库入口', portal.s === 200 && portal.b.includes('href="/taskhub"') && portal.b.includes('总任务库'));
 
+    const pageSrc = page.b;
+    ck('页面支持重复合并（groupRows + 可展开组）', pageSrc.includes('function groupRows') && pageSrc.includes('details class="grp"'));
+    ck('页面支持状态多选（msStatus + toggleStatus）', pageSrc.includes('msStatusMenu') && pageSrc.includes('window.toggleStatus') && pageSrc.includes('__all__'));
+    ck('页面支持驾驶舱穿透（drill + chips）', pageSrc.includes('window.drill') && pageSrc.includes('renderChips') && pageSrc.includes('class="kpi'));
+
     const t = j(await req('/api/v1/tasks'));
     ck('GET /api/v1/tasks 首次访问自动归集', t.total > 0, 'total=' + t.total);
     ck('条目带来源/业务域/状态/责任人', t.items.every(x => x.source && x.bizDomain && x.status && 'ownerName' in x));

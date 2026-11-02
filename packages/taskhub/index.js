@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const plm2 = require('../../adapters/plm2');
 const meeting = require('../../adapters/meeting');
+const hubAdapter = require('../../adapters/hub');
 
 const STORE = process.env.TASKHUB_STORE || path.join(__dirname, '..', '..', 'configs', 'tasks-master.json');
 const TTL_MINUTES = 60;
@@ -19,7 +20,8 @@ const DOMAINS = {
   ORDER: { label: '订单', bizSys: 'plm2', bizLabel: 'PLM 订单' },
   PURCHASE: { label: '采购', bizSys: 'plm2', bizLabel: 'PLM 采购' },
   PRODUCTION: { label: '生产', bizSys: 'plm2', bizLabel: 'PLM 生产' },
-  RD: { label: '研发', bizSys: 'plm2', bizLabel: 'PLM 研发' }
+  RD: { label: '研发', bizSys: 'plm2', bizLabel: 'PLM 研发' },
+  OPS: { label: '经营', bizSys: 'hub', bizLabel: 'Hub 经营中心' }
 };
 
 const DOMAIN_RULES = [
@@ -190,24 +192,42 @@ function collectPlmApprovals() {
   return { ok: true, meta: {}, items };
 }
 
+async function collectHub(d) {
+  const t = await hubAdapter.listTodos({ today: d });
+  return {
+    ok: true,
+    meta: { api: t.api, connected: t.connected, unreadInbox: t.unreadInbox, counts: t.counts },
+    items: t.items.map(x => makeItem({
+      source: 'HUB', sourceId: x.id, sourceLabel: 'Hub',
+      // Hub 条目始终归 Hub 经营中心（业务属性放 refs.hint，避免误标成 PLM 域）
+      bizDomain: 'OPS',
+      title: x.title, detail: x.detail || '',
+      ownerName: x.ownerName || '', due: x.due, priority: x.priority,
+      status: x.status,
+      refs: Object.assign({ hubKind: x.kind, hint: domainOf(x.title + ' ' + (x.detail || ''), 'OPS') }, x.refs || {})
+    }))
+  };
+}
+
 // ── 总库刷新（本地短期库：源故障时保留旧快照并标 stale）────
-function refresh(opts) {
+async function refresh(opts) {
   const d = (opts && opts.today) || today();
   const store = load();
   const horizon = (opts && opts.horizonDays) || store.horizonDays || HORIZON_DAYS;
   const collectors = {
     MEETING: () => collectMeeting(d),
-    PLM2: () => ({ ok: true, meta: {}, items: [...collectPlmNodes(d, horizon).items, ...collectPlmApprovals().items] })
+    PLM2: () => ({ ok: true, meta: {}, items: [...collectPlmNodes(d, horizon).items, ...collectPlmApprovals().items] }),
+    HUB: async () => collectHub(d)
   };
   const keepLocal = store.items.filter(x => x.origin !== 'sync');
   const prevSync = {};
   store.items.filter(x => x.origin === 'sync').forEach(x => { prevSync[x.key] = x; });
   const next = [];
   const sources = {};
-  Object.keys(collectors).forEach(name => {
+  for (const name of Object.keys(collectors)) {
     const prev = store.sources[name] || {};
     try {
-      const r = collectors[name]();
+      const r = await collectors[name]();
       sources[name] = {
         ok: true, lastAttempt: new Date().toISOString(), lastSuccess: new Date().toISOString(),
         error: null, cachedAt: new Date().toISOString(), itemCount: r.items.length,
@@ -223,7 +243,7 @@ function refresh(opts) {
       };
       next.push(...Object.keys(prevSync).filter(k => k.startsWith(name + ':')).map(k => prevSync[k]));
     }
-  });
+  }
   const fresh = {};
   next.forEach(x => { fresh[x.key] = x; });
   store.items = [...Object.values(fresh), ...keepLocal];

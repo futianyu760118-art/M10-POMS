@@ -107,7 +107,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ck('其他责任人按人过滤（聂晓敏 1 条，行政批次项）', meeting.listMine({ name: '聂晓敏' }, { today: '2026-11-02' }).items.length === 1);
 
     taskhub.reset();
-    const rf = taskhub.refresh({ today: '2026-11-02' });
+    const rf = await taskhub.refresh({ today: '2026-11-02' });
     const s = taskhub.list({ today: '2026-11-02', source: 'MEETING' });
     ck('总库归集会议全量', s.items.length === MOCK_ITEMS.length, s.items.length + ' 条');
     ck('行政类全部归会议中心', s.items.every(x => x.bizSys === 'meeting' && x.bizDomain === 'ADMIN'));

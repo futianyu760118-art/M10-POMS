@@ -38,7 +38,7 @@ async function j(path, method, payload) {
   check('页面含双端导航与状态机', html.includes('总览工作台') && html.includes('我的申请') && html.includes('AWAITING_ACCEPTANCE'));
 
   // 3. 员工(包跃 p-001)创建报修 → SUBMITTED
-  const created = await j(B + '/service-requests', 'POST', { type: 'logistics_repair', subject: '车间照明灯故障', description: '演示闭环', requester: 'p-001', idempotency_key: 'ik-hlc-e2e-1' });
+  const created = await j(B + '/service-requests', 'POST', { type: 'logistics_repair', subject: '车间照明灯故障', description: '演示闭环', requester: 'p-001', idempotency_key: 'ik-hlc-e2e-' + Date.now() });
   check('创建报修 201/SUBMITTED', created.status === 201 && created.data.state === 'SUBMITTED', created.data.id);
   const id = created.data.id;
 

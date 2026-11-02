@@ -17,10 +17,9 @@ process.env.MEETING_SNAPSHOT_FILE = process.env.MEETING_SNAPSHOT_FILE || path.jo
 const hub = require('../../adapters/hub');
 
 let passed = 0;
-function test(name, fn) {
-  try { fn(); passed++; console.log('  ✔ ' + name); }
-  catch (e) { console.error('  ✘ ' + name + '\n    ' + e.message); process.exitCode = 1; }
-}
+let failed = 0;
+const QUEUE = [];
+function test(name, fn) { QUEUE.push([name, fn]); }
 
 console.log('M10 POMS L0 契约测试\n');
 
@@ -473,14 +472,15 @@ test('HLC 适配：真实响应 camelCase → M10 snake_case 契约', () => {
   assert.strictEqual(m.history, undefined, '列表不携带 history');
 });
 
-test('总任务库：归集会议(行政→会议中心)与 PLM 节点(业务域)，条目只带引用与快照', () => {
+test('总任务库：归集会议(行政→会议中心)与 PLM 节点(业务域)，条目只带引用与快照', async () => {
+  process.env.HUB_DISABLED = '1';
   const tmp = path.join(os.tmpdir(), 'taskhub-contract-' + process.pid + '.json');
   const prev = process.env.TASKHUB_STORE;
   process.env.TASKHUB_STORE = tmp;
   delete require.cache[require.resolve('../../packages/taskhub')];
   const taskhub = require('../../packages/taskhub');
   taskhub.reset();
-  const r = taskhub.refresh({ today: '2026-11-02' });
+  const r = await taskhub.refresh({ today: '2026-11-02' });
   assert(r.total > 0, '归集后总库应有条目');
   const s = taskhub.list({ today: '2026-11-02' });
   const meeting = s.items.filter(x => x.source === 'MEETING');
@@ -535,14 +535,14 @@ test('总任务库：规则抽取拆分文本并识别期限/紧急度/业务域
   try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
 });
 
-test('总任务库：确认须授权人、分发不双写（引用条目 409）', () => {
+test('总任务库：确认须授权人、分发不双写（引用条目 409）', async () => {
   const tmp = path.join(os.tmpdir(), 'taskhub-review-' + process.pid + '.json');
   const prev = process.env.TASKHUB_STORE;
   process.env.TASKHUB_STORE = tmp;
   delete require.cache[require.resolve('../../packages/taskhub')];
   const taskhub = require('../../packages/taskhub');
   taskhub.reset();
-  taskhub.refresh({ today: '2026-11-02' });
+  await taskhub.refresh({ today: '2026-11-02' });
   const ex = taskhub.extractCandidates({ today: '2026-11-02', text: '整理本周行政考勤异常并汇总' });
   const c = ex.candidates[0];
   assert(c, '应产出候选');
@@ -565,4 +565,101 @@ test('总任务库：确认须授权人、分发不双写（引用条目 409）'
   try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
 });
 
-console.log('\n结果: ' + passed + ' 项通过' + (process.exitCode ? '（存在失败）' : ''));
+test('总任务库：Hub 未连接时明确失败，不产出假条目（红线 6）', async () => {
+  const tmp = path.join(os.tmpdir(), 'taskhub-hub-off-' + process.pid + '.json');
+  const prev = { store: process.env.TASKHUB_STORE, disabled: process.env.HUB_DISABLED };
+  process.env.TASKHUB_STORE = tmp;
+  process.env.HUB_DISABLED = '1';
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  delete require.cache[require.resolve('../../adapters/hub')];
+  const taskhub = require('../../packages/taskhub');
+  taskhub.reset();
+  await taskhub.refresh({ today: '2026-11-02' });
+  const s = taskhub.list({ today: '2026-11-02' });
+  assert.strictEqual(s.sources.HUB.ok, false, 'Hub 未配置时源状态必须为失败');
+  assert(/未连接|未配置/.test(s.sources.HUB.error || ''), '错误须明确说明未连接/未配置');
+  assert.strictEqual(s.items.filter(x => x.source === 'HUB').length, 0, '不得产出假 Hub 条目');
+  taskhub.reset();
+  if (prev.store === undefined) delete process.env.TASKHUB_STORE; else process.env.TASKHUB_STORE = prev.store;
+  if (prev.disabled === undefined) delete process.env.HUB_DISABLED; else process.env.HUB_DISABLED = prev.disabled;
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  delete require.cache[require.resolve('../../adapters/hub')];
+  try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+});
+
+test('总任务库：Hub 接入——经营事项/收件箱映射为待办（排除 autopilot_result）', async () => {
+  const httpMod = require('http');
+  const payload = {
+    version: 2, revision: 1, updatedAt: '2026-11-02T09:00:00.000Z', unreadInboxCount: 1,
+    cases: [
+      { id: 'c1', title: '订单 208 延期风险处置', status: 'awaiting_approval', ownerRole: '供应链', dueAt: '2026-11-06', updatedAt: '2026-11-01T10:00:00Z' },
+      { id: 'c2', title: '质量异常闭环', status: 'in_review', ownerRole: '品质', dueAt: '2026-11-04', updatedAt: '2026-11-01T11:00:00Z' },
+      { id: 'c3', title: '已关闭事项', status: 'closed', ownerRole: '销售', dueAt: '2026-10-01', updatedAt: '2026-10-02T10:00:00Z' }
+    ],
+    decisions: [],
+    inbox: [
+      { id: 'i1', title: '需确认采购议价方案', kind: 'decision_required', state: 'unread', caseId: 'c1', updatedAt: '2026-11-01T12:00:00Z' },
+      { id: 'i2', title: '系统自动执行完成', kind: 'autopilot_result', state: 'read', updatedAt: '2026-11-01T12:30:00Z' }
+    ]
+  };
+  const server = httpMod.createServer((req, res) => {
+    if (req.method === 'POST' && req.url === '/api/auth/login') {
+      let b = ''; req.on('data', c => b += c); req.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'aeos_session=mock; Path=/' });
+        res.end(JSON.stringify({ ok: true, account: 'admin' }));
+      });
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/operating-center') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(payload));
+    }
+    res.writeHead(404, { 'Content-Type': 'application/json' }); res.end('{}');
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const port = server.address().port;
+  const tmp = path.join(os.tmpdir(), 'taskhub-hub-on-' + process.pid + '.json');
+  const prev = { store: process.env.TASKHUB_STORE, disabled: process.env.HUB_DISABLED, api: process.env.HUB_API, pwd: process.env.HUB_PASSWORD, acc: process.env.HUB_ACCOUNT };
+  process.env.TASKHUB_STORE = tmp;
+  delete process.env.HUB_DISABLED;
+  process.env.HUB_API = 'http://127.0.0.1:' + port;
+  process.env.HUB_PASSWORD = 'mock-pass';
+  process.env.HUB_ACCOUNT = 'admin';
+  delete require.cache[require.resolve('../../packages/taskhub')];
+  delete require.cache[require.resolve('../../adapters/hub')];
+  const taskhub = require('../../packages/taskhub');
+  try {
+    taskhub.reset();
+    await taskhub.refresh({ today: '2026-11-02' });
+    const s = taskhub.list({ today: '2026-11-02' });
+    const hubItems = s.items.filter(x => x.source === 'HUB');
+    assert.strictEqual(s.sources.HUB.ok, true, 'Hub 源应成功');
+    assert.strictEqual(hubItems.length, 4, '3 事项(含已关闭) + 1 收件箱(排除 autopilot)，实际 ' + hubItems.length);
+    assert(hubItems.every(x => x.bizSys === 'hub'), 'Hub 条目须归 Hub 系统');
+    const blocked = hubItems.find(x => /208/.test(x.title));
+    assert.strictEqual(blocked.status, 'blocked', 'awaiting_approval → 异常/阻塞');
+    assert.strictEqual(blocked.ownerName, '供应链', '责任人取 ownerRole');
+    const dec = hubItems.find(x => /议价/.test(x.title));
+    assert.strictEqual(dec.priority, 'high', '需人工决策 → 高优先级');
+    assert(!hubItems.some(x => /自动执行/.test(x.title)), 'autopilot_result 不得当待办');
+  } finally {
+    server.close();
+    taskhub.reset();
+    if (prev.store === undefined) delete process.env.TASKHUB_STORE; else process.env.TASKHUB_STORE = prev.store;
+    if (prev.disabled === undefined) delete process.env.HUB_DISABLED; else process.env.HUB_DISABLED = prev.disabled;
+    if (prev.api === undefined) delete process.env.HUB_API; else process.env.HUB_API = prev.api;
+    if (prev.pwd === undefined) delete process.env.HUB_PASSWORD; else process.env.HUB_PASSWORD = prev.pwd;
+    if (prev.acc === undefined) delete process.env.HUB_ACCOUNT; else process.env.HUB_ACCOUNT = prev.acc;
+    delete require.cache[require.resolve('../../packages/taskhub')];
+    delete require.cache[require.resolve('../../adapters/hub')];
+    try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+  }
+});
+
+(async () => {
+  for (const [name, fn] of QUEUE) {
+    try { await fn(); passed++; console.log('  ✔ ' + name); }
+    catch (e) { failed++; console.error('  ✘ ' + name + '\n    ' + e.message); process.exitCode = 1; }
+  }
+  console.log('\n结果: ' + passed + ' 项通过' + (failed ? '，' + failed + ' 项失败' : ''));
+})();

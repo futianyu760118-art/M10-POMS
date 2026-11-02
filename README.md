@@ -136,12 +136,32 @@ M10 双端页面右上角可用 **PLM 账号登录**：BFF 调 PLM /api/auth/log
 
 门户新增入口 `/taskhub`（`packages/taskhub` + `configs/tasks-master.json`）：
 
-- **总库/分库**：各系统任务汇总到总库统一分发，分库保留业务属性——行政类归**会议中心**（`bizSys=meeting`），业务类归 **PLM**（订单/采购/生产/研发）。当前归集源：`MEETING` + `PLM2`（节点计划任务 + 待审工作表 + 立项审批）。
+- **总库/分库**：各系统任务汇总到总库统一分发，分库保留业务属性——行政类归**会议中心**（`bizSys=meeting`），业务类归 **PLM**（订单/采购/生产/研发），经营事项归 **Hub**（`bizSys=hub`）。当前归集源：`MEETING` + `PLM2`（节点计划任务 + 待审工作表 + 立项审批）+ `HUB`（经营事项/收件箱）。
+- **驾驶舱穿透**：KPI 卡片（状态/业务域）点击即筛选，条件以 chips 显示可单独移除；「按责任人分发」表格点行同样穿透。
+- **重复合并**：任务清单按标题归一判重，组头显示出现次数 `×N`、涉及责任人、状态分布、最早截止；点组头展开可看每一条（含责任人/期限/来源/项目），并保留单条分发。
+- **状态多选**：状态筛选为多选下拉（含全选/清空），可与驾驶人/域/来源/搜索叠加。
 - **只存引用**：条目只含 `source/sourceId/责任人/期限/状态/标题/快照时间`，业务事实仍回源系统；分发引用条目返回 409（M10 不双写）。
 - **本地短期库**：`configs/tasks-master.json` 是带 TTL(60min) 的快照，源系统故障时条目保留并标 `stale`，页面标注「快照」，不伪造成功。
 - **规则抽取 + 人工确认**：`POST /api/v1/tasks/extract` 按分隔符拆分子任务、识别期限/紧急度/业务域/责任人（人员字典），产物一律 `pending-review` 入候选池，标注 `engine: rule-based`（非大模型）；须授权验证人确认才入总库（done ≠ verified）。编码损坏的源文本明确跳过并回报原因。
 - **接口**：`GET /api/v1/tasks`（owner/domain/source/status/q 过滤 + 源健康度）、`POST /tasks/refresh`、`POST /tasks/extract`、`GET /tasks/candidates`、`POST /tasks/candidates/:id/confirm|reject`、`POST /tasks/:id/assign`（复核人角色服务端校验，非授权 403）。
-- **自查**：`node services/tools-node/_selfcheck-taskhub.js`（独立端口 + 临时库，26 项）。
+- **自查**：`node services/tools-node/_selfcheck-taskhub.js`（独立端口 + 临时库，29 项）。
+
+### Hub 接入（M11/M13 经营中心）
+
+`adapters/hub` 双模式，Hub 为运行态真相源，M10 只引用：
+
+```bash
+# 方式一：环境变量
+HUB_API=http://127.0.0.1:8787 HUB_ACCOUNT=admin HUB_PASSWORD=*** node -e "require('./adapters/hub').listTodos().then(t=>console.log(t.counts))"
+# 方式二：本地凭据文件（已 gitignore，不入库）
+# configs/hub.local.json = {"api":"http://127.0.0.1:8787","account":"admin","password":"***"}
+# 禁用/未连接：HUB_DISABLED=1
+```
+
+- 登录 `POST /api/auth/login {account,password}`（Cookie 会话，20 分钟复用，401 自动重登）→ 读 `GET /api/operating-center`。
+- 映射：`cases` → 待办（`awaiting_approval→异常`、`in_review→进行中`、`closed→已完成`，责任人取 `ownerRole`，期限 `dueAt`）；`inbox` → 工作消息（`decision_required` 为高优先级），**排除 `autopilot_result`**（自动执行结果不是待办）。
+- 未配置/不可达时 `listTodos()` 明确抛 503，总库该源标 `ok:false` 并保留旧快照，不产出假条目。
+- 契约测试覆盖：Hub 未连接不产假条目、mock Hub 的 cases/inbox 映射（`tests/contract/run.js`）。
 
 ### 会议中心全量接入
 

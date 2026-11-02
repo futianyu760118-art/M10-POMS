@@ -242,7 +242,7 @@ const server = http.createServer(async (req, res) => {
       });
       // 首次访问自动归集一次（本地短期库为空时），避免入口空白
       if (s.total === 0 && !s.updatedAt) {
-        try { taskhub.refresh({}); } catch (e) { /* 源不可用由 sources 健康度体现 */ }
+        try { await taskhub.refresh({}); } catch (e) { /* 源不可用由 sources 健康度体现 */ }
         s = taskhub.list({
           owner: q.owner, domain: q.domain, source: q.source, status: q.status,
           q: q.q, activeOnly: q.active === '1'
@@ -251,7 +251,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, s);
     }
     if (pathname === '/api/v1/tasks/refresh' && req.method === 'POST') {
-      return send(res, 200, taskhub.refresh({}));
+      return send(res, 200, await taskhub.refresh({}));
     }
     if (pathname === '/api/v1/tasks/extract' && req.method === 'POST') {
       const body = await readBody(req);

@@ -56,6 +56,39 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 .health .h{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:20px;padding:2px 10px;background:#fff}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
 .dot.bad{background:var(--red)}
+/* 多选下拉 */
+.ms{position:relative}
+.ms-btn{border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 10px;font-size:13px;cursor:pointer;min-width:118px;text-align:left}
+.ms-btn.on{border-color:var(--blue);color:#1d4ed8;background:#eff6ff}
+.ms-menu{position:absolute;top:calc(100% + 4px);left:0;min-width:190px;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px rgba(15,23,42,.12);padding:6px;display:none;z-index:30;max-height:280px;overflow:auto}
+.ms.open .ms-menu{display:block}
+.ms-item{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap}
+.ms-item:hover{background:#f5f8ff}
+.ms-item input{cursor:pointer}
+.ms-foot{display:flex;gap:6px;border-top:1px solid var(--line);margin-top:5px;padding-top:6px}
+/* KPI 穿透 */
+.kpi{cursor:pointer;transition:.15s;position:relative}
+.kpi:hover{border-color:#c7d2e0;box-shadow:0 2px 8px rgba(37,99,235,.08);transform:translateY(-1px)}
+.kpi.active{border-color:var(--blue);background:#f5f9ff;box-shadow:inset 0 0 0 1px var(--blue)}
+.kpi.active:after{content:"已穿透";position:absolute;right:8px;top:6px;font-size:10px;color:var(--blue)}
+.kpi .drill{position:absolute;right:8px;bottom:6px;font-size:10px;color:#9aa7b8}
+/* 筛选条件 chips */
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:5px;background:#eef4ff;border:1px solid #cfdffb;color:#1d4ed8;border-radius:20px;padding:1px 9px;font-size:12px}
+.chip b{font-weight:600}
+.chip i{cursor:pointer;font-style:normal;opacity:.7}
+.chip i:hover{opacity:1}
+/* 合并重复分组 */
+.grp{border:1px solid var(--line);border-radius:9px;margin-bottom:7px;background:#fff;overflow:hidden}
+.grp[open]{border-color:#cfdffb}
+.grp summary{list-style:none;cursor:pointer;padding:9px 11px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.grp summary::-webkit-details-marker{display:none}
+.grp summary:hover{background:#fafcff}
+.grp .cnt{border-radius:20px;background:#eef2ff;border:1px solid #d7dffb;color:#3730a3;font-size:11px;padding:1px 8px;white-space:nowrap}
+.grp .cnt.one{background:#f8fafc;border-color:var(--line);color:var(--muted)}
+.grp .title{flex:1;min-width:220px;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp .occ{border-top:1px solid #f1f4f8;background:#fcfdff}
+.grp .occ .item{padding:7px 11px}
 </style>
 </head>
 <body>
@@ -81,26 +114,23 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
       <select id="fOwner"><option value="">全部责任人</option></select>
       <select id="fDomain"><option value="">全部业务域</option></select>
       <select id="fSource"><option value="">全部来源</option></select>
-      <select id="fStatus">
-        <option value="">全部状态</option>
-        <option value="overdue">逾期</option>
-        <option value="pending">待办</option>
-        <option value="in_progress">进行中</option>
-        <option value="confirmed">已确认</option>
-        <option value="candidate">候选</option>
-        <option value="blocked">异常</option>
-        <option value="done">已完成</option>
-        <option value="cancelled">已取消</option>
-      </select>
-      <input id="fQ" placeholder="搜索任务 / 项目 / 责任人" style="flex:1;min-width:200px">
+      <div class="ms" id="msStatus">
+        <button type="button" class="ms-btn" id="msStatusBtn">全部状态</button>
+        <div class="ms-menu" id="msStatusMenu"></div>
+      </div>
+      <input id="fQ" placeholder="搜索任务 / 项目 / 责任人" style="flex:1;min-width:180px">
+      <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12px;white-space:nowrap">
+        <input type="checkbox" id="fGroup" checked> 合并重复
+      </label>
       <button class="btn small" id="btnClear">清空</button>
     </div>
+    <div class="chips" id="chips"></div>
   </div>
 
   <div class="cols">
     <div>
       <div class="panel">
-        <h2>任务清单 <span class="tag" id="listCount">0</span> <span class="muted" style="font-size:11px;font-weight:400">按截止日升序 · 迟到项标红</span></h2>
+        <h2>任务清单 <span class="tag" id="listCount">0</span> <span class="muted" style="font-size:11px;font-weight:400">点卡片穿透 · 点组头展开 · 可合并重复</span></h2>
         <div id="list"></div>
       </div>
     </div>
@@ -128,10 +158,10 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { data: null, cands: [], people: [], filters: { owner: '', domain: '', source: '', status: '', q: '' } };
+const state = { data: null, cands: [], people: [], group: true, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
 const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', confirmed: 'blue', candidate: 'gray', done: 'green', cancelled: 'gray' };
 const ST_TEXT = { overdue: '逾期', blocked: '异常', pending: '待办', in_progress: '进行中', confirmed: '已确认', candidate: '候选', done: '已完成', cancelled: '已取消' };
-const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green' };
+const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green', OPS: 'blue' };
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200); }
 async function api(path, method, body) {
@@ -146,29 +176,82 @@ function reviewer() { return ($('fReviewer').value || '').trim(); }
 function filtered() {
   const d = state.data; if (!d) return [];
   const f = state.filters;
+  const st = f.statuses || [];
   return d.items.filter(x =>
     (!f.owner || x.ownerName === f.owner) &&
     (!f.domain || x.bizDomain === f.domain) &&
     (!f.source || x.source === f.source) &&
-    (!f.status || x.status === f.status) &&
+    (!st.length || st.includes(x.status)) &&
     (!f.q || (x.title + (x.detail || '') + x.ownerName).toLowerCase().includes(f.q.toLowerCase()))
   );
 }
 
+// 重复合并键：标题归一（去空白/尾部标点/全角符号差异）
+function normTitle(t) {
+  return String(t || '')
+    .replace(/[\s\u3000]+/g, '')
+    .replace(/[（(]\s*[)）]/g, '')
+    .replace(/[·•\.。；;，,、:：!！\?？\-—_~～]+$/g, '')
+    .toLowerCase();
+}
+
+function groupRows(rows) {
+  const map = new Map();
+  rows.forEach(x => {
+    const k = normTitle(x.title) || ('#' + x.id);
+    if (!map.has(k)) map.set(k, { key: k, title: x.title, items: [] });
+    map.get(k).items.push(x);
+  });
+  return [...map.values()].map(g => {
+    const owners = [...new Set(g.items.map(i => i.ownerName || '未分配'))];
+    const st = {};
+    g.items.forEach(i => { st[i.status] = (st[i.status] || 0) + 1; });
+    const dues = g.items.map(i => i.due).filter(Boolean).sort();
+    const doms = {};
+    g.items.forEach(i => { doms[i.bizDomain] = (doms[i.bizDomain] || 0) + 1; });
+    const dom = Object.keys(doms).sort((a, b) => doms[b] - doms[a])[0];
+    return Object.assign(g, { count: g.items.length, owners, statusCounts: st, earliestDue: dues[0] || null, bizDomain: dom });
+  }).sort((a, b) => (b.count - a.count) || String(a.earliestDue || '9999').localeCompare(String(b.earliestDue || '9999')));
+}
+
 function renderKpis() {
   const d = state.data; const st = (d.counts && d.counts.byStatus) || {};
+  const f = state.filters;
   const cards = [
-    ['总任务', d.total, ''], ['逾期', st.overdue || 0, 'red'], ['待办', st.pending || 0, 'blue'],
-    ['进行中', st.in_progress || 0, 'orange'], ['异常', st.blocked || 0, 'red'], ['已完成', st.done || 0, 'green']
+    ['总任务', d.total, '', 'all'],
+    ['逾期', st.overdue || 0, 'red', 'overdue'], ['待办', st.pending || 0, 'blue', 'pending'],
+    ['进行中', st.in_progress || 0, 'orange', 'in_progress'], ['异常', st.blocked || 0, 'red', 'blocked'],
+    ['已完成', st.done || 0, 'green', 'done']
   ];
-  if (st.confirmed) cards.push(['已确认', st.confirmed, 'blue']);
-  if (st.candidate) cards.push(['候选', st.candidate, 'gray']);
-  $('kpis').innerHTML = cards.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
+  if (st.confirmed) cards.push(['已确认', st.confirmed, 'blue', 'confirmed']);
+  if (st.candidate) cards.push(['候选', st.candidate, 'gray', 'candidate']);
+  if (st.cancelled) cards.push(['已取消', st.cancelled, 'gray', 'cancelled']);
   const doms = (d.counts && d.counts.byDomain) || {};
-  $('kpis').innerHTML += Object.keys(doms).map(k => {
+  const domCards = Object.keys(doms).map(k => {
     const dd = (d.domains || []).find(x => x.code === k) || {};
-    return `<div class="kpi"><b>${doms[k]}</b><span>${esc(dd.label || k)} · ${esc(dd.bizSysLabel || '')}</span></div>`;
+    return [esc(dd.label || k) + ' · ' + esc(dd.bizSysLabel || ''), doms[k], 'domain', k];
+  });
+  const html = cards.map(([l, v, , key]) => {
+    const on = key === 'all' ? (!f.owner && !f.domain && !f.source && !(f.statuses || []).length && !f.q) : (key && ((f.statuses || []).length === 1 && f.statuses[0] === key));
+    return `<div class="kpi ${on ? 'active' : ''}" onclick="drill('status','${key}')" title="点击穿透到该状态的任务"><b>${v}</b><span>${l}</span><em class="drill">▸</em></div>`;
+  }).join('') + domCards.map(([l, v, , key]) => {
+    const on = f.domain === key;
+    return `<div class="kpi ${on ? 'active' : ''}" onclick="drill('domain','${key}')" title="点击穿透到该业务域"><b>${v}</b><span>${l}</span><em class="drill">▸</em></div>`;
   }).join('');
+  $('kpis').innerHTML = html;
+}
+
+function renderChips() {
+  const f = state.filters; const parts = [];
+  if (f.owner) parts.push(`<span class="chip">责任人 <b>${esc(f.owner)}</b><i onclick="clearFilter('owner')">✕</i></span>`);
+  if (f.domain) {
+    const dd = ((state.data && state.data.domains) || []).find(x => x.code === f.domain) || {};
+    parts.push(`<span class="chip">业务域 <b>${esc(dd.label || f.domain)}</b><i onclick="clearFilter('domain')">✕</i></span>`);
+  }
+  if (f.source) parts.push(`<span class="chip">来源 <b>${esc(f.source)}</b><i onclick="clearFilter('source')">✕</i></span>`);
+  (f.statuses || []).forEach(s => parts.push(`<span class="chip">状态 <b>${esc(ST_TEXT[s] || s)}</b><i onclick="toggleStatus('${s}', true)">✕</i></span>`));
+  if (f.q) parts.push(`<span class="chip">搜索 <b>${esc(f.q)}</b><i onclick="clearFilter('q')">✕</i></span>`);
+  $('chips').innerHTML = parts.length ? `<span class="muted" style="font-size:11px">穿透条件：</span>${parts.join('')}<span class="chip" style="background:#fff;border-color:var(--line);color:var(--muted)" onclick="resetFilters()">清空全部 ✕</span>` : '<span class="muted" style="font-size:11px">点击上方驾驶舱卡片可穿透筛选；支持多选状态</span>';
 }
 
 function renderHealth() {
@@ -182,11 +265,10 @@ function renderHealth() {
 function renderList() {
   const rows = filtered();
   const CAP = 200;
-  const shown = rows.slice(0, CAP);
   $('listCount').textContent = rows.length;
   if (!rows.length) { $('list').innerHTML = '<div class="empty">无匹配任务</div>'; return; }
-  const more = rows.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${rows.length} 条，请用上方筛选或搜索缩小范围</div>` : '';
-  $('list').innerHTML = shown.map(x => `
+
+  const rowHtml = (x) => `
     <div class="item">
       <span class="tag ${ST_TAG[x.status] || 'gray'}" style="width:52px;text-align:center">${ST_TEXT[x.status] || x.status}</span>
       <span class="tag ${DOM_TAG[x.bizDomain] || 'gray'}" title="业务域 → 分库系统">${esc(x.bizDomainLabel)}</span>
@@ -197,7 +279,32 @@ function renderList() {
       ${x.stale ? '<span class="tag orange" title="源系统不可用，显示本地短期快照">快照</span>' : ''}
       <span class="muted" style="font-size:12px;width:84px;text-align:right">${esc(x.due || '—')}</span>
       <button class="btn small" onclick="assignTask('${x.id}')">分发</button>
-    </div>`).join('') + more;
+    </div>`;
+
+  if (state.group) {
+    const groups = groupRows(rows);
+    const shown = groups.slice(0, CAP);
+    const more = groups.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${groups.length} 组，请用筛选或搜索缩小范围</div>` : '';
+    const head = `<div class="muted" style="font-size:11px;margin:2px 0 8px">${rows.length} 条 → 合并为 <b>${groups.length}</b> 组（按标题判重），点组头展开看每一条</div>`;
+    $('list').innerHTML = head + shown.map(g => {
+      const chips = Object.keys(g.statusCounts).map(s => `<span class="tag ${ST_TAG[s] || 'gray'}">${ST_TEXT[s] || s}${g.statusCounts[s]}</span>`).join('');
+      const who = g.owners.length > 3 ? g.owners.slice(0, 3).join('、') + ' 等 ' + g.owners.length + ' 人' : g.owners.join('、');
+      return `<details class="grp">
+        <summary>
+          <span class="cnt ${g.count === 1 ? 'one' : ''}" title="出现次数">×${g.count}</span>
+          <span class="tag ${DOM_TAG[g.bizDomain] || 'gray'}">${esc((((state.data.domains || []).find(d => d.code === g.bizDomain)) || {}).label || g.bizDomain || '')}</span>
+          <span class="title" title="${esc(g.title)}">${esc(g.title)}</span>
+          ${chips}
+          <span class="muted" style="font-size:11px">${esc(who)}${g.earliestDue ? ' · 最早 ' + esc(g.earliestDue) : ''}</span>
+        </summary>
+        <div class="occ">${g.items.map(rowHtml).join('')}</div>
+      </details>`;
+    }).join('') + more;
+  } else {
+    const shown = rows.slice(0, CAP);
+    const more = rows.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${rows.length} 条，请用筛选或搜索缩小范围</div>` : '';
+    $('list').innerHTML = shown.map(rowHtml).join('') + more;
+  }
 }
 
 function renderOwners() {
@@ -234,12 +341,66 @@ function renderFilters() {
   $('fDomain').innerHTML = '<option value="">全部业务域</option>' + (d.domains || []).map(x => `<option value="${x.code}" ${state.filters.domain === x.code ? 'selected' : ''}>${esc(x.label)} → ${esc(x.bizSysLabel)}</option>`).join('');
   const srcs = [...new Set((d.items || []).map(x => x.source))];
   $('fSource').innerHTML = '<option value="">全部来源</option>' + srcs.map(s => `<option ${state.filters.source === s ? 'selected' : ''}>${esc(s)}</option>`).join('');
+  renderStatusMenu();
+}
+
+function renderStatusMenu() {
+  const d = state.data; if (!d) return;
+  const counts = (d.counts && d.counts.byStatus) || {};
+  const order = ['overdue', 'pending', 'in_progress', 'confirmed', 'candidate', 'blocked', 'done', 'cancelled'];
+  const keys = order.filter(k => counts[k]);
+  Object.keys(counts).forEach(k => { if (!keys.includes(k)) keys.push(k); });
+  const sel = state.filters.statuses || [];
+  $('msStatusMenu').innerHTML = keys.map(k => `
+      <label class="ms-item"><input type="checkbox" value="${k}" ${sel.includes(k) ? 'checked' : ''} onchange="toggleStatus('${k}')">
+        <span class="tag ${ST_TAG[k] || 'gray'}">${ST_TEXT[k] || k}</span><span class="muted">${counts[k]}</span></label>`).join('') +
+    `<div class="ms-foot"><button class="btn small" onclick="toggleStatus('__all__')">全选</button><button class="btn small" onclick="toggleStatus('__none__')">清空</button></div>`;
+  const btn = $('msStatusBtn');
+  btn.textContent = sel.length ? '状态 ' + sel.length + ' 项' : '全部状态';
+  btn.classList.toggle('on', sel.length > 0);
 }
 
 function renderAll() {
   const d = state.data;
   $('upd').textContent = d && d.updatedAt ? '归集于 ' + d.updatedAt.slice(0, 16).replace('T', ' ') : '未归集';
-  renderHealth(); renderKpis(); renderList(); renderOwners(); renderCands();
+  renderHealth(); renderKpis(); renderChips(); renderList(); renderOwners(); renderCands();
+}
+
+// 驾驶舱穿透
+window.drill = (dim, key) => {
+  const f = state.filters;
+  if (dim === 'status') {
+    if (key === 'all') { f.statuses = []; f.owner = ''; f.domain = ''; f.source = ''; f.q = ''; }
+    else f.statuses = (f.statuses.length === 1 && f.statuses[0] === key) ? [] : [key];
+  } else if (dim === 'domain') {
+    f.domain = f.domain === key ? '' : key;
+  }
+  syncControls(); renderFilters(); renderAll();
+};
+window.toggleStatus = (key, forceRemove) => {
+  const f = state.filters;
+  const counts = (state.data && state.data.counts && state.data.counts.byStatus) || {};
+  if (key === '__all__') f.statuses = Object.keys(counts);
+  else if (key === '__none__') f.statuses = [];
+  else if (forceRemove) f.statuses = f.statuses.filter(s => s !== key);
+  else f.statuses = f.statuses.includes(key) ? f.statuses.filter(s => s !== key) : f.statuses.concat(key);
+  renderStatusMenu(); renderAll();
+};
+window.clearFilter = (k) => {
+  const f = state.filters;
+  if (k === 'statuses') f.statuses = []; else f[k] = '';
+  syncControls(); renderFilters(); renderAll();
+};
+window.resetFilters = () => {
+  state.filters = { owner: '', domain: '', source: '', statuses: [], q: '' };
+  syncControls(); renderFilters(); renderAll();
+};
+function syncControls() {
+  const f = state.filters;
+  $('fOwner').value = f.owner || '';
+  $('fDomain').value = f.domain || '';
+  $('fSource').value = f.source || '';
+  $('fQ').value = f.q || '';
 }
 
 async function load() {
@@ -324,19 +485,20 @@ $('btnExtractText').onclick = async () => {
     await loadCands(); renderCands();
   } catch (e) { toast('拆分失败：' + e.message); } finally { b.disabled = false; }
 };
-['fOwner', 'fDomain', 'fSource', 'fStatus', 'fQ'].forEach(id => {
+['fOwner', 'fDomain', 'fSource', 'fQ'].forEach(id => {
   $(id).addEventListener('input', () => {
-    state.filters.owner = $('fOwner').value; state.filters.domain = $('fDomain').value;
-    state.filters.source = $('fSource').value; state.filters.status = $('fStatus').value;
-    state.filters.q = $('fQ').value;
-    renderList(); renderOwners();
+    const f = state.filters;
+    f.owner = $('fOwner').value; f.domain = $('fDomain').value;
+    f.source = $('fSource').value; f.q = $('fQ').value;
+    renderAll();
   });
 });
-$('btnClear').onclick = () => {
-  state.filters = { owner: '', domain: '', source: '', status: '', q: '' };
-  $('fOwner').value = ''; $('fDomain').value = ''; $('fSource').value = ''; $('fStatus').value = ''; $('fQ').value = '';
-  renderList(); renderOwners();
-};
+$('fGroup').addEventListener('change', () => { state.group = $('fGroup').checked; renderList(); });
+$('msStatusBtn').onclick = (e) => { e.stopPropagation(); $('msStatus').classList.toggle('open'); };
+document.addEventListener('click', (e) => {
+  if (!$('msStatus').contains(e.target)) $('msStatus').classList.remove('open');
+});
+$('btnClear').onclick = () => resetFilters();
 loadPeople();
 load().catch(e => { toast('加载失败：' + e.message); });
 </script>
