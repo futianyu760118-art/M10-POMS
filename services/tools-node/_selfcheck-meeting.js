@@ -17,6 +17,13 @@ function get(p) { return new Promise(r => http.get({ host: '127.0.0.1', port: 41
 
   const pg = (await get('/plm2')).b;
   ['meetingRowHtml', 'meetingDetail', 'meetingBanner', '会议助手待办已并入'].forEach(k => ck('页面含：' + k, pg.includes(k)));
+  const g = pg.match(/const TODO_GROUPS = \[([^\]]+)\]/);
+  const groups = g ? g[1].split(',').map(s => s.trim().replace(/'/g, '')) : [];
+  ck('分组含「异常」（虞周峰会议待办分类）', groups.includes('异常'), groups.join('/'));
+
+  const yuT = JSON.parse((await get('/api/v1/plm2/me/todos?user=' + yu.id)).b);
+  const yuCats = yuT.meeting.items.map(i => i.category);
+  ck('虞周峰会议待办分类均能在分组中落地', yuCats.every(c => groups.includes(c)), yuCats.join(','));
 
   console.log('\n会议助手待办接入自查: ' + pass + ' 通过, ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

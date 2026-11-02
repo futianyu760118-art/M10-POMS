@@ -1235,7 +1235,7 @@ async function prjStatus(no, status){
 
 /* ---- 我的待办（复刻 Multica My Issues：范围 + 视图 + 分组 + 行开抽屉编辑） ---- */
 const TODO_NODE_ST = { DONE:['green','已完成'], IN_PROGRESS:['orange','进行中'], PLANNED:['blue','已计划'], PENDING:['gray','待定'], FAILED:['red','未完成'], NOT_SET:['gray','未设置'], NONE:['gray','无节点'] };
-const TODO_GROUPS = ['逾期','待办','已完成','无节点'];
+const TODO_GROUPS = ['逾期','待办','异常','已完成','无节点'];
 function seg(id, opts, cur, cb){ return `<div class="row" style="gap:4px">${opts.map(o=>`<button class="btn small ${cur===o.v?'primary':''}" onclick="${cb}('${o.v}')">${o.l}</button>`).join('')}</div>`; }
 function setTodoScope(v){ state.todoScope = v; renderTodosView(); }
 function setTodoView(v){ state.todoView = v; renderTodosView(); }
@@ -1287,7 +1287,7 @@ function renderTodosView(){
         <div class="todo-col">${g.items.map(rowHtml).join('')||'<div class="muted" style="font-size:11px;padding:8px 0">空</div>'}</div></div>`).join('')}</div>`;
   } else if(view==='table'){
     body = `<div class="panel"><table><thead><tr><th>分类</th><th>截止</th><th>来源</th><th>事项</th><th>状态</th></tr></thead><tbody>
-      ${rows.map(r=>{ const [c,l]=TODO_NODE_ST[r.status]||['gray',r.status]; return `<tr style="cursor:pointer" onclick="editNode('${r.projectNo}','${r.nodeCode}')"><td><span class="tag ${r.cat==='逾期'?'red':r.cat==='已完成'?'green':r.cat==='无节点'?'gray':'blue'}">${r.cat}</span></td><td>${esc(r.planDate||'—')}</td><td>PLM</td><td>${esc(r.projectNo)} · ${esc(r.nodeName)}</td><td><span class="tag ${c}">${l}</span></td></tr>`; }).join('')}
+      ${rows.map(r=>{ const [c,l]=TODO_NODE_ST[r.status]||['gray',r.status]; return `<tr style="cursor:pointer" onclick="editNode('${r.projectNo}','${r.nodeCode}')"><td><span class="tag ${r.cat==='逾期'?'red':r.cat==='异常'?'red':r.cat==='已完成'?'green':r.cat==='无节点'?'gray':'blue'}">${r.cat}</span></td><td>${esc(r.planDate||'—')}</td><td>PLM</td><td>${esc(r.projectNo)} · ${esc(r.nodeName)}</td><td><span class="tag ${c}">${l}</span></td></tr>`; }).join('')}
       ${mt.map(m=>`<tr style="cursor:pointer" onclick="meetingDetail('${m.id}')"><td><span class="tag ${m.category==='已完成'?'green':m.category==='逾期'||m.category==='异常'?'red':'blue'}">${m.category}</span></td><td>${esc(m.due||'—')}</td><td><span class="tag blue">会议</span></td><td>${esc(m.title)}</td><td>${esc(m.status)}</td></tr>`).join('')}
     </tbody></table></div>`;
   } else {
