@@ -32,6 +32,9 @@ const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
   ck('手机端支持摄像头扫码（无摄像头时降级手输）', m.b.includes('btnScan') && m.b.includes('BarcodeDetector') && m.b.includes('打不开摄像头'));
   ck('手机端支持拍照留证并随采集提交', m.b.includes('photoInput') && m.b.includes("capture=\"environment\"") && m.b.includes('evidence: state.photo'));
   ck('首页卡片按岗位定制（顺序可配）', m.b.includes('function quickCardsFor') && m.b.includes('function renderQuick') && m.b.includes("cap:IQC") && m.b.includes("tab:approval"));
+  ck('账号与待办一致（不再默认显示别人的待办）', !m.b.includes("p.name === '包跃'") && m.b.includes('没有对应记录'));
+  ck('料号可选且支持模糊查找', m.b.includes('matSugg') && m.b.includes('function fuzzyFind') && m.b.includes('btnListMat'));
+  ck('我的待办有分类且可直接处理', m.b.includes('TODO_CATS') && m.b.includes('todoCats') && m.b.includes('window.todoAct'));
   const portal = await req('/portal');
   ck('门户含统一登录与手机端入口', portal.b.includes('href="/login"') && portal.b.includes('href="/m"'));
 
@@ -56,6 +59,14 @@ const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
   ck('工程岗位不能做 IQC（按岗位限制）', !eng.some(t => t.code === 'IQC') && eng.length > 0, eng.map(t => t.code).join(','));
   const mats = j(await req('/api/v1/plm2/materials?role=QUALITY')).materials || [];
   ck('真实物料可扫码匹配', mats.length > 0, '物料 ' + mats.length + ' 条');
+  // 模糊查找：截取料号一部分应能命中
+  if (mats.length) {
+    const key = String(mats[0].partNo).slice(0, 6);
+    const fuzzy = j(await req('/api/v1/plm2/materials?role=QUALITY&q=' + encodeURIComponent(key)));
+    ck('料号支持模糊查找', (fuzzy.materials || []).length > 0 && fuzzy.matched === fuzzy.materials.length, '关键字 ' + key + ' 命中 ' + fuzzy.matched + ' 条');
+    const byName = j(await req('/api/v1/plm2/materials?role=QUALITY&q=' + encodeURIComponent(String(mats[0].name).slice(0, 2))));
+    ck('料号可按名称模糊查找', (byName.materials || []).length >= 1, '命中 ' + byName.matched + ' 条');
+  }
 
   // 真实提交一条采集（写入 M10 本地采集记录，操作人用「自检机器人」，不污染真人列表）
   if (mats.length) {

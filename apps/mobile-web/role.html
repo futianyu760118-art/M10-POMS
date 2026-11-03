@@ -72,6 +72,17 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
 .scan .btn{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
 .photoPrev{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--muted)}
 .photoPrev img{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+/* 分类按钮 */
+.chipbtn{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 11px;font:inherit;font-size:12px;color:var(--muted);cursor:pointer}
+.chipbtn.on{background:#eef5fd;border-color:#9cc2ea;color:#1d4ed8;font-weight:600}
+/* 料号建议 */
+.suggwrap{position:relative}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 20px rgba(15,39,68,.12);z-index:25;max-height:230px;overflow:auto;display:none}
+.sugg.on{display:block}
+.sugg div{padding:9px 11px;font-size:13px;border-bottom:1px solid #f2f6fb;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+.sugg div:last-child{border-bottom:0}
+.sugg div:hover{background:#f5f9ff}
+.sugg small{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:52%}
 </style>
 </head>
 <body>
@@ -99,6 +110,7 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
     <div class="card">
       <h2>我的待办 <span class="tag" id="todoTag">—</span></h2>
       <div class="quick" id="quickCards"></div>
+      <div class="chips" id="todoCats" style="margin-bottom:8px"></div>
       <div class="kpis" id="todoKpis"></div>
       <div id="todoList"><div class="empty">加载中…</div></div>
     </div>
@@ -108,11 +120,15 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
     <div class="card">
       <h2>品质检验 / 采集 <span class="tag" id="capRoleTag">—</span></h2>
       <div class="notice" id="capNotice">扫码或输入料号后，系统会按岗位允许的类型显示可填写的检验项；提交后进入待审核，不能自己验收。</div>
-      <label class="f">料号（扫码或手输）</label>
-      <input id="partNo" placeholder="例如 HJ202607230001">
+      <label class="f">料号（可输关键字模糊查、也可从列表选）</label>
+      <div class="suggwrap">
+        <input id="partNo" placeholder="输入料号或名称的一部分，例如 HJ2026 或 灯" autocomplete="off">
+        <div class="sugg" id="matSugg"></div>
+      </div>
       <div class="row" style="margin-top:8px">
         <button class="btn small" id="btnScan">扫一扫</button>
         <button class="btn small" id="btnFindMat">查料号</button>
+        <button class="btn small" id="btnListMat">从列表选</button>
         <span class="muted" id="matInfo" style="font-size:12px"></span>
       </div>
       <label class="f">采集类型</label>
@@ -185,7 +201,7 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { tab: 'todos', sso: null, people: [], person: null, company: '', dept: '', position: '', asm: null, demoRole: 'VIEWER', todos: null, caps: [], capTypes: [], capFields: [], mat: null, photo: null, approvals: [] };
+const state = { tab: 'todos', sso: null, people: [], person: null, company: '', dept: '', position: '', asm: null, demoRole: 'VIEWER', todos: null, caps: [], capTypes: [], capFields: [], mat: null, photo: null, approvals: [], materials: [], todoRows: [], todoCat: 'all', plmMap: {} };
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => { t.className = 'toast'; }, 2600); }
 async function api(path, method, body) {
@@ -271,43 +287,115 @@ function renderMine() {
 }
 
 /* ---------- 待办 ---------- */
+const TODO_CATS = [['all', '全部'], ['overdue', '已超期'], ['open', '待处理'], ['meeting', '会议'], ['hub', '总表'], ['done', '已完成']];
+function catCount(rows, cat) { return cat === 'all' ? rows.length : rows.filter(r => r.cat === cat).length; }
+
 async function loadTodos() {
-  if (!state.person) { $('todoList').innerHTML = '<div class="empty">登录后可看到你自己的待办</div>'; $('todoTag').textContent = '未登录'; $('todoKpis').innerHTML = ''; return; }
+  if (!state.person) {
+    $('todoTag').textContent = '未登录';
+    $('todoKpis').innerHTML = '';
+    $('todoList').innerHTML = state.sso && state.sso.loggedIn
+      ? '<div class="empty">当前账号在待办人员里没有对应记录，请联系管理员开通后再看自己的待办。</div>'
+      : '<div class="empty">请先到「统一登录」登录，才能看到你自己的待办。</div>';
+    renderQuick();
+    return;
+  }
   $('todoList').innerHTML = '<div class="empty">加载中…</div>';
   try {
     const t = await api('/api/v1/plm2/me/todos?user=' + state.person.id);
     state.todos = t;
     const m = t.meeting || { items: [], counts: {} };
     const th = (t.taskhub && t.taskhub.items) || [];
-    const plmOpen = (t.overdueCount || 0) + (t.todoCount || 0);
-    $('todoTag').textContent = state.person.name;
+
+    // 拿总表里的 PLM 条目，用于把「PLM 待办」直接改成处理中/已完成（写透 PLM）
+    const plmMap = {};
+    try {
+      const q = await api('/api/v1/tasks?owner=' + encodeURIComponent(state.person.name) + '&source=PLM2');
+      (q.items || []).forEach(x => {
+        const r = x.refs || {};
+        if (r.projectNo && r.nodeCode) plmMap[r.projectNo + '|' + r.nodeCode] = x;
+      });
+    } catch (e) { /* 总表不可用时仍可查看 PLM 待办 */ }
+    state.plmMap = plmMap;
+
+    const rows = [];
+    (t.overdue || []).forEach(r => rows.push({ kind: 'plm', cat: 'overdue', r }));
+    (t.todo || []).forEach(r => rows.push({ kind: 'plm', cat: 'open', r }));
+    (t.done || []).slice(0, 30).forEach(r => rows.push({ kind: 'plm', cat: 'done', r }));
+    (m.items || []).forEach(x => rows.push({ kind: 'meeting', cat: x.category === '已完成' ? 'done' : 'meeting', x }));
+    th.forEach(x => rows.push({ kind: 'hub', cat: x.status === 'done' ? 'done' : 'hub', x }));
+    state.todoRows = rows;
+
+    const openCount = rows.filter(r => r.cat === 'overdue' || r.cat === 'open').length;
+    $('todoTag').textContent = state.person.name + (state.person.dept ? ' · ' + state.person.dept : '');
     $('todoKpis').innerHTML = [
-      ['PLM 待办', plmOpen], ['会议待办', (m.items || []).length], ['总表分派', th.length], ['已完成(会议)', (m.counts && m.counts.done) || 0]
+      ['待处理', openCount], ['会议', (m.items || []).length], ['总表分派', th.filter(x => x.status !== 'done').length], ['已完成', rows.filter(r => r.cat === 'done').length]
     ].map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
 
-    const sec = [];
-    if (m.connected === false && m.error) sec.push(`<div class="notice">会议待办暂时读不到：${esc(m.error)}</div>`);
-    sec.push(`<div class="sec-title">总表分给你的（可在这里处理）</div>`);
-    sec.push(th.length ? th.map(x => `<div class="item"><span class="tag ${x.status === 'done' ? 'ok' : (x.status === 'overdue' ? 'bad' : 'blue')}">${esc(x.statusText || x.status)}</span>
-      <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · ${esc(x.bizDomainLabel || '')}</small></div>
-      ${x.status !== 'done' ? `<button class="btn small" onclick="finishTaskhub('${x.id}')">完成</button>` : ''}</div>`).join('') : '<div class="empty">暂时没有</div>');
-    sec.push(`<div class="sec-title">会议待办（只读）</div>`);
-    sec.push((m.items || []).length ? m.items.slice(0, 10).map(x => `<div class="item"><span class="tag ${x.category === '已完成' ? 'ok' : (x.category === '逾期' || x.category === '异常' ? 'bad' : 'blue')}">${esc(x.category)}</span>
-      <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · 来自会议助手</small></div></div>`).join('') : '<div class="empty">暂无</div>');
-    sec.push(`<div class="sec-title">PLM 研发待办（去 PLM 处理）</div>`);
-    const plmRows = [...(t.overdue || []).map(r => ({ ...r, _cat: '已超期' })), ...(t.todo || []).slice(0, 10).map(r => ({ ...r, _cat: '待办' }))];
-    sec.push(plmRows.length ? plmRows.slice(0, 12).map(r => `<div class="item"><span class="tag ${r._cat === '已超期' ? 'bad' : 'blue'}">${r._cat}</span>
-      <div class="body"><b>${esc(r.nodeName)}</b><small>${esc(r.projectNo)} · 计划 ${esc(r.planDate || '未排期')}</small></div></div>`).join('') : '<div class="empty">暂无</div>');
-    $('todoList').innerHTML = sec.join('');
+    renderTodoCatBar();
+    renderTodoList();
     renderQuick();
   } catch (e) {
     $('todoList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`;
   }
 }
-window.finishTaskhub = async (id) => {
+
+function renderTodoCatBar() {
+  const rows = state.todoRows || [];
+  const cur = state.todoCat || 'all';
+  $('todoCats').innerHTML = TODO_CATS.map(([k, l]) => {
+    const n = catCount(rows, k);
+    return `<button class="chipbtn ${cur === k ? 'on' : ''}" onclick="setTodoCat('${k}')">${l}${n ? ' ' + n : ''}</button>`;
+  }).join('');
+}
+window.setTodoCat = (k) => { state.todoCat = k; renderTodoCatBar(); renderTodoList(); };
+
+function rowActions(r) {
+  if (r.kind === 'plm') {
+    const key = r.r.projectNo + '|' + r.r.nodeCode;
+    const item = (state.plmMap || {})[key];
+    if (!item) return `<a class="btn small" href="/plm2">去处理</a>`;
+    if (item.status === 'done') return '<span class="tag ok">已完成</span>';
+    return `<button class="btn small" onclick="todoAct('${item.id}','in_progress')">开始</button>
+      <button class="btn small primary" onclick="todoAct('${item.id}','done')">完成</button>`;
+  }
+  if (r.kind === 'hub') return `<button class="btn small primary" onclick="todoAct('${r.x.id}','done')">完成</button>`;
+  return '<span class="tag">到会议助手处理</span>';
+}
+
+function renderTodoList() {
+  const rows = state.todoRows || [];
+  const cat = state.todoCat || 'all';
+  const list = rows.filter(r => cat === 'all' ? true : r.cat === cat);
+  if (!list.length) { $('todoList').innerHTML = '<div class="empty">这个分类下暂时没有待办</div>'; return; }
+  $('todoList').innerHTML = list.slice(0, 60).map(r => {
+    if (r.kind === 'plm') {
+      const r0 = r.r;
+      const catTag = r.cat === 'overdue' ? 'bad' : (r.cat === 'done' ? 'ok' : 'blue');
+      return `<div class="item"><span class="tag ${catTag}">${r.cat === 'overdue' ? '已超期' : (r.cat === 'done' ? '已完成' : '待处理')}</span>
+        <div class="body"><b>${esc(r0.nodeName)}</b><small>${esc(r0.projectNo)} · 计划 ${esc(r0.planDate || '未排期')}</small></div>
+        ${rowActions(r)}</div>`;
+    }
+    if (r.kind === 'meeting') {
+      const x = r.x;
+      return `<div class="item"><span class="tag ${r.cat === 'done' ? 'ok' : (x.category === '逾期' || x.category === '异常' ? 'bad' : 'blue')}">${esc(x.category)}</span>
+        <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · 来自会议助手</small></div>
+        ${rowActions(r)}</div>`;
+    }
+    const x = r.x;
+    return `<div class="item"><span class="tag ${x.status === 'done' ? 'ok' : (x.status === 'overdue' ? 'bad' : 'blue')}">${esc(x.statusText || x.status)}</span>
+      <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · ${esc(x.bizDomainLabel || '')} · 待办总表</small></div>
+      ${x.status === 'done' ? '<span class="tag ok">已完成</span>' : rowActions(r)}</div>`;
+  }).join('') + (list.length > 60 ? '<div class="empty">已显示前 60 条，可用上面的分类缩小范围</div>' : '');
+}
+
+window.todoAct = async (id, status) => {
   if (!state.person) return toast('请先登录');
-  try { await api('/api/v1/tasks/' + encodeURIComponent(id) + '/progress', 'POST', { status: 'done', actor: state.person.name }); toast('已完成，已同步回总表'); loadTodos(); }
-  catch (e) { toast('操作失败：' + e.message); }
+  try {
+    await api('/api/v1/tasks/' + encodeURIComponent(id) + '/progress', 'POST', { status, actor: state.person.name });
+    toast(status === 'done' ? '已完成，已同步回原系统' : '已开始处理');
+    loadTodos();
+  } catch (e) { toast('操作失败：' + e.message); }
 };
 
 /* ---------- 采集 / 品质检验 ---------- */
@@ -341,15 +429,68 @@ async function loadCaps() {
       <div class="body"><b>${esc(c.captureTypeName || c.captureType)}</b><small>${esc(c.partNo)} · ${esc(c.materialName || '')}</small></div></div>`).join('') || '<div class="empty">暂无</div>';
   } catch (e) { $('capList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
 }
-$('btnFindMat').onclick = async () => {
-  const partNo = $('partNo').value.trim(); if (!partNo) return toast('请先输入料号');
-  try {
-    const d = await api('/api/v1/plm2/materials?role=' + encodeURIComponent(state.demoRole));
-    const m = (d.materials || []).find(x => x.partNo === partNo);
-    state.mat = m || null;
-    $('matInfo').textContent = m ? (m.name + ' · ' + (m.statusLabel || m.status || '')) : '没找到这个料号，请核对（扫码错配会被拒绝）';
-  } catch (e) { toast('查料号失败：' + e.message); }
+/* ---------- 料号：可选 + 模糊查找 ---------- */
+function matMatch(m, k) {
+  const s = (String(m.partNo || '') + ' ' + String(m.name || '')).toLowerCase();
+  return s.includes(k);
+}
+async function ensureMaterials() {
+  if (state.materials && state.materials.length) return state.materials;
+  const d = await api('/api/v1/plm2/materials?role=' + encodeURIComponent(state.demoRole));
+  state.materials = d.materials || [];
+  return state.materials;
+}
+function renderMatSugg(list, tipWhenEmpty) {
+  const box = $('matSugg');
+  if (!list.length) {
+    box.innerHTML = `<div style="color:#7186a0">${esc(tipWhenEmpty || '没找到匹配的料号')}</div>`;
+    box.classList.add('on');
+    return;
+  }
+  box.innerHTML = list.slice(0, 8).map(m => `<div onclick="pickMat('${esc(m.partNo)}')"><span>${esc(m.partNo)}</span><small>${esc(m.name || '')}</small></div>`).join('');
+  box.classList.add('on');
+}
+window.pickMat = (partNo) => {
+  $('partNo').value = partNo;
+  $('matSugg').classList.remove('on');
+  $('btnFindMat').click();
 };
+async function fuzzyFind() {
+  const k = $('partNo').value.trim().toLowerCase();
+  const list = await ensureMaterials();
+  if (!k) { renderMatSugg(list, '还没有料号，先从列表选一个'); return null; }
+  const hits = list.filter(m => matMatch(m, k));
+  if (!hits.length) { state.mat = null; $('matInfo').textContent = '没找到匹配的料号，换个关键字试试'; renderMatSugg([], '没找到匹配的料号'); return null; }
+  state.mat = hits[0];
+  $('matInfo').textContent = hits[0].name + ' · ' + (hits[0].statusLabel || hits[0].status || '');
+  if (hits.length > 1) renderMatSugg(hits, '');
+  else $('matSugg').classList.remove('on');
+  return hits[0];
+}
+$('btnFindMat').onclick = async () => {
+  if (!$('partNo').value.trim()) return toast('请先输入料号或关键字');
+  try { const m = await fuzzyFind(); if (!m) toast('没有匹配的料号'); }
+  catch (e) { toast('查料号失败：' + e.message); }
+};
+$('btnListMat').onclick = async () => {
+  try { const list = await ensureMaterials(); renderMatSugg(list.slice(0, 30), '暂无物料'); }
+  catch (e) { toast('读取物料失败：' + e.message); }
+};
+$('partNo').addEventListener('input', async () => {
+  const k = $('partNo').value.trim().toLowerCase();
+  $('matSugg').classList.remove('on');
+  if (k.length < 1) return;
+  try {
+    const list = await ensureMaterials();
+    renderMatSugg(list.filter(m => matMatch(m, k)), '没找到匹配的料号');
+  } catch (e) { /* 输入过程中失败忽略 */ }
+});
+$('partNo').addEventListener('focus', async () => {
+  try { const list = await ensureMaterials(); if ($('partNo').value.trim()) return; renderMatSugg(list.slice(0, 8), '暂无物料'); } catch (e) { /* ignore */ }
+});
+document.addEventListener('click', (e) => {
+  if (!$('matSugg').contains(e.target) && e.target.id !== 'partNo' && e.target.id !== 'btnListMat' && e.target.id !== 'btnFindMat') $('matSugg').classList.remove('on');
+});
 $('capType').onchange = renderCapFields;
 
 /* ---------- 摄像头扫码 + 拍照留证 ---------- */
@@ -548,7 +689,7 @@ $('btnLogout').onclick = async () => {
     state.people = ppl.people || [];
   } catch (e) { state.people = []; }
   await loadSso();
-  if (!state.person && state.people.length) state.person = state.people.find(p => p.name === '包跃') || state.people[0];
+  // 账号与待办必须一致：只显示登录账号本人的待办；匹配不到就不显示别人的数据
   await loadOrg();
   await loadTodos();
 })();

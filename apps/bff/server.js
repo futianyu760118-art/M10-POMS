@@ -341,7 +341,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { items: [...wsTodos, ...plm2.listWorkItems(q.user)] });
     }
     if (pathname === '/api/v1/plm2/materials' && req.method === 'GET') {
-      return send(res, 200, { materials: plm2.listMaterials(q.role) });
+      let list = plm2.listMaterials(q.role);
+      // 模糊查找：料号/名称包含即命中（手机端选料用）
+      if (q.q) {
+        const k = String(q.q).trim().toLowerCase();
+        list = list.filter(x => (String(x.partNo || '') + ' ' + String(x.name || '')).toLowerCase().includes(k));
+      }
+      return send(res, 200, { materials: list, matched: list.length, keyword: q.q || '' });
     }
     if (pathname === '/api/v1/plm2/ecns' && req.method === 'GET') {
       return send(res, 200, { ecns: plm2.listEcns(q.role) });

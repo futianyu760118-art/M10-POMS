@@ -104,6 +104,18 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 .bcard .occ .item{padding:7px 9px}
 /* 表格内展开 */
 table .cnt{margin-left:4px}
+/* 逐层查看 + 明细 */
+.cstep{cursor:pointer;color:#1d4ed8;border-bottom:1px dashed #9cc2ea;padding:0 2px}
+.cstep:hover{background:#eef5fd}
+.taskDetail{position:fixed;inset:0;background:rgba(10,20,35,.5);display:none;z-index:70;align-items:flex-end;justify-content:center}
+.taskDetail.open{display:flex}
+.td-box{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:720px;max-height:82vh;overflow:auto;padding:16px;box-shadow:0 -8px 30px rgba(15,39,68,.2)}
+.td-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:15px;font-weight:600}
+.dl>div{display:flex;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid #f1f5fa}
+.dl span{width:92px;color:var(--muted);flex:none}
+.dl b{font-weight:600;word-break:break-all}
+.dsec{font-size:12px;color:var(--muted);font-weight:600;margin:12px 0 6px}
+.drefs{background:#0f2744;color:#d7e6f5;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.7;word-break:break-all}
 </style>
 </head>
 <body>
@@ -186,11 +198,17 @@ table .cnt{margin-left:4px}
     </div>
   </div>
 </div>
+<div class="taskDetail" id="taskDetail">
+  <div class="td-box">
+    <div class="td-head"><span>任务明细</span><button class="btn small" onclick="closeTask()">关闭</button></div>
+    <div id="detailBody"></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { data: null, cands: [], people: [], group: true, mode: (localStorage.getItem('taskhub-mode') || 'list'), view: 'hub', person: '', dept: '', deptData: null, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
+const state = { data: null, cands: [], people: [], drill: [], group: true, mode: (localStorage.getItem('taskhub-mode') || 'list'), view: 'hub', person: '', dept: '', deptData: null, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
 const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', confirmed: 'blue', candidate: 'gray', done: 'green', cancelled: 'gray' };
 const ST_TEXT = { overdue: '已超期', blocked: '有问题', pending: '待办', in_progress: '处理中', confirmed: '已受理', candidate: '待确认', done: '已完成', cancelled: '已作废' };
 const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green', OPS: 'blue' };
@@ -277,6 +295,16 @@ function renderKpis() {
 
 function renderChips() {
   const f = state.filters; const parts = [];
+  const trail = state.drill || [];
+  if (trail.length) {
+    const sep = '<span class="muted" style="margin:0 2px">›</span>';
+    const steps = ['<span class="cstep" onclick="drillUpTo(0)">全部</span>']
+      .concat(trail.map((d, i) => `<span class="cstep" onclick="drillUpTo(${i + 1})" title="回到这一层">${esc(d.label)}</span>`));
+    $('chips').innerHTML = `<span class="muted" style="font-size:11px">逐层查看：</span>${steps.join(sep)}
+      <span class="chip" style="background:#fff;border-color:var(--line);color:var(--muted)" onclick="resetFilters()">清空 ✕</span>
+      <span class="muted" style="font-size:11px;margin-left:6px">点任务标题可看最底层明细</span>`;
+    return;
+  }
   if (f.owner) parts.push(`<span class="chip">负责人 <b>${esc(f.owner)}</b><i onclick="clearFilter('owner')">✕</i></span>`);
   if (f.domain) {
     const dd = ((state.data && state.data.domains) || []).find(x => x.code === f.domain) || {};
@@ -285,7 +313,7 @@ function renderChips() {
   if (f.source) parts.push(`<span class="chip">来源 <b>${esc(f.source)}</b><i onclick="clearFilter('source')">✕</i></span>`);
   (f.statuses || []).forEach(s => parts.push(`<span class="chip">状态 <b>${esc(ST_TEXT[s] || s)}</b><i onclick="toggleStatus('${s}', true)">✕</i></span>`));
   if (f.q) parts.push(`<span class="chip">搜索 <b>${esc(f.q)}</b><i onclick="clearFilter('q')">✕</i></span>`);
-  $('chips').innerHTML = parts.length ? `<span class="muted" style="font-size:11px">当前筛选：</span>${parts.join('')}<span class="chip" style="background:#fff;border-color:var(--line);color:var(--muted)" onclick="resetFilters()">清空全部 ✕</span>` : '<span class="muted" style="font-size:11px">点上面的数字卡片就能筛选；状态可以多选</span>';
+  $('chips').innerHTML = parts.length ? `<span class="muted" style="font-size:11px">当前筛选：</span>${parts.join('')}<span class="chip" style="background:#fff;border-color:var(--line);color:var(--muted)" onclick="resetFilters()">清空全部 ✕</span>` : '<span class="muted" style="font-size:11px">点上面的数字卡片逐层查看：业务 → 负责人 → 状态 → 明细</span>';
 }
 
 function renderHealth() {
@@ -310,7 +338,7 @@ function taskRowHtml(x) {
       <span class="tag ${ST_TAG[x.status] || 'gray'}" style="width:52px;text-align:center">${ST_TEXT[x.status] || x.status}</span>
       <span class="tag ${DOM_TAG[x.bizDomain] || 'gray'}" title="所属业务和来源系统">${esc(x.bizDomainLabel)}</span>
       <div class="it-body">
-        <b title="${esc(x.title)}">${esc(x.title)}</b>
+        <b style="cursor:pointer" title="点开看明细" onclick="event.stopPropagation();openTask('${x.id}')">${esc(x.title)}</b>
         <small>${esc(x.ownerName || '未分配')} · ${esc(x.sourceLabel)}${x.refs && x.refs.projectName ? ' · ' + esc(x.refs.projectName) : ''}${x.origin === 'extract' ? ' · 自动拆分加入' : ''}</small>
       </div>
       ${x.stale ? '<span class="tag orange" title="原来的系统暂时连不上，这里显示的是上次保存的数据">旧数据</span>' : ''}
@@ -399,7 +427,7 @@ function renderBoardMode(rows) {
         <details class="bcard">
           <summary>
             <span class="cnt ${g.count === 1 ? 'one' : ''}" title="出现次数">×${g.count}</span>
-            <span class="btitle" title="${esc(g.title)}">${esc(g.title)}</span>
+            <span class="btitle" style="cursor:pointer" title="点开看明细" onclick="event.stopPropagation();openTask('${g.items[0].id}')">${esc(g.title)}</span>
             <span class="muted" style="font-size:11px">${esc((g.owners || []).slice(0, 2).join('、'))}${g.earliestDue ? ' · ' + esc(g.earliestDue) : ''}</span>
           </summary>
           <div class="occ">${g.items.map(taskRowHtml).join('')}</div>
@@ -443,7 +471,7 @@ function renderOwners() {
   const keys = Object.keys(map).sort((a, b) => map[b].total - map[a].total);
   $('ownerCount').textContent = keys.length + ' 人';
   $('owners').innerHTML = keys.length ? `<table><thead><tr><th>负责人</th><th>合计</th><th>逾期</th><th>待办/进行</th><th>完成</th></tr></thead><tbody>
-    ${keys.map(k => `<tr style="cursor:pointer" onclick="pickOwner('${esc(k)}')"><td>${esc(k)}</td><td><b>${map[k].total}</b></td><td>${map[k].overdue ? '<span class="tag red">' + map[k].overdue + '</span>' : '0'}</td><td>${map[k].pending}</td><td>${map[k].done}</td></tr>`).join('')}
+    ${keys.map(k => `<tr style="cursor:pointer" onclick="drill('owner','${esc(k)}')"><td>${esc(k)}</td><td><b>${map[k].total}</b></td><td>${map[k].overdue ? '<span class="tag red">' + map[k].overdue + '</span>' : '0'}</td><td>${map[k].pending}</td><td>${map[k].done}</td></tr>`).join('')}
   </tbody></table>` : '<div class="empty">无数据</div>';
 }
 
@@ -577,17 +605,70 @@ async function reloadAll() {
   renderFilters(); renderAll();
 }
 
-// 数字卡片点开看明细
-window.drill = (dim, key) => {
+// 数字卡片点开看明细（逐层下钻：业务 → 负责人 → 状态 → 任务 → 明细）
+function drillLabel(dim, key) {
+  if (dim === 'status') return ST_TEXT[key] || key;
+  if (dim === 'domain') return (((state.data || {}).domains || []).find(d => d.code === key) || {}).label || key;
+  return key;
+}
+function applyDrill() {
   const f = state.filters;
-  if (dim === 'status') {
-    if (key === 'all') { f.statuses = []; f.owner = ''; f.domain = ''; f.source = ''; f.q = ''; }
-    else f.statuses = (f.statuses.length === 1 && f.statuses[0] === key) ? [] : [key];
-  } else if (dim === 'domain') {
-    f.domain = f.domain === key ? '' : key;
+  f.owner = ''; f.domain = ''; f.statuses = [];
+  (state.drill || []).forEach(d => {
+    if (d.dim === 'owner') f.owner = d.value;
+    if (d.dim === 'domain') f.domain = d.value;
+    if (d.dim === 'status') f.statuses = [d.value];
+  });
+  syncControls();
+}
+window.drill = (dim, key) => {
+  if (key === 'all') {
+    state.drill = [];
+    state.filters = { owner: '', domain: '', source: '', statuses: [], q: '' };
+    syncControls(); renderFilters(); renderAll();
+    return;
   }
-  syncControls(); renderFilters(); renderAll();
+  state.drill = state.drill || [];
+  const idx = state.drill.findIndex(d => d.dim === dim && d.value === key);
+  if (idx >= 0) state.drill = state.drill.slice(0, idx);
+  else state.drill = state.drill.filter(d => d.dim !== dim).concat([{ dim, value: key, label: drillLabel(dim, key) }]);
+  applyDrill(); renderFilters(); renderAll();
 };
+window.drillUpTo = (i) => { state.drill = (state.drill || []).slice(0, i); applyDrill(); renderFilters(); renderAll(); };
+
+/* 最底层：单条任务明细 */
+window.openTask = (id) => {
+  const list = (state.view === 'dept' && state.deptData ? state.deptData.items : (state.data || {}).items) || [];
+  const x = list.find(v => v.id === id);
+  if (!x) return toast('找不到这条任务');
+  const rows = [
+    ['任务', x.title], ['状态', x.statusText || x.status], ['所属业务', x.bizDomainLabel || x.bizDomain],
+    ['负责人', x.ownerName || '未指定'], ['截止', x.due || '无'], ['来源', x.sourceLabel + '（' + x.source + '）'],
+    ['来源 ID', x.sourceId], ['快照时间', (x.fetchedAt || '').slice(0, 19).replace('T', ' ')],
+    x.stale ? ['提示', '原来的系统暂时连不上，显示的是上次保存的数据'] : null,
+    x.verifiedBy ? ['确认人', x.verifiedBy] : null,
+    x.plmSyncedAt ? ['PLM 已同步', x.plmSyncedAt.slice(0, 19).replace('T', ' ')] : null
+  ].filter(Boolean);
+  const refs = x.refs || {};
+  const refRows = Object.keys(refs).filter(k => refs[k] != null && refs[k] !== '').map(k => `[${esc(k)}] ${esc(typeof refs[k] === 'object' ? JSON.stringify(refs[k]) : refs[k])}`).join('<br>');
+  $('detailBody').innerHTML = `
+    <div class="dl">${rows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
+    <div class="dsec">来源数据</div>
+    <div class="drefs">${refRows || '（无）'}</div>
+    <div class="dsec">处理</div>
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      ${x.source === 'PLM2' ? `<button class="btn small" onclick="closeTask();postProgress('${x.id}','in_progress')">开始（同步到 PLM）</button>
+        <button class="btn small primary" onclick="closeTask();postProgress('${x.id}','done')">完成（同步到 PLM）</button>
+        <a class="btn small" href="/plm2" target="_blank" rel="noopener">在 PLM 打开</a>` : ''}
+      ${x.origin !== 'sync' ? `<button class="btn small" onclick="closeTask();postProgress('${x.id}','in_progress')">开始</button>
+        <button class="btn small primary" onclick="closeTask();postProgress('${x.id}','done')">完成</button>` : ''}
+      ${x.source === 'MEETING' ? '<span class="muted" style="font-size:12px">会议任务请到会议助手处理</span>' : ''}
+      ${x.source === 'HUB' ? '<span class="muted" style="font-size:12px">Hub 任务请到 Hub 处理</span>' : ''}
+    </div>`;
+  $('taskDetail').classList.add('open');
+};
+window.closeTask = () => $('taskDetail').classList.remove('open');
+
 window.toggleStatus = (key, forceRemove) => {
   const f = state.filters;
   const counts = (state.data && state.data.counts && state.data.counts.byStatus) || {};
@@ -600,10 +681,12 @@ window.toggleStatus = (key, forceRemove) => {
 window.clearFilter = (k) => {
   const f = state.filters;
   if (k === 'statuses') f.statuses = []; else f[k] = '';
-  syncControls(); renderFilters(); renderAll();
+  state.drill = (state.drill || []).filter(d => !((k === 'owner' && d.dim === 'owner') || (k === 'domain' && d.dim === 'domain') || (k === 'statuses' && d.dim === 'status')));
+  applyDrill(); renderFilters(); renderAll();
 };
 window.resetFilters = () => {
   state.filters = { owner: '', domain: '', source: '', statuses: [], q: '' };
+  state.drill = [];
   syncControls(); renderFilters(); renderAll();
 };
 function syncControls() {

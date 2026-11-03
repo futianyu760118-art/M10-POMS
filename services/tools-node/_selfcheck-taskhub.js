@@ -91,7 +91,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const pageSrc = page.b;
     ck('页面支持重复合并（groupRows + 可展开组）', pageSrc.includes('function groupRows') && pageSrc.includes('details class="grp"'));
     ck('页面支持状态多选（msStatus + toggleStatus）', pageSrc.includes('msStatusMenu') && pageSrc.includes('window.toggleStatus') && pageSrc.includes('__all__'));
-    ck('页面支持驾驶舱穿透（drill + chips）', pageSrc.includes('window.drill') && pageSrc.includes('renderChips') && pageSrc.includes('class="kpi'));
+    ck('页面支持驾驶舱逐层下钻（下钻+面包屑+明细）', pageSrc.includes('window.drill') && pageSrc.includes('drillUpTo') && pageSrc.includes('cstep') && pageSrc.includes('openTask') && pageSrc.includes('taskDetail'));
     ck('页面支持三种呈现（列表/看板/表格）', pageSrc.includes('renderListMode') && pageSrc.includes('renderBoardMode') && pageSrc.includes('renderTableMode') && pageSrc.includes("setMode('board')") && pageSrc.includes("setMode('table')"));
 
     const t = j(await req('/api/v1/tasks'));
