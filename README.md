@@ -228,7 +228,30 @@ MEETING_API=... MEETING_LOGINID=... MEETING_STATUS=pending,in_progress node scri
 | 会议助手（192.168.0.127:18081） | 已连通 | 全量待办 2038 条按人过滤；统一登录按中文姓名验证 |
 | Hub（8787） | 已连通（独立账号） | 登录需 Hub 自己的账号密码；经营事项/收件箱待办已接入总表 |
 
-- 自查：`node services/tools-node/_selfcheck-mobile.js`（18 项：页面入口、24 岗位枚举、按岗位采集权限、真实物料、登录/状态/退出、错误密码不伪造成功）。
+- 自查：`node services/tools-node/_selfcheck-mobile.js`（32 项）。
+
+## SPC 供应链与生产协同（接入标准同 PLM）
+
+系统：Gitee `ningbohengjianguangdian/spc`（FastAPI + React，控制塔/订单/物料/异常/供应商风险）。
+
+**连接标准（与 PLM 一致）**
+- 服务端账号登录：`POST /api/v1/basicdata/auth/login`（OAuth2 表单）→ Bearer 令牌；令牌缓存 20 分钟，401 自动重登。
+- 只读接入：只发 GET（外加登录），**不写 SPC**；浏览器不接触 SPC 令牌。
+- 不可用语义：未配置 → 明确 503/`configured:false`；暂时连不上 → 返回上次读取的数据并标 `stale`（页面显示「旧数据」），不假装最新。
+
+**配置**（环境变量，服务端）
+```
+SPC_API=http://<SPC 主机>:8000   SPC_USER=<SPC 账号>   SPC_PASS=<SPC 密码>
+# 可选：SPC_CACHE_MS=60000（读取缓存时长）
+```
+
+**接口**：`GET /api/v1/spc/status`、`/dashboard`（控制塔五块：summary/today/rollingRisk/riskDistribution/closure）、`/orders`、`/materials`、`/exceptions`、`/supplier-risk`（分页与筛选参数透传）。
+
+**页面**：`/spc` 五个栏目（控制塔 / 订单风险 / 物料风险 / 异常台账 / 供应商风险），显示口径同 PLM（服务端读取、只读、空状态与错误如实、旧数据标注）；门户新增「SPC 供应链与生产协同」入口；统一登录页也会显示 SPC 连接状态。
+
+**自查**：`node services/tools-node/_selfcheck-spc.js`（13 项：页面与栏目、门户入口、连接状态、五块数据、分页筛选透传、只读校验、SSO 状态如实）。
+
+> 现状说明：本机没有运行 SPC 实例，页面当前显示「未配置 SPC」。配置上面三个环境变量并重启 BFF 后即读取真实数据；链路已用 mock SPC 全量验证。
 
 ## 契约 API（对齐恒剑信息包 03 章）
 

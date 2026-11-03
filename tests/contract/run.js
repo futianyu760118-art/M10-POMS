@@ -779,6 +779,92 @@ test('PLM 互相同步：总库改状态写透 PLM，PLM 失败不落库（不�
   }
 });
 
+test('SPC 接入：登录+Bearer 只读、401 自动重登、断连回旧数据、未配置明确失败', async () => {
+  const httpMod = require('http');
+  let logins = 0;
+  let authorized = 0;
+  const calls = [];
+  const server = httpMod.createServer((rq, rs) => {
+    let b = ''; rq.on('data', c => b += c);
+    rq.on('end', () => {
+      const u = new URL(rq.url, 'http://x');
+      if (rq.method === 'POST' && u.pathname === '/api/v1/basicdata/auth/login') {
+        logins++;
+        const form = new URLSearchParams(b);
+        if (form.get('username') !== 'spc-user' || form.get('password') !== 'spc-pass') {
+          rs.writeHead(401, { 'Content-Type': 'application/json' });
+          return rs.end(JSON.stringify({ detail: 'bad credentials' }));
+        }
+        rs.writeHead(200, { 'Content-Type': 'application/json' });
+        return rs.end(JSON.stringify({ code: 0, data: { access_token: 'tok' + logins, token_type: 'bearer' } }));
+      }
+      const auth = rq.headers.authorization || '';
+      // 第一次带令牌的请求返回 401，验证自动重登
+      if (authorized === 0) {
+        authorized++;
+        rs.writeHead(401, { 'Content-Type': 'application/json' });
+        return rs.end(JSON.stringify({ detail: 'token expired' }));
+      }
+      authorized++;
+      calls.push({ path: u.pathname, query: u.search, auth });
+      const ok = (data) => { rs.writeHead(200, { 'Content-Type': 'application/json' }); rs.end(JSON.stringify({ code: 0, data })); };
+      if (u.pathname === '/api/v1/dashboard/summary') return ok({ due_order_count: 7, high_risk_count: 2, shortage_count: 3, open_exception_count: 4, closure_rate: 88 });
+      if (u.pathname === '/api/v1/dashboard/today-overview') return ok({ due_order_count: 7 });
+      if (u.pathname === '/api/v1/dashboard/rolling-risk') return ok({ days: [] });
+      if (u.pathname === '/api/v1/dashboard/order-risk-distribution') return ok({ high: 2, medium: 1, low: 4 });
+      if (u.pathname === '/api/v1/dashboard/closure-achievement') return ok({ closure_rate: 88 });
+      if (u.pathname === '/api/v1/dashboard/orders') return ok({ items: [{ order_no: 'SO-1', customer_name: '客户A', risk_level: 'high' }], total: 1 });
+      if (u.pathname === '/api/v1/dashboard/materials') return ok({ items: [{ material_no: 'M-1', shortage_qty: 5 }], total: 1 });
+      if (u.pathname === '/api/v1/exceptions') return ok({ items: [{ issue_no: 'EX-1', risk_level: 'high' }], total: 1 });
+      if (u.pathname === '/api/v1/materials/supplier-risk') return ok([{ supplier: '供应商A', risk_level: 'medium' }]);
+      rs.writeHead(404, { 'Content-Type': 'application/json' }); rs.end('{}');
+    });
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const port = server.address().port;
+  const prev = { api: process.env.SPC_API, user: process.env.SPC_USER, pass: process.env.SPC_PASS };
+  process.env.SPC_API = 'http://127.0.0.1:' + port;
+  process.env.SPC_USER = 'spc-user';
+  process.env.SPC_PASS = 'spc-pass';
+  delete require.cache[require.resolve('../../adapters/spc')];
+  const spc = require('../../adapters/spc');
+  try {
+    const st = await spc.status();
+    assert.strictEqual(st.connected, true, 'SPC 应连接成功：' + st.error);
+    const d = await spc.dashboard();
+    assert.strictEqual(d.parts.summary.data.high_risk_count, 2, '控制塔摘要应可读');
+    const o = await spc.orders({ page: 1, page_size: 10, risk_level: 'high' });
+    assert.strictEqual(o.data.items[0].order_no, 'SO-1', '订单列表应可读');
+    assert.strictEqual(o.stale, false);
+    assert(calls.some(c => c.query.includes('risk_level=high')), '查询参数应透传');
+    assert(logins >= 2, '401 后应自动重登（实际登录 ' + logins + ' 次）');
+    const ex = await spc.exceptions({ status: 'open' });
+    assert.strictEqual(ex.data.items[0].issue_no, 'EX-1');
+    const sr = await spc.supplierRisk({});
+    assert(Array.isArray(sr.data) && sr.data[0].supplier === '供应商A');
+
+    // 断连：同参数返回旧数据并标 stale（不假装最新）
+    server.close();
+    await new Promise(r => setTimeout(r, 100));
+    const stale = await spc.orders({ page: 1, page_size: 10, risk_level: 'high' });
+    assert.strictEqual(stale.stale, true, '断连应回旧数据并标 stale');
+    assert.strictEqual(stale.data.items[0].order_no, 'SO-1');
+  } finally {
+    try { server.close(); } catch (e) { /* ignore */ }
+    delete require.cache[require.resolve('../../adapters/spc')];
+    delete process.env.SPC_API; delete process.env.SPC_USER; delete process.env.SPC_PASS;
+    const spc2 = require('../../adapters/spc');
+    assert.strictEqual(spc2.configured(), false, '未配置时应明确未配置');
+    const st2 = await spc2.status();
+    assert.strictEqual(st2.connected, false);
+    await assert.rejects(() => spc2.dashboard(), e => e.status === 503);
+    if (prev.api !== undefined) process.env.SPC_API = prev.api;
+    if (prev.user !== undefined) process.env.SPC_USER = prev.user;
+    if (prev.pass !== undefined) process.env.SPC_PASS = prev.pass;
+    delete require.cache[require.resolve('../../adapters/spc')];
+  }
+});
+
 (async () => {
   for (const [name, fn] of QUEUE) {
     try { await fn(); passed++; console.log('  ✔ ' + name); }

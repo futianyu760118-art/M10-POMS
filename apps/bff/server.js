@@ -18,6 +18,7 @@ const org = require('../../adapters/org');
 const plm2 = require('../../adapters/plm2');
 const plmSync = require('../../adapters/plm2/sync');
 const meetingAdapter = require('../../adapters/meeting');
+const spc = require('../../adapters/spc');
 const taskhub = require('../../packages/taskhub');
 const TOOLS = require('../../configs/tools.json');
 const SKILLS = require('../../configs/skills.json');
@@ -131,6 +132,11 @@ async function ssoLogin(username, password) {
   } else {
     systems.hlc = { ok: false, error: '需要先用 PLM 账号登录' };
   }
+
+  try {
+    await spc.login(username, password);
+    systems.spc = { ok: true };
+  } catch (e) { systems.spc = { ok: false, configured: spc.configured(), error: e.message }; }
 
   return { user, systems, plmToken };
 }
@@ -279,6 +285,30 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/plm2' || pathname === '/plm2/') return serveStatic('/demo/plm2.html', res);
     if (pathname === '/hlc' || pathname === '/hlc/') return serveStatic('/demo/hlc.html', res);
     if (pathname === '/taskhub' || pathname === '/taskhub/') return serveStatic('/demo/taskhub.html', res);
+    if (pathname === '/spc' || pathname === '/spc/') return serveStatic('/demo/spc.html', res);
+    /* ---- SPC（供应链与生产协同中台）只读接入，标准同 PLM ---- */
+    if (pathname === '/api/v1/spc/status' && req.method === 'GET') {
+      return send(res, 200, await spc.status());
+    }
+    if (pathname === '/api/v1/spc/dashboard' && req.method === 'GET') {
+      try { return send(res, 200, await spc.dashboard()); }
+      catch (e) { return send(res, e.status || 503, { error: e.message, configured: spc.configured() }); }
+    }
+    const spcList = pathname.match(/^\/api\/v1\/spc\/(orders|materials|exceptions|supplier-risk)$/);
+    if (spcList && req.method === 'GET') {
+      const params = { page: q.page || 1, page_size: q.page_size || 20 };
+      if (q.risk_level) params.risk_level = q.risk_level;
+      if (q.owner) params.owner = q.owner;
+      if (q.keyword) params.keyword = q.keyword;
+      if (q.status) params.status = q.status;
+      if (q.supplier) params.supplier = q.supplier;
+      if (q.shortage_only === '1') params.shortage_only = true;
+      const fn = spcList[1] === 'orders' ? spc.orders
+        : spcList[1] === 'materials' ? spc.materials
+        : spcList[1] === 'exceptions' ? spc.exceptions : spc.supplierRisk;
+      try { return send(res, 200, await fn(params)); }
+      catch (e) { return send(res, e.status || 503, { error: e.message, configured: spc.configured() }); }
+    }
     if (pathname === '/login' || pathname === '/login/') return serveStatic('/apps/login/index.html', res);
     if (pathname === '/m' || pathname === '/m/') return serveStatic('/apps/mobile-web/role.html', res);
     if (pathname === '/m/login' || pathname === '/m/login/') return serveStatic('/apps/mobile-web/login.html', res);

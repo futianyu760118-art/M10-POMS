@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SPC 供应链与生产协同 · M10 微系统</title>
+<style>
+:root{--bg:#f5f7fa;--panel:#fff;--line:#e3e8ef;--text:#1f2937;--muted:#6b7280;--blue:#2f6fbd;--red:#c0392b;--green:#1c8a4e;--orange:#c47a12}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text)}
+.head{background:#fff;border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+.head h1{font-size:16px;margin:0}
+.head .sub{font-size:11px;color:var(--muted)}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:8px;padding:7px 13px;font-size:13px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:#fafcff;border-color:#c7d2e0}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.small{padding:4px 9px;font-size:12px;border-radius:7px}
+.btn[disabled]{opacity:.5}
+.wrap{max-width:1320px;margin:0 auto;padding:14px 20px 40px}
+.cols{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:start}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.nav{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;position:sticky;top:64px}
+.nav button{display:block;width:100%;text-align:left;border:0;background:none;font:inherit;color:var(--text);padding:9px 11px;border-radius:8px;cursor:pointer}
+.nav button:hover{background:#f6f9fe}
+.nav button.on{background:#eef5fd;color:#1d4ed8;font-weight:600}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.panel h2{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);background:#f8fafc;color:var(--muted);white-space:nowrap}
+.tag.ok{background:#f0fdf4;border-color:#bbe7c8;color:var(--green)}
+.tag.bad{background:#fef2f2;border-color:#f5cccc;color:#b42318}
+.tag.warn{background:#fffbeb;border-color:#f5e0b7;color:var(--orange)}
+.tag.blue{background:#eff6ff;border-color:#c7ddff;color:#1d4ed8}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 13px}
+.kpi b{display:block;font-size:22px;line-height:1.2}
+.kpi span{font-size:11px;color:var(--muted)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.filters select,.filters input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid #f1f4f8}
+th{font-size:11px;color:var(--muted);background:#fbfcfe;font-weight:600}
+.notice{border:1px solid var(--line);border-left:4px solid var(--blue);background:#f7faff;border-radius:8px;padding:9px 12px;font-size:12px;color:#334155;margin-bottom:12px}
+.notice.warn{border-left-color:var(--orange);background:#fffbf3;color:#8a5a12}
+.empty{padding:14px 4px;color:var(--muted);font-size:12px}
+.muted{color:var(--muted)}
+.toast{position:fixed;right:18px;bottom:18px;background:#111827;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;max-width:420px}
+.toast.on{opacity:1}
+.bars{display:flex;gap:6px;align-items:flex-end;height:70px;margin-top:6px}
+.bars div{flex:1;background:#cfe1f7;border-radius:4px 4px 0 0;min-height:3px}
+</style>
+</head>
+<body>
+<div class="head">
+  <div>
+    <h1>供应链与生产协同（SPC）</h1>
+    <div class="sub">数据来自 SPC 系统（只读） · <span id="asof">未加载</span></div>
+  </div>
+  <div class="spacer"></div>
+  <span id="conn" class="tag">检查连接…</span>
+  <button class="btn" id="btnRefresh">刷新</button>
+  <a class="btn" href="/login">统一登录</a>
+  <a class="btn" href="/portal">返回门户</a>
+</div>
+
+<div class="wrap">
+  <div class="notice warn" id="cfg" style="display:none"></div>
+  <div class="cols">
+    <div class="nav" id="nav">
+      <button data-v="tower" class="on">控制塔</button>
+      <button data-v="orders">订单风险</button>
+      <button data-v="materials">物料风险</button>
+      <button data-v="issues">异常台账</button>
+      <button data-v="supplier">供应商风险</button>
+    </div>
+    <div id="content"><div class="empty">加载中…</div></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const state = { view: 'tower', conn: null, filters: { keyword: '', risk: '', status: '', shortage: '0' } };
+function toast(m) { const t = $('toast'); t.textContent = m; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2600); }
+async function api(p, method, body) {
+  const r = await fetch(p, { method: method || 'GET', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  let j = null; try { j = await r.json(); } catch (e) { j = { error: 'HTTP ' + r.status }; }
+  if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status, body: j });
+  return j;
+}
+const RISK = { high: 'bad', medium: 'warn', low: 'ok' };
+const RISK_TXT = { high: '高', medium: '中', low: '低' };
+
+async function checkConn() {
+  try {
+    const s = await api('/api/v1/spc/status');
+    state.conn = s;
+    $('conn').className = 'tag ' + (s.connected ? 'ok' : (s.configured ? 'bad' : 'warn'));
+    $('conn').textContent = s.connected ? '已连接 SPC' : (s.configured ? '连接失败' : '未配置 SPC');
+    if (!s.connected) {
+      $('cfg').style.display = 'block';
+      $('cfg').innerHTML = s.configured
+        ? 'SPC 暂时连不上：' + esc(s.error || '请检查网络或账号') + '。下面显示上次读取到的数据（如有）。'
+        : '还没有配置 SPC 地址和账号：请设置环境变量 <b>SPC_API</b>（例如 http://主机:8000）、<b>SPC_USER</b>、<b>SPC_PASS</b> 后重启服务。未连接时不会编造数据。';
+    } else {
+      $('cfg').style.display = 'none';
+    }
+    return s;
+  } catch (e) {
+    $('conn').className = 'tag bad'; $('conn').textContent = '连接检查失败';
+    return { connected: false };
+  }
+}
+
+function kpis(list) { return `<div class="kpis">${list.map(([l, v, t]) => `<div class="kpi"><b>${v == null ? '—' : esc(v)}</b><span>${esc(l)}${t ? ' · ' + esc(t) : ''}</span></div>`).join('')}</div>`; }
+
+async function renderTower() {
+  $('content').innerHTML = '<div class="empty">读取控制塔…</div>';
+  let d;
+  try { d = await api('/api/v1/spc/dashboard'); }
+  catch (e) {
+    $('content').innerHTML = `<div class="panel"><h2>控制塔</h2><div class="empty">读取失败：${esc(e.message)}</div></div>`;
+    return;
+  }
+  const p = d.parts || {};
+  const sum = (p.summary && p.summary.data) || {};
+  const today = (p.today && p.today.data) || {};
+  const dist = (p.riskDistribution && p.riskDistribution.data) || {};
+  const closure = (p.closure && p.closure.data) || {};
+  $('asof').textContent = '更新于 ' + new Date().toLocaleString();
+  const staleTag = d.stale ? '<span class="tag warn">旧数据</span>' : '';
+
+  const cards = [
+    ['今日应交付', today.due_order_count != null ? today.due_order_count : sum.due_order_count, '单'],
+    ['高风险订单', sum.high_risk_count != null ? sum.high_risk_count : dist.high, '单'],
+    ['缺料物料', sum.shortage_count != null ? sum.shortage_count : today.shortage_count, '项'],
+    ['异常未关闭', sum.open_exception_count != null ? sum.open_exception_count : today.open_exception_count, '条'],
+    ['关闭完成率', closure.closure_rate != null ? (closure.closure_rate + '%') : (sum.closure_rate != null ? sum.closure_rate + '%' : null), '']
+  ];
+  $('content').innerHTML = `
+    <div class="panel"><h2>控制塔 ${staleTag} <span class="tag blue">只读</span> <span class="muted" style="font-size:11px;font-weight:400">数据来自 SPC，改动请到 SPC 系统</span></h2>
+      ${kpis(cards)}
+      <div class="muted" style="font-size:11px">风险分布：高 ${esc(dist.high ?? '—')} · 中 ${esc(dist.medium ?? '—')} · 低 ${esc(dist.low ?? '—')}</div>
+    </div>
+    <div class="panel"><h2>订单风险（前 10）</h2><div id="topOrders"><div class="empty">读取中…</div></div></div>`;
+  try {
+    const o = await api('/api/v1/spc/orders?page=1&page_size=10');
+    $('topOrders').innerHTML = ordersTable(o);
+  } catch (e) { $('topOrders').innerHTML = `<div class="empty">订单读取失败：${esc(e.message)}</div>`; }
+}
+
+function rowsOf(page) { if (!page) return []; if (Array.isArray(page)) return page; return page.items || page.records || page.list || page.rows || []; }
+function ordersTable(o) {
+  const rows = rowsOf(o && o.data);
+  if (!rows.length) return '<div class="empty">暂无订单数据</div>';
+  return `<table><thead><tr><th>订单号</th><th>客户</th><th>交期</th><th>风险</th><th>负责人</th><th>状态</th></tr></thead><tbody>${rows.map(r => `<tr>
+    <td>${esc(r.order_no || r.orderNo || r.order_code || '')}</td>
+    <td>${esc(r.customer_name || r.customer || '')}</td>
+    <td>${esc(r.delivery_date || r.due_date || '')}</td>
+    <td><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '—')}</span></td>
+    <td>${esc(r.owner || '')}</td>
+    <td>${esc(r.status || '')}</td></tr>`).join('')}</tbody></table>`;
+}
+
+async function renderOrders() {
+  const f = state.filters;
+  $('content').innerHTML = `<div class="panel"><h2>订单风险</h2>
+    <div class="filters">
+      <input id="fKw" placeholder="订单号 / 客户" value="${esc(f.keyword)}" style="min-width:180px">
+      <select id="fRisk"><option value="">全部风险</option><option value="high" ${f.risk === 'high' ? 'selected' : ''}>高</option><option value="medium" ${f.risk === 'medium' ? 'selected' : ''}>中</option><option value="low" ${f.risk === 'low' ? 'selected' : ''}>低</option></select>
+      <button class="btn small primary" id="btnQuery">查询</button>
+    </div><div id="orderBox"><div class="empty">读取中…</div></div></div>`;
+  $('btnQuery').onclick = () => { state.filters.keyword = $('fKw').value.trim(); state.filters.risk = $('fRisk').value; renderOrders(); };
+  $('fKw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnQuery').click(); });
+  try {
+    const q = new URLSearchParams({ page: 1, page_size: 50 });
+    if (f.keyword) q.set('keyword', f.keyword);
+    if (f.risk) q.set('risk_level', f.risk);
+    const o = await api('/api/v1/spc/orders?' + q.toString());
+    $('orderBox').innerHTML = (o && o.stale ? '<div class="notice warn">显示的是上次读取的数据（SPC 暂时连不上）</div>' : '') + ordersTable(o);
+  } catch (e) { $('orderBox').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+}
+
+async function renderMaterials() {
+  const f = state.filters;
+  $('content').innerHTML = `<div class="panel"><h2>物料风险（缺料 / 齐套）</h2>
+    <div class="filters">
+      <input id="fKw" placeholder="物料号 / 名称" value="${esc(f.keyword)}" style="min-width:180px">
+      <label class="muted" style="font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="fShort" ${f.shortage === '1' ? 'checked' : ''}> 只看缺料</label>
+      <button class="btn small primary" id="btnQuery">查询</button>
+    </div><div id="matBox"><div class="empty">读取中…</div></div></div>`;
+  $('btnQuery').onclick = () => { state.filters.keyword = $('fKw').value.trim(); state.filters.shortage = $('fShort').checked ? '1' : '0'; renderMaterials(); };
+  try {
+    const q = new URLSearchParams({ page: 1, page_size: 50 });
+    if (f.keyword) q.set('keyword', f.keyword);
+    if (f.shortage === '1') q.set('shortage_only', '1');
+    const o = await api('/api/v1/spc/materials?' + q.toString());
+    const rows = rowsOf(o && o.data);
+    $('matBox').innerHTML = (o && o.stale ? '<div class="notice warn">显示的是上次读取的数据（SPC 暂时连不上）</div>' : '') + (rows.length ? `<table><thead><tr><th>物料号</th><th>名称</th><th>需求</th><th>库存</th><th>缺料</th><th>状态</th></tr></thead><tbody>${rows.map(r => `<tr>
+      <td>${esc(r.material_no || r.materialNo || r.material_code || '')}</td>
+      <td>${esc(r.material_name || r.name || '')}</td>
+      <td>${esc(r.demand_qty ?? r.required_qty ?? '')}</td>
+      <td>${esc(r.stock_qty ?? r.available_qty ?? '')}</td>
+      <td>${r.shortage_qty != null ? `<span class="tag ${Number(r.shortage_qty) > 0 ? 'bad' : 'ok'}">${esc(r.shortage_qty)}</span>` : '—'}</td>
+      <td>${esc(r.status || '')}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">暂无物料数据</div>');
+  } catch (e) { $('matBox').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+}
+
+async function renderIssues() {
+  const f = state.filters;
+  $('content').innerHTML = `<div class="panel"><h2>异常台账</h2>
+    <div class="filters">
+      <input id="fKw" placeholder="负责人 / 关键字" value="${esc(f.keyword)}" style="min-width:160px">
+      <select id="fStatus"><option value="">全部状态</option><option value="open" ${f.status === 'open' ? 'selected' : ''}>未关闭</option><option value="closed" ${f.status === 'closed' ? 'selected' : ''}>已关闭</option></select>
+      <button class="btn small primary" id="btnQuery">查询</button>
+    </div><div id="issueBox"><div class="empty">读取中…</div></div></div>`;
+  $('btnQuery').onclick = () => { state.filters.keyword = $('fKw').value.trim(); state.filters.status = $('fStatus').value; renderIssues(); };
+  try {
+    const q = new URLSearchParams({ page: 1, page_size: 50 });
+    if (f.keyword) q.set('owner', f.keyword);
+    if (f.status) q.set('status', f.status);
+    const o = await api('/api/v1/spc/exceptions?' + q.toString());
+    const rows = rowsOf(o && o.data);
+    $('issueBox').innerHTML = (o && o.stale ? '<div class="notice warn">显示的是上次读取的数据（SPC 暂时连不上）</div>' : '') + (rows.length ? `<table><thead><tr><th>编号</th><th>类型</th><th>风险</th><th>负责人</th><th>状态</th><th>创建</th></tr></thead><tbody>${rows.map(r => `<tr>
+      <td>${esc(r.issue_no || r.issueNo || r.id || '')}</td>
+      <td>${esc(r.issue_type || r.issueType || '')}</td>
+      <td><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '—')}</span></td>
+      <td>${esc(r.owner || '')}</td>
+      <td>${esc(r.status || '')}</td>
+      <td>${esc((r.created_at || '').slice(0, 10))}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">暂无异常</div>');
+  } catch (e) { $('issueBox').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+}
+
+async function renderSupplier() {
+  $('content').innerHTML = `<div class="panel"><h2>供应商风险</h2><div id="supBox"><div class="empty">读取中…</div></div></div>`;
+  try {
+    const o = await api('/api/v1/spc/supplier-risk');
+    const rows = Array.isArray(o && o.data) ? o.data : rowsOf(o && o.data);
+    $('supBox').innerHTML = (o && o.stale ? '<div class="notice warn">显示的是上次读取的数据（SPC 暂时连不上）</div>' : '') + (rows.length ? `<table><thead><tr><th>供应商</th><th>风险</th><th>准时率</th><th>异常数</th></tr></thead><tbody>${rows.map(r => `<tr>
+      <td>${esc(r.supplier || r.supplier_name || r.name || '')}</td>
+      <td><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '—')}</span></td>
+      <td>${esc(r.on_time_rate != null ? r.on_time_rate + '%' : (r.ontime_rate != null ? r.ontime_rate + '%' : '—'))}</td>
+      <td>${esc(r.exception_count ?? r.issue_count ?? '')}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">暂无供应商风险数据</div>');
+  } catch (e) { $('supBox').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+}
+
+function render() {
+  if (state.view === 'tower') return renderTower();
+  if (state.view === 'orders') return renderOrders();
+  if (state.view === 'materials') return renderMaterials();
+  if (state.view === 'issues') return renderIssues();
+  if (state.view === 'supplier') return renderSupplier();
+}
+document.querySelectorAll('#nav button').forEach(b => {
+  b.onclick = () => {
+    state.view = b.getAttribute('data-v');
+    document.querySelectorAll('#nav button').forEach(x => x.classList.toggle('on', x === b));
+    render();
+  };
+});
+$('btnRefresh').onclick = async () => { await checkConn(); render(); };
+(async () => { await checkConn(); render(); })();
+</script>
+</body>
+</html>
