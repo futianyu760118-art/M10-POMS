@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f6fbd">
+<title>手机登录 · AEOS</title>
+<style>
+:root{--bg:#f3f6fb;--panel:#fff;--line:#dfe7f2;--text:#16283f;--muted:#7186a0;--blue:#2f6fbd;--red:#c0392b}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 18px}
+.card{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 12px 34px rgba(15,39,68,.08)}
+.logo{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#2f6fbd,#4a9be0);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px;box-shadow:0 8px 20px rgba(47,111,189,.26)}
+h1{font-size:19px;text-align:center;margin:0 0 4px}
+.sub{text-align:center;color:var(--muted);font-size:12px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
+input{width:100%;font:inherit;padding:12px 14px;border:1px solid #d5dfec;border-radius:11px;outline:none}
+input:focus{border-color:#8fb8e8;box-shadow:0 0 0 3px rgba(47,111,189,.12)}
+button{width:100%;font:inherit;font-size:15px;padding:13px;border-radius:11px;border:1px solid var(--blue);background:var(--blue);color:#fff;margin-top:18px;cursor:pointer}
+button[disabled]{opacity:.55}
+.err{display:none;background:#fdf1f0;border:1px solid #f0c9c4;color:var(--red);border-radius:10px;padding:9px 12px;font-size:13px;margin-top:14px}
+.hint{color:var(--muted);font-size:11px;line-height:1.8;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">AE</div>
+  <h1>手机绑定登录</h1>
+  <div class="sub">第一次用手机号绑定 PLM 账号，以后这台手机自动进入</div>
+  <form id="form">
+    <label for="phone">手机号</label>
+    <input id="phone" name="phone" type="tel" inputmode="numeric" maxlength="11" placeholder="11 位手机号" autocomplete="tel">
+    <label for="username">PLM 账号</label>
+    <input id="username" name="username" placeholder="例如 admin" autocomplete="username">
+    <label for="password">PLM 密码</label>
+    <input id="password" name="password" type="password" placeholder="PLM 登录密码" autocomplete="current-password">
+    <button id="submit" type="submit">绑定并进入</button>
+    <div class="err" id="err"></div>
+  </form>
+  <div class="hint">绑定关系保存在服务器上；每次登录（成功/失败）都会留下记录，可在「我的」里查看。换账号：在「我的」里退出后重新绑定。</div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+(async () => {
+  try {
+    const r = await fetch('/api/v1/mobile/me', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (j.loggedIn) location.replace('/m');
+  } catch (e) { /* 未登录 */ }
+})();
+$('form').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const phone = $('phone').value.trim();
+  const username = $('username').value.trim();
+  const password = $('password').value;
+  const err = $('err'); err.style.display = 'none';
+  if (!/^1[3-9]\d{9}$/.test(phone)) { err.textContent = '请输入正确的 11 位手机号'; err.style.display = 'block'; return; }
+  if (!username || !password) { err.textContent = '请输入 PLM 账号和密码'; err.style.display = 'block'; return; }
+  const btn = $('submit'); btn.disabled = true; btn.textContent = '正在绑定…';
+  try {
+    const r = await fetch('/api/v1/mobile/bind', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, username, password }) });
+    const j = await r.json();
+    if (!r.ok) { err.textContent = j.error || '绑定失败'; err.style.display = 'block'; return; }
+    btn.textContent = '已绑定，正在进入';
+    location.replace('/m');
+  } catch (e) {
+    err.textContent = '网络异常：' + e.message; err.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    if (btn.textContent === '正在绑定…') btn.textContent = '绑定并进入';
+  }
+};
+</script>
+</body>
+</html>

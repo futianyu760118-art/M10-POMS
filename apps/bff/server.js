@@ -34,8 +34,52 @@ function deriveRole(roleCodeStr) {
   return ROLE_MAP[primary] || 'VIEWER';
 }
 const TASKHUB_REVIEWER_ROLES = ['ADMIN', 'admin', 'gm', 'rd_manager', 'project_manager', 'hr_manager', 'cw1', 'sales_director', 'sales_manager'];
-/* ---- 统一登录（服务端代登录各系统，浏览器只拿 M10 会话） ---- */
+/* ---- 手机号绑定登录（首次用手机号+PLM 账号密码绑定，之后本机自动登录，全程留痕） ---- */
+const MOBILE_AUTH_FILE = path.join(ROOT, 'configs', 'mobile-auth.local.json');
+const ROLE_POSITION = {
+  ADMIN: '系统管理员', GM: '总经理', RD_LEAD: '研发经理', ENGINEER: '工程师',
+  PROJECT_MANAGER: '项目经理', QUALITY: '质检员', SALES_MANAGER: '销售经理',
+  SALES: '销售', PURCHASE: '采购', FINANCE: '财务', HR_MANAGER: '人事主管', VIEWER: '一般员工'
+};
+function mobileAuthLoad() {
+  try {
+    const j = JSON.parse(fs.readFileSync(MOBILE_AUTH_FILE, 'utf8'));
+    return { bindings: j.bindings || {}, devices: j.devices || {}, logins: Array.isArray(j.logins) ? j.logins : [] };
+  } catch (e) { return { bindings: {}, devices: {}, logins: [] }; }
+}
+function mobileAuthSave(db) {
+  db.logins = db.logins.slice(-300);
+  fs.writeFileSync(MOBILE_AUTH_FILE, JSON.stringify(db, null, 2) + '\n', 'utf8');
+}
+function clientIp(req) {
+  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || '';
+}
+function mobileProfile(username, realName, role) {
+  const people = plm2.getPeople();
+  const p = people.find(x => x.name === realName) || people.find(x => x.username === username);
+  let dept = (p && p.dept) || '';
+  try {
+    const dp = plm2.getDepartments().find(d => d.code === dept || d.name === dept);
+    if (dp) dept = dp.name;
+  } catch (e) { /* 组织不可用则保留原值 */ }
+  return {
+    username, name: realName || username, role: role || '',
+    position: ROLE_POSITION[role] || '员工',
+    dept,
+    personId: p ? p.id : null
+  };
+}
+function logMobile(db, entry) { db.logins.push(Object.assign({ at: new Date().toISOString() }, entry)); }
+function mobileDevice(req) {
+  const token = cookieOf(req, 'mdev');
+  if (!token) return null;
+  const db = mobileAuthLoad();
+  const d = db.devices[token];
+  return d ? { token, device: d, db } : null;
+}
+
 const crypto = require('crypto');
+/* ---- 统一登录（服务端代登录各系统，浏览器只拿 M10 会话） ---- */
 const SSO_SESSIONS = new Map();
 const SSO_TTL = 8 * 60 * 60 * 1000;
 function cookieOf(req, name) {
@@ -237,6 +281,68 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/taskhub' || pathname === '/taskhub/') return serveStatic('/demo/taskhub.html', res);
     if (pathname === '/login' || pathname === '/login/') return serveStatic('/apps/login/index.html', res);
     if (pathname === '/m' || pathname === '/m/') return serveStatic('/apps/mobile-web/role.html', res);
+    if (pathname === '/m/login' || pathname === '/m/login/') return serveStatic('/apps/mobile-web/login.html', res);
+    /* ---- 手机号绑定登录 ---- */
+    if (pathname === '/api/v1/mobile/bind' && req.method === 'POST') {
+      const body = await readBody(req);
+      const phone = String(body.phone || '').replace(/\s/g, '');
+      const username = String(body.username || '').trim();
+      const password = String(body.password || '');
+      const ip = clientIp(req);
+      const ua = String(req.headers['user-agent'] || '').slice(0, 120);
+      if (!/^1[3-9]\d{9}$/.test(phone)) return send(res, 400, { error: '请输入正确的 11 位手机号' });
+      if (!username || !password) return send(res, 400, { error: '请输入 PLM 账号和密码' });
+      const db = mobileAuthLoad();
+      try {
+        const x = await plmSync.loginWith(username, password);
+        const vo = x.vo || {};
+        const role = vo.roleCode || (vo.roles && vo.roles[0]) || '';
+        const profile = mobileProfile(username, vo.realName, role);
+        const prev = db.bindings[phone];
+        db.bindings[phone] = { username, name: profile.name, boundAt: new Date().toISOString() };
+        const token = crypto.randomBytes(24).toString('hex');
+        db.devices[token] = Object.assign({ phone, at: new Date().toISOString(), ua }, profile);
+        logMobile(db, {
+          kind: prev && prev.username !== username ? 'switch' : 'bind',
+          ok: true, phone, username, name: profile.name, ip, ua
+        });
+        mobileAuthSave(db);
+        res.setHeader('Set-Cookie', 'mdev=' + token + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=15552000');
+        return send(res, 200, { ok: true, user: Object.assign({ phone }, profile) });
+      } catch (e) {
+        logMobile(db, { kind: 'bind', ok: false, phone, username, error: e.message, ip, ua });
+        mobileAuthSave(db);
+        return send(res, 401, { error: 'PLM 账号或密码不正确（手机号已记录本次尝试）' });
+      }
+    }
+    if (pathname === '/api/v1/mobile/me' && req.method === 'GET') {
+      const d = mobileDevice(req);
+      if (!d) return send(res, 200, { loggedIn: false });
+      return send(res, 200, {
+        loggedIn: true,
+        user: {
+          phone: d.device.phone, username: d.device.username, name: d.device.name,
+          role: d.device.role, position: d.device.position, dept: d.device.dept, personId: d.device.personId
+        }
+      });
+    }
+    if (pathname === '/api/v1/mobile/logout' && req.method === 'POST') {
+      const d = mobileDevice(req);
+      if (d) {
+        logMobile(d.db, { kind: 'logout', ok: true, phone: d.device.phone, username: d.device.username, name: d.device.name, ip: clientIp(req) });
+        delete d.db.devices[d.token];
+        mobileAuthSave(d.db);
+      }
+      res.setHeader('Set-Cookie', 'mdev=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+      return send(res, 200, { ok: true });
+    }
+    if (pathname === '/api/v1/mobile/logins' && req.method === 'GET') {
+      const d = mobileDevice(req);
+      if (!d) return send(res, 401, { error: '请先登录' });
+      const list = (d.db.logins || []).filter(x => x.phone === d.device.phone).slice(-20).reverse()
+        .map(x => ({ at: x.at, kind: x.kind, ok: x.ok, username: x.username, name: x.name, error: x.error || '' }));
+      return send(res, 200, { phone: d.device.phone, logins: list });
+    }
     /* ---- 统一登录：一个登录页连接各系统（服务端代登录） ---- */
     if (pathname === '/api/v1/sso/login' && req.method === 'POST') {
       const body = await readBody(req);

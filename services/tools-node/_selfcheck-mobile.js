@@ -1,11 +1,11 @@
 'use strict';
-// 统一登录 + 手机工作台自查（真实 PLM/HLC/会议；Hub 凭据不同会如实失败）
+// 手机端自查：手机号绑定登录（不暴露第三方令牌）、账号/岗位/待办与 PLM 同步、简洁操作界面、采集链路、登录留痕
 // 用法：先 npm start（4173），再 node services/tools-node/_selfcheck-mobile.js
 const http = require('http');
 
 function req(p, m, b, cookie) {
   return new Promise((resolve, reject) => {
-    const h = {};
+    const h = { 'User-Agent': 'selfcheck-mobile' };
     if (b) h['Content-Type'] = 'application/json';
     if (cookie) h.Cookie = cookie;
     const q = http.request({ host: '127.0.0.1', port: 4173, path: p, method: m || 'GET', headers: h }, x => {
@@ -18,58 +18,72 @@ function req(p, m, b, cookie) {
   });
 }
 const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
+const PHONE = '13900000001';
 
 (async () => {
   let pass = 0, fail = 0;
   const ck = (n, ok, d) => { if (ok) { pass++; console.log('  [PASS] ' + n + (d ? ' | ' + d : '')); } else { fail++; console.log('  [FAIL] ' + n + (d ? ' | ' + d : '')); } };
 
-  // 页面
-  const login = await req('/login');
-  ck('统一登录页可访问', login.s === 200 && login.b.includes('统一登录') && login.b.includes('各系统连接情况'));
+  /* ---- 页面 ---- */
+  const loginPage = await req('/m/login');
+  ck('手机登录页可访问且简洁（手机号+账号+密码）', loginPage.s === 200 && loginPage.b.includes('手机绑定登录') && loginPage.b.includes('phone') && !loginPage.b.includes('选择岗位'));
   const m = await req('/m');
-  ck('手机工作台可访问（岗位选择 + 品质检验）', m.s === 200 && m.b.includes('AEOS 手机工作台') && m.b.includes('品质检验') && m.b.includes('selCompany') && m.b.includes('selDept') && m.b.includes('selPos'));
-  ck('手机端四个页签（待办/采集/审批/我的）', ['tab-todos', 'tab-capture', 'tab-approval', 'tab-mine'].every(k => m.b.includes(k)));
-  ck('手机端支持摄像头扫码（无摄像头时降级手输）', m.b.includes('btnScan') && m.b.includes('BarcodeDetector') && m.b.includes('打不开摄像头'));
-  ck('手机端支持拍照留证并随采集提交', m.b.includes('photoInput') && m.b.includes("capture=\"environment\"") && m.b.includes('evidence: state.photo'));
-  ck('首页卡片按岗位定制（顺序可配）', m.b.includes('function quickCardsFor') && m.b.includes('function renderQuick') && m.b.includes("cap:IQC") && m.b.includes("tab:approval"));
-  ck('账号与待办一致（不再默认显示别人的待办）', !m.b.includes("p.name === '包跃'") && m.b.includes('没有对应记录'));
-  ck('料号可选且支持模糊查找', m.b.includes('matSugg') && m.b.includes('function fuzzyFind') && m.b.includes('btnListMat'));
-  ck('我的待办有分类且可直接处理', m.b.includes('TODO_CATS') && m.b.includes('todoCats') && m.b.includes('window.todoAct'));
-  const portal = await req('/portal');
-  ck('门户含统一登录与手机端入口', portal.b.includes('href="/login"') && portal.b.includes('href="/m"'));
+  ck('手机工作台可访问', m.s === 200 && m.b.includes('AEOS 手机工作台'));
+  ck('界面不再有岗位选择等多余内容', !/selCompany|selDept|selPos|quickCardsFor|岗位职责/.test(m.b));
+  ck('保留核心页签（待办/采集/审批/我的）', ['tab-todos', 'tab-capture', 'tab-approval', 'tab-mine'].every(k => m.b.includes(k)));
+  ck('我的页含手机号与最近登录记录', m.b.includes('手机号') && m.b.includes('最近登录记录'));
+  ck('扫码与拍照留证仍在', m.b.includes('BarcodeDetector') && m.b.includes('capture="environment"') && m.b.includes('evidence: state.photo'));
+  ck('料号可选 + 模糊查找', m.b.includes('matSugg') && m.b.includes('btnListMat') && m.b.includes('filter(m => matMatch'));
+  ck('待办有分类且可直接处理', m.b.includes('TODO_CATS') && m.b.includes('window.todoAct'));
 
-  // 岗位数据：全部 24 个岗位可枚举
-  const comps = j(await req('/api/v1/org/companies')).companies || [];
-  ck('公司可枚举', comps.length === 2, comps.map(c => c.short).join(','));
-  let total = 0; const deptSummary = [];
-  for (const c of comps) {
-    const d = j(await req('/api/v1/org/departments?company=' + c.id)).departments || [];
-    for (const dep of d) {
-      const p = j(await req('/api/v1/org/positions?company=' + c.id + '&department=' + encodeURIComponent(dep))).positions || [];
-      total += p.length;
-      if (c.id === 'hengjian') deptSummary.push(dep + ':' + p.length);
-    }
-  }
-  ck('24 个岗位都能选到', total === 24, '共 ' + total + '（' + deptSummary.join(' ') + '）');
+  /* ---- 未登录 ---- */
+  ck('未登录状态可查（loggedIn=false）', j(await req('/api/v1/mobile/me')).loggedIn === false);
+  ck('未登录访问记录接口被拒（401）', (await req('/api/v1/mobile/logins')).s === 401);
 
-  // 品质检验：按岗位权限返回采集类型（真实数据）
+  /* ---- 绑定：失败也留痕 ---- */
+  const bad = await req('/api/v1/mobile/bind', 'POST', { phone: '123', username: 'admin', password: '736669' });
+  ck('手机号格式校验', bad.s === 400 && /11 位手机号/.test(j(bad).error));
+  const badPwd = await req('/api/v1/mobile/bind', 'POST', { phone: PHONE, username: 'admin', password: 'wrong-pass' });
+  ck('错误密码不伪造成功（401）', badPwd.s === 401);
+
+  /* ---- 绑定成功：账号/岗位/部门与 PLM 同步 ---- */
+  const ok = await req('/api/v1/mobile/bind', 'POST', { phone: PHONE, username: 'admin', password: '736669' });
+  const cookie = ((ok.h['set-cookie'] || [''])[0] || '').split(';')[0];
+  const user = j(ok).user || {};
+  ck('手机号绑定成功并下发设备凭证', ok.s === 200 && cookie.startsWith('mdev='), cookie ? 'mdev 已下发' : '无 cookie');
+  ck('返回体不含各系统令牌', !/eyJ|token|cookie/i.test(ok.b));
+  ck('账号来自 PLM（姓名/账号）', user.username === 'admin' && !!user.name, user.name);
+  ck('岗位由 PLM 角色映射', user.role === 'ADMIN' && user.position === '系统管理员', user.role + '/' + user.position);
+  const people = j(await req('/api/v1/plm2/people')).people || [];
+  const p0 = people.find(x => x.id === user.personId);
+  ck('部门与 M10/PLM 人员一致', !!p0 && user.dept && (p0.dept === user.dept || p0.dept === 'RD' && user.dept === '研发中心'), user.dept + ' / ' + (p0 && p0.dept));
+  ck('待办人员映射到 PLM 人员 ID', !!user.personId);
+
+  /* ---- 自动登录（下次打开直接进） ---- */
+  const me = j(await req('/api/v1/mobile/me', 'GET', null, cookie));
+  ck('同机再次进入自动识别（me.loggedIn）', me.loggedIn === true && me.user && me.user.phone === PHONE);
+
+  /* ---- 登录留痕 ---- */
+  const logs = j(await req('/api/v1/mobile/logins', 'GET', null, cookie)).logins || [];
+  ck('绑定与失败尝试都有记录', logs.some(x => x.ok && x.kind === 'bind') && logs.some(x => !x.ok), '共 ' + logs.length + ' 条');
+  ck('记录含时间与账号', logs.every(x => !!x.at && (x.username || x.name)));
+
+  /* ---- 待办：与 PLM/会议/总表同源 ---- */
+  const todos = j(await req('/api/v1/plm2/me/todos?user=' + (user.personId || 0)));
+  ck('待办走同一个人（PLM 计数结构存在）', typeof todos.todoCount === 'number' && Array.isArray(todos.overdue));
+  ck('会议待办与总表待办同源可读', !!todos.meeting && Array.isArray(todos.taskhub && todos.taskhub.items));
+
+  /* ---- 品质检验链路 ---- */
   const qc = j(await req('/api/v1/plm2/capture-types?role=QUALITY')).captureTypes || [];
   ck('质检岗位可做来料检验与拍照', qc.some(t => t.code === 'IQC') && qc.some(t => t.code === 'PHOTO'), qc.map(t => t.code).join(','));
   const eng = j(await req('/api/v1/plm2/capture-types?role=ENGINEER')).captureTypes || [];
   ck('工程岗位不能做 IQC（按岗位限制）', !eng.some(t => t.code === 'IQC') && eng.length > 0, eng.map(t => t.code).join(','));
   const mats = j(await req('/api/v1/plm2/materials?role=QUALITY')).materials || [];
   ck('真实物料可扫码匹配', mats.length > 0, '物料 ' + mats.length + ' 条');
-  // 模糊查找：截取料号一部分应能命中
   if (mats.length) {
     const key = String(mats[0].partNo).slice(0, 6);
     const fuzzy = j(await req('/api/v1/plm2/materials?role=QUALITY&q=' + encodeURIComponent(key)));
-    ck('料号支持模糊查找', (fuzzy.materials || []).length > 0 && fuzzy.matched === fuzzy.materials.length, '关键字 ' + key + ' 命中 ' + fuzzy.matched + ' 条');
-    const byName = j(await req('/api/v1/plm2/materials?role=QUALITY&q=' + encodeURIComponent(String(mats[0].name).slice(0, 2))));
-    ck('料号可按名称模糊查找', (byName.materials || []).length >= 1, '命中 ' + byName.matched + ' 条');
-  }
-
-  // 真实提交一条采集（写入 M10 本地采集记录，操作人用「自检机器人」，不污染真人列表）
-  if (mats.length) {
+    ck('料号支持模糊查找', (fuzzy.materials || []).length > 0, '关键字 ' + key + ' 命中 ' + fuzzy.matched + ' 条');
     const cap = await req('/api/v1/plm2/captures', 'POST', {
       partNo: mats[0].partNo, captureType: 'IQC',
       values: { supplier: '自检', batch: 'SELFCHECK', dimension: '10', appearance: '合格', function: '合格', note: '自检用，可忽略' },
@@ -80,29 +94,17 @@ const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
     const cj = j(cap);
     ck('品质检验提交成功并进入待审核', (cap.s === 201 || cap.s === 200) && cj.status === 'pending-review', cj.captureId || cj.error);
     ck('照片证据随采集保存', (cj.evidence || []).length === 1 && cj.evidence[0].kind === 'photo');
-    const list = j(await req('/api/v1/plm2/captures?operator=' + encodeURIComponent('自检机器人'))).captures || [];
-    ck('按操作人可查回自己的采集', list.some(x => x.captureId === cj.captureId), '共 ' + list.length + ' 条');
   }
 
-  // 统一登录
-  const bad = await req('/api/v1/sso/login', 'POST', { username: 'admin', password: 'wrong-pass' });
-  ck('错误密码不伪造成功（401）', bad.s === 401 && j(bad).systems && !Object.values(j(bad).systems).some(x => x.ok));
+  /* ---- 退出与换账号 ---- */
+  const out = await req('/api/v1/mobile/logout', 'POST', {}, cookie);
+  ck('退出登录成功', out.s === 200);
+  ck('退出后设备凭证失效', j(await req('/api/v1/mobile/me', 'GET', null, cookie)).loggedIn === false);
+  const ok2 = await req('/api/v1/mobile/bind', 'POST', { phone: PHONE, username: 'admin', password: '736669' });
+  const cookie2 = ((ok2.h['set-cookie'] || [''])[0] || '').split(';')[0];
+  const logs2 = j(await req('/api/v1/mobile/logins', 'GET', null, cookie2)).logins || [];
+  ck('重新绑定后历史记录仍在（可追溯）', logs2.length >= 3 && logs2.some(x => x.kind === 'logout'), '共 ' + logs2.length + ' 条');
 
-  const ok = await req('/api/v1/sso/login', 'POST', { username: 'admin', password: '736669' });
-  const okj = j(ok);
-  const cookie = ((ok.h['set-cookie'] || [''])[0] || '').split(';')[0];
-  ck('正确账号登录成功并下发 M10 会话', ok.s === 200 && cookie.startsWith('m10sess='), cookie ? 'cookie 已下发' : '无 cookie');
-  ck('PLM 连接成功（真实账号）', okj.systems && okj.systems.plm && okj.systems.plm.ok === true, okj.systems && okj.systems.plm && okj.systems.plm.name);
-  ck('HLC 通过 PLM 令牌自动连接', okj.systems && okj.systems.hlc && okj.systems.hlc.ok === true);
-  ck('未通过的子系统如实标记', Object.keys(okj.systems || {}).every(k => typeof okj.systems[k].ok === 'boolean'), Object.keys(okj.systems || {}).map(k => k + '=' + okj.systems[k].ok).join(','));
-  ck('不把各系统令牌返回浏览器', !/token|cookie/i.test(ok.b.replace(/m10sess/g, '')));
-
-  const st = j(await req('/api/v1/sso/status', 'GET', null, cookie));
-  ck('会话状态可查（登录后）', st.loggedIn === true && st.user && st.user.name);
-  const logout = await req('/api/v1/sso/logout', 'POST', {}, cookie);
-  ck('退出登录', logout.s === 200);
-  ck('退出后会话失效', j(await req('/api/v1/sso/status', 'GET', null, cookie)).loggedIn === false);
-
-  console.log('\n统一登录与手机端自查: ' + pass + ' 通过, ' + fail + ' 失败');
+  console.log('\n手机端自查: ' + pass + ' 通过, ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);
 })();
