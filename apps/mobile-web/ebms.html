@@ -27,12 +27,16 @@ body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
 .item b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item small{color:var(--muted);font-size:11px}
 .dl>div{display:flex;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid #f1f5fa}
-.dl span{width:82px;color:var(--muted);flex:none}
+.dl span{width:88px;color:var(--muted);flex:none}
 .btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:9px;padding:8px 12px;font:inherit;font-size:13px;text-decoration:none;display:inline-flex}
 .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
 .notice{font-size:12px;color:#24508f;background:#eef5fd;border:1px solid #c9dcf5;border-radius:10px;padding:9px 11px;margin-bottom:10px}
 .notice.warn{color:#8a5a12;background:#fffbf3;border-color:#f1dcb6}
 .empty{color:var(--muted);font-size:12px;padding:8px 2px}
+.sheet{position:fixed;inset:0;background:rgba(10,20,35,.5);display:none;z-index:70;align-items:flex-end;justify-content:center}
+.sheet.on{display:flex}
+.sheet-box{background:#fff;width:100%;max-width:640px;max-height:82vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px}
+.sheet h3{margin:0 0 10px;font-size:15px}
 </style>
 </head>
 <body>
@@ -42,7 +46,7 @@ body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
   <span class="st" id="conn">检查连接…</span>
 </div>
 <div class="wrap">
-  <div class="notice" id="tip">数据来自 EBMS（M03），只读；处理请到 EBMS。</div>
+  <div class="notice" id="tip">数据来自 EBMS（M03）；点条目看明细，处理请到 EBMS（这里只读）。</div>
   <div class="card"><h2>我的岗位 <span class="tag" id="wsTag">—</span></h2><div class="dl" id="ws"><div class="empty">加载中…</div></div></div>
   <div class="card"><h2>待办事项 <span class="tag" id="wiTag">—</span></h2><div id="wi"><div class="empty">加载中…</div></div></div>
   <div class="card"><h2>经营结果 <span class="tag" id="resTag">—</span></h2><div id="res"><div class="empty">加载中…</div></div></div>
@@ -51,6 +55,15 @@ body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
     <a class="btn" href="/m">返回工作台</a>
   </div>
 </div>
+
+<div class="sheet" id="sheet">
+  <div class="sheet-box">
+    <h3 id="shTitle">明细</h3>
+    <div class="dl" id="shBody"></div>
+    <div id="shActions" style="margin-top:12px"></div>
+  </div>
+</div>
+
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -60,7 +73,30 @@ async function api(p) {
   if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status });
   return j;
 }
-function unwrap(x) { return (x && x.data !== undefined) ? x.data : x; }
+const unwrap = (x) => (x && x.data !== undefined) ? x.data : x;
+const state = { wi: [], res: [] };
+
+function openSheet(title, pairs, actionsHtml) {
+  $('shTitle').textContent = title;
+  $('shBody').innerHTML = pairs.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v == null || v === '' ? '—' : (typeof v === 'object' ? JSON.stringify(v) : v))}</b></div>`).join('');
+  $('shActions').innerHTML = actionsHtml || '';
+  $('sheet').classList.add('on');
+}
+window.closeSheet = () => $('sheet').classList.remove('on');
+$('sheet').addEventListener('click', (e) => { if (e.target === $('sheet')) closeSheet(); });
+
+window.wiDetail = (i) => {
+  const r = state.wi[i]; if (!r) return;
+  const pairs = Object.keys(r).map(k => [k, r[k]]);
+  openSheet(r.title || r.name || '待办明细', pairs,
+    '<a class="btn" href="' + $('openEbms').href + '" target="_blank" rel="noopener">去 EBMS 处理</a>');
+};
+window.resDetail = (i) => {
+  const r = state.res[i]; if (!r) return;
+  const pairs = Object.keys(r).map(k => [k, r[k]]);
+  openSheet(r.title || '结果明细', pairs, '');
+};
+
 (async () => {
   $('openEbms').href = 'http://' + location.hostname + ':3010/m10.html';
   let personId = 1;
@@ -79,22 +115,22 @@ function unwrap(x) { return (x && x.data !== undefined) ? x.data : x; }
       ['姓名', w.name], ['部门', w.department || '—'], ['角色', (w.role_codes || []).join('、') || '—'],
       ['岗位', (w.positions || []).join('、') || '—']
     ].map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('');
-    if (w.person_unmapped) $('tip').innerHTML = '这个账号在 EBMS 里还没有对应人员，下面可能看不到自己的事项；请到 EBMS 关联。';
+    if (w.person_unmapped) $('tip').innerHTML = '这个账号在 EBMS 里还没有对应人员，可能看不到自己的事项；请到 EBMS 关联。';
   } catch (e) { $('ws').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
 
   try {
     const d = unwrap(await api('/api/v1/ebms/work-items?person_id=' + encodeURIComponent(personId))) || {};
-    const rows = d.items || [];
-    $('wiTag').textContent = (d.summary && d.summary.total != null ? d.summary.total : rows.length) + ' 条';
-    $('wi').innerHTML = rows.length ? rows.map(r => `<div class="item"><span class="tag ${r.status === 'done' ? 'ok' : (r.status === 'blocked' || r.status === 'overdue' ? 'bad' : 'blue')}">${esc(r.status || '')}</span>
+    state.wi = d.items || [];
+    $('wiTag').textContent = (d.summary && d.summary.total != null ? d.summary.total : state.wi.length) + ' 条';
+    $('wi').innerHTML = state.wi.length ? state.wi.map((r, i) => `<div class="item" onclick="wiDetail(${i})"><span class="tag ${r.status === 'done' ? 'ok' : (r.status === 'blocked' || r.status === 'overdue' ? 'bad' : 'blue')}">${esc(r.status || '')}</span>
       <div class="body"><b>${esc(r.title || r.name || r.summary || '')}</b><small>${esc(r.due_date || r.due || '')} ${esc(r.owner || '')}</small></div></div>`).join('') : '<div class="empty">暂无待办事项</div>';
   } catch (e) { $('wi').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
 
   try {
     const d = unwrap(await api('/api/v1/ebms/results?person_id=' + encodeURIComponent(personId))) || {};
-    const rows = d.results || [];
-    $('resTag').textContent = rows.length + ' 条';
-    $('res').innerHTML = rows.length ? rows.slice(0, 10).map(r => `<div class="item"><span class="tag ${r.verification === 'verified' ? 'ok' : 'orange'}">${r.verification === 'verified' ? '已验收' : '待验收'}</span>
+    state.res = d.results || [];
+    $('resTag').textContent = state.res.length + ' 条';
+    $('res').innerHTML = state.res.length ? state.res.slice(0, 10).map((r, i) => `<div class="item" onclick="resDetail(${i})"><span class="tag ${r.verification === 'verified' ? 'ok' : 'orange'}">${r.verification === 'verified' ? '已验收' : '待验收'}</span>
       <div class="body"><b>${esc(r.title || '')}</b><small>${esc(r.source_system || '')} · ${esc((r.verified_at || '').slice(0, 10))}</small></div></div>`).join('') : '<div class="empty">暂无结果</div>';
   } catch (e) { $('res').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
 })();

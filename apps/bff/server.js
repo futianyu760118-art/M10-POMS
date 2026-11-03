@@ -337,12 +337,33 @@ const server = http.createServer(async (req, res) => {
         : crmApi[1] === 'customers' ? crm.customers
         : crmApi[1] === 'opportunities' ? crm.opportunities
         : crmApi[1] === 'tasks' ? crm.tasksMine
-        : crmApi[1] === 'orders' ? crm.orders : crm.approvalsCount;
+        : crmApi[1] === 'orders' ? crm.orders
+        : crmApi[1] === 'approvals' ? (q.count === '1' ? crm.approvalsCount : crm.approvals)
+        : crm.approvalsCount;
       const crmParams = { page: q.page || 1, page_size: q.page_size || 20 };
       if (q.status) crmParams.status = q.status;
       if (q.keyword) crmParams.keyword = q.keyword;
       try { return send(res, 200, await fn(crmParams)); }
       catch (e) { return send(res, e.status || 503, { error: e.message, configured: crm.configured() }); }
+    }
+    /* CRM 处理动作（经 CRM 官方接口，服务端令牌） */
+    const crmWrite = pathname.match(/^\/api\/v1\/crm\/(opportunities|tasks|approvals|leads)\/([^/]+)\/(stage|complete|approve|reject|assign)$/);
+    if (crmWrite && req.method === 'POST') {
+      const body = await readBody(req);
+      try {
+        const kind = crmWrite[1], id = decodeURIComponent(crmWrite[2]), act = crmWrite[3];
+        let r;
+        if (kind === 'opportunities' && act === 'stage') r = await crm.advanceStage(id, { stage: body.stage, lost_reason: body.lost_reason, won_amount: body.won_amount });
+        else if (kind === 'tasks' && act === 'complete') r = await crm.completeTask(id);
+        else if (kind === 'approvals' && act === 'approve') r = await crm.approve(id, body.comment);
+        else if (kind === 'approvals' && act === 'reject') r = await crm.reject(id, body.comment);
+        else if (kind === 'leads' && act === 'assign') r = await crm.assignLead(id, body.owner_id);
+        else return send(res, 404, { error: '不支持的操作' });
+        taskhubBroadcast('crm', { action: act });
+        return send(res, 200, { ok: true, data: r });
+      } catch (e) {
+        return send(res, e.status || 502, { error: e.message, source: 'CRM' });
+      }
     }
     /* ---- EBMS（M03）只读接入 ---- */
     if (pathname === '/api/v1/ebms/status' && req.method === 'GET') return send(res, 200, await ebms.status());

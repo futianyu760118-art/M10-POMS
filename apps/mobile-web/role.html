@@ -68,6 +68,10 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .dl>div{display:flex;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid #f1f5fa}
 .dl span{width:82px;color:var(--muted);flex:none}
+.sheet{position:fixed;inset:0;background:rgba(10,20,35,.5);display:none;z-index:70;align-items:flex-end;justify-content:center}
+.sheet.on{display:flex}
+.sheet-box{background:#fff;width:100%;max-width:640px;max-height:82vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px}
+.sheet h3{margin:0 0 10px;font-size:15px}
 </style>
 </head>
 <body>
@@ -184,6 +188,13 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
     <div class="hd"><span>扫料号条码</span><button class="btn small" id="scanClose">关闭</button></div>
     <video id="scanVideo" playsinline muted></video>
     <div class="tip" id="scanTip">正在启动摄像头…</div>
+  </div>
+</div>
+<div class="sheet" id="todoSheet">
+  <div class="sheet-box">
+    <h3 id="tsTitle">待办明细</h3>
+    <div class="dl" id="tsBody"></div>
+    <div class="row" id="tsActions" style="margin-top:12px"></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -364,18 +375,19 @@ function renderTodoList() {
   const rows = state.todoRows || []; const cat = state.todoCat || 'all';
   const list = rows.filter(r => cat === 'all' ? true : r.cat === cat);
   if (!list.length) { $('todoList').innerHTML = '<div class="empty">这个分类下暂时没有待办</div>'; return; }
-  $('todoList').innerHTML = list.slice(0, 60).map(r => {
+  $('todoList').innerHTML = list.slice(0, 60).map((r, i) => {
+    const idx = state.todoRows.indexOf(r);
     if (r.kind === 'plm') {
-      return `<div class="item"><span class="tag ${r.cat === 'overdue' ? 'bad' : (r.cat === 'done' ? 'ok' : 'blue')}">${r.cat === 'overdue' ? '已超期' : (r.cat === 'done' ? '已完成' : '待处理')}</span>
-        <div class="body"><b>${esc(r.r.nodeName)}</b><small>${esc(r.r.projectNo)} · 计划 ${esc(r.r.planDate || '未排期')}</small></div>${actions(r)}</div>`;
+      return `<div class="item" onclick="openTodoDetail(${idx})"><span class="tag ${r.cat === 'overdue' ? 'bad' : (r.cat === 'done' ? 'ok' : 'blue')}">${r.cat === 'overdue' ? '已超期' : (r.cat === 'done' ? '已完成' : '待处理')}</span>
+        <div class="body"><b>${esc(r.r.nodeName)}</b><small>${esc(r.r.projectNo)} · 计划 ${esc(r.r.planDate || '未排期')}</small></div><span onclick="event.stopPropagation()">${actions(r)}</span></div>`;
     }
     if (r.kind === 'meeting') {
-      return `<div class="item"><span class="tag ${xchk(r.x.category)}">${esc(r.x.category)}</span>
-        <div class="body"><b>${esc(r.x.title)}</b><small>${esc(r.x.due || '无截止')} · 会议助手</small></div>${actions(r)}</div>`;
+      return `<div class="item" onclick="openTodoDetail(${idx})"><span class="tag ${xchk(r.x.category)}">${esc(r.x.category)}</span>
+        <div class="body"><b>${esc(r.x.title)}</b><small>${esc(r.x.due || '无截止')} · 会议助手</small></div><span onclick="event.stopPropagation()">${actions(r)}</span></div>`;
     }
     const x = r.x;
-    return `<div class="item"><span class="tag ${x.status === 'done' ? 'ok' : (x.status === 'overdue' ? 'bad' : 'blue')}">${esc(x.statusText || x.status)}</span>
-      <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · 待办总表</small></div>${actions(r)}</div>`;
+    return `<div class="item" onclick="openTodoDetail(${idx})"><span class="tag ${x.status === 'done' ? 'ok' : (x.status === 'overdue' ? 'bad' : 'blue')}">${esc(x.statusText || x.status)}</span>
+      <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · 待办总表</small></div><span onclick="event.stopPropagation()">${actions(r)}</span></div>`;
   }).join('') + (list.length > 60 ? '<div class="empty">已显示前 60 条，可用分类缩小范围</div>' : '');
 }
 function xchk(c) { return c === '已完成' ? 'ok' : (c === '逾期' || c === '异常' ? 'bad' : 'blue'); }
@@ -383,6 +395,57 @@ window.todoAct = async (id, status) => {
   try { await api('/api/v1/tasks/' + encodeURIComponent(id) + '/progress', 'POST', { status, actor: state.me.name }); toast(status === 'done' ? '已完成' : '已开始'); loadTodos(); }
   catch (e) { toast('操作失败：' + e.message); }
 };
+
+/* 点击查看明细，并可直接处理 */
+window.openTodoDetail = (i) => {
+  const r = (state.todoRows || [])[i];
+  if (!r) return;
+  let title = '待办明细', rows = [], acts = '';
+  if (r.kind === 'plm') {
+    const r0 = r.r;
+    const item = (state.plmMap || {})[r0.projectNo + '|' + r0.nodeCode];
+    title = r0.nodeName;
+    rows = [
+      ['项目', r0.projectNo + (r0.projectName ? ' · ' + r0.projectName : '')],
+      ['节点', r0.nodeName],
+      ['状态', r0.status],
+      ['计划日期', r0.planDate || '未排期'],
+      ['实际日期', r0.actualDate || '—'],
+      ['负责人', r0.owner || '—']
+    ];
+    acts = item
+      ? `<button class="btn small" onclick="closeTodoSheet();todoAct('${item.id}','in_progress')">开始</button>
+         <button class="btn small primary" onclick="closeTodoSheet();todoAct('${item.id}','done')">完成</button>
+         <a class="btn small" href="/plm2">在 PLM 打开</a>`
+      : '<a class="btn small" href="/plm2">去 PLM 处理</a>';
+  } else if (r.kind === 'meeting') {
+    const x = r.x;
+    title = x.title;
+    rows = [
+      ['状态', x.category], ['会议', x.meetingTitle || '—'], ['会议日期', x.meetingDate || '—'],
+      ['交办人', x.proposer || '—'], ['截止', x.due || '无'], ['优先级', x.priority || '—'],
+      ['阻塞', x.blockedReason || '—']
+    ];
+    acts = '<span class="muted" style="font-size:12px">会议任务请到会议助手处理</span>';
+  } else {
+    const x = r.x;
+    title = x.title;
+    rows = [
+      ['状态', x.statusText || x.status], ['所属业务', x.bizDomainLabel || '—'],
+      ['截止', x.due || '无'], ['来源', x.sourceLabel || '—'], ['负责人', x.ownerName || '—']
+    ];
+    acts = x.status !== 'done'
+      ? `<button class="btn small primary" onclick="closeTodoSheet();todoAct('${x.id}','done')">完成</button>
+         <a class="btn small" href="/taskhub">在待办总表打开</a>`
+      : '<span class="tag ok">已完成</span>';
+  }
+  $('tsTitle').textContent = title;
+  $('tsBody').innerHTML = rows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+  $('tsActions').innerHTML = acts;
+  $('todoSheet').classList.add('on');
+};
+window.closeTodoSheet = () => $('todoSheet').classList.remove('on');
+$('todoSheet').addEventListener('click', (e) => { if (e.target === $('todoSheet')) closeTodoSheet(); });
 
 /* ---------- 采集 ---------- */
 async function loadCapTypes() {

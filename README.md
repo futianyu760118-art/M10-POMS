@@ -244,6 +244,10 @@ MEETING_API=... MEETING_LOGINID=... MEETING_STATUS=pending,in_progress node scri
 - **系统总览**：`GET /api/v1/systems`（30s 缓存）统一返回 9 个系统状态：PLM / 会议 / Hub / SPC / CRM / EBMS / HLC / FAC / EDP；`ok` / `configured` / `error` 如实，不伪造。
 - **接入标准统一**（与 PLM 一致）：服务端账号登录 → Bearer 令牌 → 只读；401 自动重登；断连回旧数据标 stale；未配置/未部署明确失败。
 - **手机端**：新增「系统」页签，逐个显示连接状态与「打开」入口；新增 `/m/crm`（客户/线索/商机/订单）与 `/m/ebms`（我的岗位/待办事项/经营结果）；PLM、SPC、HLC、待办总表也都在这一页。
+- **手机端可操作（不只查看）**：
+  - 待办：点任意一条打开明细（项目/节点/日期/负责人/会议信息），可直接「开始/完成」，PLM 条目写透 PLM。
+  - CRM：点商机看明细并推进阶段（已确认→需求→方案→谈判→赢单/丢单）；「我的任务」可完成；「待审批」可批准/退回——均通过 CRM 官方接口写回，失败如实报错。
+  - EBMS / SPC：点条目看明细，处理跳转原系统（只读，避免双写）。
 - **门户**：CRM、EBMS 卡片改为「已接入 · 只读」，可直接进手机版。
 
 - 自查：`node services/tools-node/_selfcheck-mobile.js`（32 项）、`node services/tools-node/_selfcheck-systems.js`（16 项：9 系统状态、CRM/EBMS 真实数据、手机端入口）。

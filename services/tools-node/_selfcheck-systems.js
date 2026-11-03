@@ -60,6 +60,14 @@ const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
   ck('CRM 手机页可访问（商机/订单/线索）', crmPage.s === 200 && ['商机', '订单', '线索'].every(k => crmPage.b.includes(k)));
   const ebmsPage = await req('/m/ebms');
   ck('EBMS 手机页可访问（岗位/待办/结果）', ebmsPage.s === 200 && ['我的岗位', '待办事项', '经营结果'].every(k => ebmsPage.b.includes(k)));
+  ck('待办可点开明细并直接处理', m.b.includes('todoSheet') && m.b.includes('openTodoDetail') && m.b.includes('window.todoAct'));
+  ck('CRM 页可处理（审批/任务/商机阶段）', crmPage.b.includes('待审批') && crmPage.b.includes('我的任务') && crmPage.b.includes('stageAct') && crmPage.b.includes('apprAct') && crmPage.b.includes('taskDone'));
+  ck('EBMS 页可点开明细', ebmsPage.b.includes('wiDetail') && ebmsPage.b.includes('shTitle'));
+  const appr = j(await req('/api/v1/crm/approvals?page=1&page_size=5'));
+  ck('CRM 待审批列表可读', appr.data && typeof appr.data.total === 'number', '待审批 ' + (appr.data && appr.data.total));
+  const w1 = await req('/api/v1/crm/opportunities/not-exist/stage', 'POST', { stage: 'WON' });
+  const w2 = await req('/api/v1/crm/approvals/not-exist/approve', 'POST', { comment: 'x' });
+  ck('CRM 处理动作走官方接口且失败不伪造', [w1, w2].every(x => x.s >= 400) && [w1, w2].every(x => !!j(x).error));
   const portal = await req('/portal');
   ck('门户含 CRM 与 EBMS 手机入口', portal.b.includes('/m/crm') && portal.b.includes('/m/ebms'));
 

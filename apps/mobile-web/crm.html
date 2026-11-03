@@ -30,11 +30,20 @@ body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
 .item .body{flex:1;min-width:0}
 .item b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item small{color:var(--muted);font-size:11px}
-.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:9px;padding:8px 12px;font:inherit;font-size:13px;text-decoration:none;display:inline-flex}
+.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:9px;padding:8px 12px;font:inherit;font-size:13px;text-decoration:none;display:inline-flex;align-items:center}
 .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.small{padding:5px 9px;font-size:12px;border-radius:8px}
 .notice{font-size:12px;color:#24508f;background:#eef5fd;border:1px solid #c9dcf5;border-radius:10px;padding:9px 11px;margin-bottom:10px}
 .notice.warn{color:#8a5a12;background:#fffbf3;border-color:#f1dcb6}
 .empty{color:var(--muted);font-size:12px;padding:8px 2px}
+.sheet{position:fixed;inset:0;background:rgba(10,20,35,.5);display:none;z-index:70;align-items:flex-end;justify-content:center}
+.sheet.on{display:flex}
+.sheet-box{background:#fff;width:100%;max-width:640px;max-height:82vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px}
+.sheet h3{margin:0 0 10px;font-size:15px}
+.dl>div{display:flex;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid #f1f5fa}
+.dl span{width:88px;color:var(--muted);flex:none}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#16283f;color:#fff;font-size:13px;padding:9px 15px;border-radius:20px;opacity:0;transition:.25s;pointer-events:none;z-index:80}
+.toast.on{opacity:1}
 </style>
 </head>
 <body>
@@ -44,8 +53,10 @@ body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
   <span class="st" id="conn">检查连接…</span>
 </div>
 <div class="wrap">
-  <div class="notice" id="tip">数据来自 CRM 系统，只读；要处理请到 CRM。</div>
+  <div class="notice" id="tip">数据来自 CRM；商机阶段、任务与审批可直接在这里处理（会写回 CRM）。</div>
   <div class="kpis" id="kpis"></div>
+  <div class="card"><h2>待审批 <span class="tag" id="apprTag">—</span></h2><div id="apprs"><div class="empty">加载中…</div></div></div>
+  <div class="card"><h2>我的任务 <span class="tag" id="taskTag">—</span></h2><div id="tasks"><div class="empty">加载中…</div></div></div>
   <div class="card"><h2>商机 <span class="tag" id="oppTag">—</span></h2><div id="opps"><div class="empty">加载中…</div></div></div>
   <div class="card"><h2>订单 <span class="tag" id="orderTag">—</span></h2><div id="orders"><div class="empty">加载中…</div></div></div>
   <div class="card"><h2>线索 <span class="tag" id="leadTag">—</span></h2><div id="leads"><div class="empty">加载中…</div></div></div>
@@ -54,52 +65,141 @@ body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
     <a class="btn" href="/m">返回工作台</a>
   </div>
 </div>
+
+<div class="sheet" id="sheet">
+  <div class="sheet-box">
+    <h3 id="shTitle">明细</h3>
+    <div class="dl" id="shBody"></div>
+    <div class="row" id="shActions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-async function api(p) {
-  const r = await fetch(p, { credentials: 'same-origin' });
+async function api(p, method, body) {
+  const r = await fetch(p, { method: method || 'GET', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
   let j = null; try { j = await r.json(); } catch (e) { j = { error: 'HTTP ' + r.status }; }
   if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status });
   return j;
 }
+const unwrap = (x) => (x && x.data !== undefined) ? x.data : x;
 const rowsOf = (p) => (!p ? [] : (Array.isArray(p) ? p : (p.items || p.records || [])));
-(async () => {
-  $('openCrm').href = 'http://' + location.hostname + ':3001';
+const state = { opps: [], orders: [], leads: [], tasks: [], apprs: [] };
+const STAGES = [['QUALIFIED', '已确认'], ['REQUIREMENT', '需求明确'], ['PROPOSAL', '方案报价'], ['NEGOTIATION', '商务谈判'], ['WON', '赢单'], ['LOST', '丢单']];
+
+function toast(m) { const t = $('toast'); t.textContent = m; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2400); }
+function openSheet(title, rows, actionsHtml) {
+  $('shTitle').textContent = title;
+  $('shBody').innerHTML = rows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v == null || v === '' ? '—' : v)}</b></div>`).join('');
+  $('shActions').innerHTML = actionsHtml || '';
+  $('sheet').classList.add('on');
+}
+function closeSheet() { $('sheet').classList.remove('on'); }
+$('sheet').addEventListener('click', (e) => { if (e.target === $('sheet')) closeSheet(); });
+window.closeSheet = closeSheet;
+
+async function loadAll() {
   try {
     const st = await api('/api/v1/crm/status');
     $('conn').textContent = st.connected ? '已连接' : (st.configured ? '连接失败' : '未配置');
     if (!st.connected) { $('tip').className = 'notice warn'; $('tip').textContent = 'CRM 暂时连不上：' + (st.error || '请检查地址/账号'); }
   } catch (e) { $('conn').textContent = '连接检查失败'; }
+
   try {
-    const d = await api('/api/v1/crm/dashboard');
-    const s = (d.data && d.data.stats) || {};
-    $('kpis').innerHTML = [
-      ['客户', s.customers], ['线索', s.leads], ['商机', s.opportunities], ['待审批', s.pending_approvals]
-    ].map(([l, v]) => `<div class="kpi"><b>${v == null ? '—' : esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+    const d = unwrap(await api('/api/v1/crm/dashboard')) || {};
+    const s = d.stats || {};
+    $('kpis').innerHTML = [['客户', s.customers], ['线索', s.leads], ['商机', s.opportunities], ['待审批', s.pending_approvals]]
+      .map(([l, v]) => `<div class="kpi"><b>${v == null ? '—' : esc(v)}</b><span>${esc(l)}</span></div>`).join('');
   } catch (e) { $('kpis').innerHTML = '<div class="kpi"><b>—</b><span>读取失败</span></div>'; }
+
   try {
-    const o = await api('/api/v1/crm/opportunities?page=1&page_size=10');
-    const rows = rowsOf(o.data);
-    $('oppTag').textContent = (o.data && o.data.total != null ? o.data.total : rows.length) + ' 个';
-    $('opps').innerHTML = rows.length ? rows.map(r => `<div class="item"><span class="tag blue">${esc(r.stage_label || r.stage || '')}</span>
-      <div class="body"><b>${esc(r.name || r.opportunity_no || '')}</b><small>${esc(r.company_name || '')} · ${esc(r.estimated_amount != null ? r.estimated_amount + (r.currency || '') : '')} · 把握 ${esc(r.probability != null ? r.probability + '%' : '—')}</small></div></div>`).join('') : '<div class="empty">暂无商机</div>';
+    const d = unwrap(await api('/api/v1/crm/approvals?page=1&page_size=20')) || {};
+    state.apprs = rowsOf(d);
+    $('apprTag').textContent = (d.total != null ? d.total : state.apprs.length) + ' 条';
+    $('apprs').innerHTML = state.apprs.length ? state.apprs.map(a => `<div class="item"><span class="tag orange">待审批</span>
+      <div class="body"><b>${esc(a.title || a.type || a.id)}</b><small>${esc(a.created_at || '')} ${esc(a.applicant || a.created_by || '')}</small></div>
+      <button class="btn small primary" onclick="apprAct('${esc(a.id)}','approve')">批准</button>
+      <button class="btn small" onclick="apprAct('${esc(a.id)}','reject')">退回</button></div>`).join('') : '<div class="empty">暂无待审批</div>';
+  } catch (e) { $('apprs').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+
+  try {
+    const d = unwrap(await api('/api/v1/crm/tasks?page=1&page_size=20')) || {};
+    state.tasks = rowsOf(d);
+    $('taskTag').textContent = (d.total != null ? d.total : state.tasks.length) + ' 条';
+    $('tasks').innerHTML = state.tasks.length ? state.tasks.map(t => `<div class="item"><span class="tag blue">${esc(t.status || '')}</span>
+      <div class="body"><b>${esc(t.title || t.name || '')}</b><small>${esc(t.due_date || t.due || '')}</small></div>
+      <button class="btn small primary" onclick="taskDone('${esc(t.id)}')">完成</button></div>`).join('') : '<div class="empty">暂无任务</div>';
+  } catch (e) { $('tasks').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+
+  try {
+    const d = unwrap(await api('/api/v1/crm/opportunities?page=1&page_size=20')) || {};
+    state.opps = rowsOf(d);
+    $('oppTag').textContent = (d.total != null ? d.total : state.opps.length) + ' 个';
+    $('opps').innerHTML = state.opps.length ? state.opps.map(o => `<div class="item" onclick="oppDetail('${esc(o.id)}')"><span class="tag blue">${esc(o.stage_label || o.stage || '')}</span>
+      <div class="body"><b>${esc(o.name || o.opportunity_no || '')}</b><small>${esc(o.company_name || '')} · ${esc(o.estimated_amount != null ? o.estimated_amount + (o.currency || '') : '')} · 把握 ${esc(o.probability != null ? o.probability + '%' : '—')}</small></div></div>`).join('') : '<div class="empty">暂无商机</div>';
   } catch (e) { $('opps').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+
   try {
-    const o = await api('/api/v1/crm/orders?page=1&page_size=10');
-    const rows = rowsOf(o.data);
-    $('orderTag').textContent = (o.data && o.data.total != null ? o.data.total : rows.length) + ' 单';
-    $('orders').innerHTML = rows.length ? rows.map(r => `<div class="item"><span class="tag ${r.risk_level === 'red' ? 'bad' : (r.risk_level === 'yellow' ? 'orange' : 'blue')}">${esc(r.status || '—')}</span>
-      <div class="body"><b>${esc(r.order_no || '')}</b><small>${esc(r.customer_name || '')} · ${esc(r.product_name || '').slice(0, 26)} · 金额 ${esc(r.order_amount != null ? r.order_amount : '—')}</small></div></div>`).join('') : '<div class="empty">暂无订单</div>';
+    const d = unwrap(await api('/api/v1/crm/orders?page=1&page_size=20')) || {};
+    state.orders = rowsOf(d);
+    $('orderTag').textContent = (d.total != null ? d.total : state.orders.length) + ' 单';
+    $('orders').innerHTML = state.orders.length ? state.orders.map(o => `<div class="item" onclick="orderDetail('${esc(o.id)}')"><span class="tag ${o.risk_level === 'red' ? 'bad' : (o.risk_level === 'yellow' ? 'orange' : 'blue')}">${esc(o.status || '—')}</span>
+      <div class="body"><b>${esc(o.order_no || '')}</b><small>${esc(o.customer_name || '')} · 金额 ${esc(o.order_amount != null ? o.order_amount : '—')}</small></div></div>`).join('') : '<div class="empty">暂无订单</div>';
   } catch (e) { $('orders').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+
   try {
-    const o = await api('/api/v1/crm/leads?page=1&page_size=10');
-    const rows = rowsOf(o.data);
-    $('leadTag').textContent = (o.data && o.data.total != null ? o.data.total : rows.length) + ' 条';
-    $('leads').innerHTML = rows.length ? rows.map(r => `<div class="item"><span class="tag">${esc(r.status || '')}</span>
-      <div class="body"><b>${esc(r.lead_no || '')}</b><small>${esc(r.name || '')} · ${esc(r.country || '')} · ${esc(r.source || '')}</small></div></div>`).join('') : '<div class="empty">暂无线索</div>';
+    const d = unwrap(await api('/api/v1/crm/leads?page=1&page_size=20')) || {};
+    state.leads = rowsOf(d);
+    $('leadTag').textContent = (d.total != null ? d.total : state.leads.length) + ' 条';
+    $('leads').innerHTML = state.leads.length ? state.leads.map(l => `<div class="item" onclick="leadDetail('${esc(l.id)}')"><span class="tag">${esc(l.status || '')}</span>
+      <div class="body"><b>${esc(l.lead_no || '')}</b><small>${esc(l.name || '')} · ${esc(l.country || '')} · ${esc(l.source || '')}</small></div></div>`).join('') : '<div class="empty">暂无线索</div>';
   } catch (e) { $('leads').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
-})();
+}
+
+window.oppDetail = (id) => {
+  const o = state.opps.find(x => String(x.id) === String(id)); if (!o) return;
+  const acts = STAGES.filter(([k]) => k !== o.stage).map(([k, l]) => `<button class="btn small" onclick="stageAct('${esc(o.id)}','${k}')">${esc(l)}</button>`).join('');
+  openSheet(o.name || o.opportunity_no, [
+    ['编号', o.opportunity_no], ['客户', o.company_name], ['阶段', o.stage_label || o.stage],
+    ['金额', o.estimated_amount != null ? o.estimated_amount + (o.currency || '') : '—'],
+    ['把握', o.probability != null ? o.probability + '%' : '—'], ['预计成交', o.expected_close_date],
+    ['产品', o.product_category], ['数量', o.quantity], ['下一步', o.next_action]
+  ], acts ? `<a class="btn small" href="#" style="pointer-events:none;opacity:.7">推进到：</a>${acts}` : '');
+};
+window.orderDetail = (id) => {
+  const o = state.orders.find(x => String(x.id) === String(id)); if (!o) return;
+  openSheet(o.order_no, [
+    ['客户', o.customer_name], ['产品', o.product_name], ['数量', o.quantity],
+    ['金额', o.order_amount], ['状态', o.status], ['风险', o.risk_level],
+    ['交期', o.promised_date || o.delivery_date]
+  ], '<span class="muted" style="font-size:12px">订单在 CRM 里处理（这里只查看明细）</span>');
+};
+window.leadDetail = (id) => {
+  const l = state.leads.find(x => String(x.id) === String(id)); if (!l) return;
+  openSheet(l.lead_no, [['客户', l.name], ['联系人', l.contact_name], ['国家', l.country], ['行业', l.industry], ['来源', l.source], ['状态', l.status]], '');
+};
+
+window.stageAct = async (id, stage) => {
+  try {
+    await api('/api/v1/crm/opportunities/' + encodeURIComponent(id) + '/stage', 'POST', { stage });
+    toast('阶段已更新并写回 CRM'); closeSheet(); loadAll();
+  } catch (e) { toast('更新失败：' + e.message); }
+};
+window.taskDone = async (id) => {
+  try { await api('/api/v1/crm/tasks/' + encodeURIComponent(id) + '/complete', 'POST', {}); toast('任务已完成'); loadAll(); }
+  catch (e) { toast('操作失败：' + e.message); }
+};
+window.apprAct = async (id, action) => {
+  try {
+    await api('/api/v1/crm/approvals/' + encodeURIComponent(id) + '/' + action, 'POST', { comment: action === 'reject' ? '手机端退回' : '手机端同意' });
+    toast(action === 'approve' ? '已批准' : '已退回'); loadAll();
+  } catch (e) { toast('操作失败：' + e.message); }
+};
+
+$('openCrm').href = 'http://' + location.hostname + ':3001';
+loadAll();
 </script>
 </body>
 </html>

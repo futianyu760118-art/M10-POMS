@@ -112,5 +112,28 @@ const opportunities = (p) => cached('opps:' + JSON.stringify(p || {}), () => get
 const tasksMine = (p) => cached('tasks:' + JSON.stringify(p || {}), () => getData('/api/v1/tasks/mine', p));
 const orders = (p) => cached('orders:' + JSON.stringify(p || {}), () => getData('/api/v1/orders', p));
 const approvalsCount = () => cached('approvals', () => getData('/api/v1/approvals/count'));
+const approvals = (p) => cached('approvals-list:' + JSON.stringify(p || {}), () => getData('/api/v1/approvals', p));
 
-module.exports = { configured, status, login, dashboard, leads, customers, opportunities, tasksMine, orders, approvalsCount };
+/** 写操作：经 CRM 官方接口执行（服务端令牌，前端不接触） */
+async function sendData(method, pathname, body) {
+  if (!token || Date.now() - tokenAt > 20 * 60 * 1000) await login();
+  let r = await request(method, pathname, { body });
+  if (r.status === 401) { token = null; await login(); r = await request(method, pathname, { body }); }
+  if (r.status >= 200 && r.status < 300) {
+    ['leads:', 'opps:', 'orders:', 'tasks:', 'approvals'].forEach(k => { for (const key of [...CACHE.keys()]) if (key.startsWith(k)) CACHE.delete(key); });
+    return r.body && r.body.data !== undefined ? r.body.data : (r.body || {});
+  }
+  const e = new Error((r.body && (r.body.message || r.body.detail)) || ('CRM 返回 ' + r.status));
+  e.status = r.status;
+  throw e;
+}
+const advanceStage = (oppId, body) => sendData('PATCH', '/api/v1/opportunities/' + encodeURIComponent(oppId) + '/stage', body || {});
+const completeTask = (taskId) => sendData('POST', '/api/v1/tasks/' + encodeURIComponent(taskId) + '/complete', {});
+const approve = (id, comment) => sendData('POST', '/api/v1/approvals/' + encodeURIComponent(id) + '/approve', { comment: comment || null });
+const reject = (id, comment) => sendData('POST', '/api/v1/approvals/' + encodeURIComponent(id) + '/reject', { comment: comment || null });
+const assignLead = (leadId, ownerId) => sendData('POST', '/api/v1/leads/' + encodeURIComponent(leadId) + '/assign', { owner_id: ownerId });
+
+module.exports = {
+  configured, status, login, dashboard, leads, customers, opportunities, tasksMine, orders,
+  approvalsCount, approvals, advanceStage, completeTask, approve, reject, assignLead
+};
