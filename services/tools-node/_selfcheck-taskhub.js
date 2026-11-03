@@ -84,9 +84,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ck('SSE 通道可订阅（hello）', sseEvents.some(e => e.kind === 'hello'));
 
     const page = await req('/taskhub');
-    ck('页面 /taskhub 可访问', page.s === 200 && page.b.includes('总任务库'));
+    ck('页面 /taskhub 可访问', page.s === 200 && page.b.includes('待办总表'));
     const portal = await req('/portal');
-    ck('门户含总任务库入口', portal.s === 200 && portal.b.includes('href="/taskhub"') && portal.b.includes('总任务库'));
+    ck('门户含待办总表入口', portal.s === 200 && portal.b.includes('href="/taskhub"') && portal.b.includes('待办总表'));
 
     const pageSrc = page.b;
     ck('页面支持重复合并（groupRows + 可展开组）', pageSrc.includes('function groupRows') && pageSrc.includes('details class="grp"'));

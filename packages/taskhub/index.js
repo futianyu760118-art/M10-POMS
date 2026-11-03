@@ -315,7 +315,7 @@ function list(opts) {
     sources: health,
     candidates: store.candidates.filter(c => c.status === 'pending-review'),
     domains: Object.keys(DOMAINS).map(k => ({ code: k, label: DOMAINS[k].label, bizSys: DOMAINS[k].bizSys, bizSysLabel: DOMAINS[k].bizLabel })),
-    notice: 'M10 总任务库只存引用与快照，不持有业务事实；修改请在源系统进行'
+    notice: '总表只显示各系统的待办，不在本系统改动业务数据；要改请到原来的系统'
   };
 }
 
@@ -394,7 +394,7 @@ function extractCandidates(opts) {
       fingerprint: fp,
       status: 'pending-review',
       engine: 'rule-based',
-      engineNote: '规则抽取（非大模型）：按分隔符拆分子任务 + 日期/紧急度/业务域关键词 + 人员字典识别责任人',
+      engineNote: '按文字规则自动拆分：按标点断句，识别截止日期、急不急、属于哪类业务和负责人（不是 AI 大模型）',
       confidence: (owner ? 0.4 : 0) + (due ? 0.3 : 0) + (0.3),
       title,
       detail: meta.detail || '',
@@ -445,8 +445,8 @@ function confirmCandidate(id, opts) {
   const o = opts || {};
   const store = load();
   const c = store.candidates.find(x => x.id === id && x.status === 'pending-review');
-  if (!c) return { status: 404, body: { error: 'candidate not found or already reviewed' } };
-  if (!o.reviewer) return { status: 400, body: { error: 'reviewer required（done ≠ verified：入总库须授权人确认）' } };
+  if (!c) return { status: 404, body: { error: '这条待确认内容不存在，或者已经处理过了' } };
+  if (!o.reviewer) return { status: 400, body: { error: '请填写确认人：拆出来的内容要有人确认后才能加入总表' } };
   const d = o.today || today();
   const ownerName = o.ownerName || c.ownerName || '';
   const owner = plm2.getPeople().find(p => p.name === ownerName);
@@ -471,8 +471,8 @@ function rejectCandidate(id, opts) {
   const o = opts || {};
   const store = load();
   const c = store.candidates.find(x => x.id === id && x.status === 'pending-review');
-  if (!c) return { status: 404, body: { error: 'candidate not found or already reviewed' } };
-  if (!o.reviewer) return { status: 400, body: { error: 'reviewer required' } };
+  if (!c) return { status: 404, body: { error: '这条待确认内容不存在，或者已经处理过了' } };
+  if (!o.reviewer) return { status: 400, body: { error: '请填写确认人' } };
   c.status = 'rejected';
   c.reviewedBy = o.reviewer;
   c.reviewedAt = new Date().toISOString();
@@ -487,12 +487,12 @@ function assignItem(id, opts) {
   const o = opts || {};
   const store = load();
   const it = store.items.find(x => x.id === id);
-  if (!it) return { status: 404, body: { error: 'task not found' } };
-  if (!o.ownerName) return { status: 400, body: { error: 'ownerName required' } };
-  if (!o.reviewer) return { status: 400, body: { error: 'reviewer required（分发属于变更动作，须留痕）' } };
+  if (!it) return { status: 404, body: { error: '找不到这条待办' } };
+  if (!o.ownerName) return { status: 400, body: { error: '请选择负责人' } };
+  if (!o.reviewer) return { status: 400, body: { error: '请填写操作人，分配会留下记录' } };
   const owner = plm2.getPeople().find(p => p.name === o.ownerName);
   if (it.origin === 'sync') {
-    return { status: 409, body: { error: '该任务责任人由源系统持有，请在 ' + it.bizSysLabel + ' 调整（M10 不双写）', source: it.source, sourceId: it.sourceId } };
+    return { status: 409, body: { error: '这条待办由 ' + it.bizSysLabel + ' 管理，请到那里修改；这里只做展示，避免两边不一致', source: it.source, sourceId: it.sourceId } };
   }
   it.ownerName = o.ownerName;
   it.ownerId = owner ? owner.id : null;
@@ -560,23 +560,23 @@ async function updateProgress(id, opts) {
   const o = opts || {};
   const store = load();
   const it = store.items.find(x => x.id === id);
-  if (!it) return { status: 404, body: { error: 'task not found' } };
-  if (!o.actor) return { status: 400, body: { error: 'actor required（变更须留痕）' } };
+  if (!it) return { status: 404, body: { error: '找不到这条待办' } };
+  if (!o.actor) return { status: 400, body: { error: '请填写操作人，改动会留下记录' } };
   const ALLOWED = ['pending', 'in_progress', 'done', 'blocked', 'cancelled'];
-  if (!ALLOWED.includes(o.status)) return { status: 400, body: { error: 'status 仅支持 ' + ALLOWED.join('/') } };
+  if (!ALLOWED.includes(o.status)) return { status: 400, body: { error: '状态只能是 ' + ALLOWED.join('/') } };
   const p = plm2.getPeople().find(x => x.name === o.actor);
   if (it.ownerName && o.actor !== it.ownerName && !(p && (p.realRoles || []).some(r => TASKHUB_PROGRESS_ROLES.includes(r)))) {
-    return { status: 403, body: { error: '仅责任人本人或管理角色可更新该任务' } };
+    return { status: 403, body: { error: '只有负责人本人或管理员可以修改这条待办' } };
   }
 
   // PLM 条目：经 PLM REST 写透（先写 PLM，成功才改总库；失败 502 不假装成功）
   let plmSync = null;
   if (it.source === 'PLM2') {
     if (!['in_progress', 'done'].includes(o.status)) {
-      return { status: 422, body: { error: 'PLM 任务仅支持回写 in_progress/done（PLM 节点无该状态）', source: 'PLM2' } };
+      return { status: 422, body: { error: 'PLM 里的任务只能改成处理中或已完成', source: 'PLM2' } };
     }
     const refs = it.refs || {};
-    if (!refs.projectNo || !refs.nodeCode) return { status: 422, body: { error: 'PLM 条目缺少 projectNo/nodeCode 引用' } };
+    if (!refs.projectNo || !refs.nodeCode) return { status: 422, body: { error: '这条 PLM 待办缺少项目或节点信息，无法更新' } };
     plmSync = await plm2.syncNodeStatus(refs.projectNo, refs.nodeCode, o.status, { planDate: it.due, actor: o.actor });
     if (!plmSync.ok) return { status: plmSync.status || 502, body: { error: plmSync.msg || 'PLM 写入失败', source: 'PLM2', sourceId: it.sourceId } };
   } else if (it.origin === 'sync') {

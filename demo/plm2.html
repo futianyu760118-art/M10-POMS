@@ -139,7 +139,7 @@ details.panel[open] summary::before{content:'▾ '}
     <div class="navlabel">工作台</div>
     <div id="nav"></div>
     <div class="navlabel" style="padding-top:20px;border-top:1px solid #243a56">说明</div>
-    <div style="font-size:10px;color:#90a4bd;padding:8px 12px;line-height:1.7">数据来源：PLM2 仓库 database/*.sql<br>六大固定角色 + 研发/供应链主管<br>PartNo 全局唯一主键<br>ECN 三级审批 · 工序自动化流转<br>全部为 L0 模拟，未接生产库</div>
+    <div style="font-size:10px;color:#90a4bd;padding:8px 12px;line-height:1.7">数据来自：PLM2 仓库 database/*.sql<br>六大固定角色 + 研发/供应链主管<br>PartNo 全局唯一主键<br>ECN 三级审批 · 工序自动化流转<br>全部为 L0 模拟，未接生产库</div>
   </aside>
 
   <main class="main">
@@ -153,7 +153,7 @@ details.panel[open] summary::before{content:'▾ '}
     </div>
     <div class="notice" id="roleNotice"></div>
     <div id="content"><div class="empty">加载中…</div></div>
-    <div class="footer">PLM 中台 V4.0 · HJ-PLM-V4.0-20260704 · 与 AEOS M10 POMS 集成演示 · 岗位装配 / 待办 / 状态机均为候选，未连接真实 M01/M02/PLM 数据库。</div>
+    <div class="footer">PLM 中台 V4.0 · HJ-PLM-V4.0-20260704 · 与 AEOS M10 POMS 集成演示 · 演示用的数据，尚未连接真实的 M01/M02/PLM 数据库，所有结果仅供查看。</div>
   </main>
 </div>
 
@@ -494,7 +494,7 @@ const pages = {
           <button class="btn primary" onclick="capSubmit()">预览提交（进入待审核）</button>
         </div>
         <div class="panel">
-          <h2>采集记录 <span class="tag">pending-review · done≠verified</span></h2>
+          <h2>采集记录 <span class="tag">待审核 · 完成后要验收</span></h2>
           ${captures.length?captures.map(c=>`<div class="task"><div class="body"><strong>${esc(c.materialName)} · ${esc(c.captureTypeName)}</strong><small>${c.captureId} · 操作 ${esc(c.operator)} · 证据 ${c.evidence.length} 项</small></div><span class="tag orange">待审核</span></div>`).join(''):'<p class="muted">暂无采集记录</p>'}
         </div>
       </div>
@@ -1250,10 +1250,10 @@ function taskhubRowHtml(x){
   return `<div class="todoitem">
     <span class="tag ${catCls}" style="width:54px;text-align:center;flex:none">${esc(x.statusText||x.status)}</span>
     <span class="t-ico" style="flex:none">📌</span>
-    <span class="t-body"><b style="font-size:13px">${esc(x.title)}</b><span class="muted" style="font-size:11px">总库 · ${esc(x.bizDomainLabel||'')} · ${esc(x.sourceLabel||'')}</span></span>
+    <span class="t-body"><b style="font-size:13px">${esc(x.title)}</b><span class="muted" style="font-size:11px">来自待办总表 · ${esc(x.bizDomainLabel||'')} · ${esc(x.sourceLabel||'')}</span></span>
     <span class="muted" style="font-size:12px;flex:none;width:82px;text-align:right">${esc(x.due||'—')}</span>
     ${x.status!=='done'
-      ? `<button class="btn small" style="flex:none" onclick="event.stopPropagation();taskhubProgress('${x.id}','in_progress')">开始</button>
+      ? `<button class="btn small" style="flex:none" onclick="event.stopPropagation();taskhubProgress('${x.id}','in_progress')">开始处理</button>
          <button class="btn small primary" style="flex:none" onclick="event.stopPropagation();taskhubProgress('${x.id}','done')">完成</button>`
       : '<span class="tag green" style="flex:none">已完成</span>'}
   </div>`;
@@ -1263,7 +1263,7 @@ async function taskhubProgress(id, status){
   try {
     await fetch('/api/v1/tasks/'+encodeURIComponent(id)+'/progress', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status, actor: me }) });
     renderTodosView();
-  } catch(e){ alert('更新失败：'+e.message); }
+  } catch(e){ alert('修改失败：'+e.message); }
 }
 function taskhubDone(id){ return taskhubProgress(id,'done'); }
 let _taskhubES = null;
@@ -1294,7 +1294,7 @@ function meetingRowHtml(m){
 }
 function meetingDetail(id){
   const it = (state.meetingTodos||[]).find(x=>x.id===id); if(!it) return;
-  alert(`【会议助手待办】${it.title}\n\n来源：${it.sourceLabel}（${state.meetingMeta&&state.meetingMeta.live?'实时同步':'快照'}）\n会议：${it.meetingTitle||'—'}（${it.meetingDate||'—'}）\n交办人：${it.proposer||'—'}\n截止：${it.due||'—'} · 优先级：${it.priority}\n状态：${it.status}${it.blockedReason?(' · 阻塞：'+it.blockedReason):''}${it.completedAt?('\n完成于：'+it.completedAt):''}\n\n处理请在会议助手内进行（M10 仅引用，不写专业事实）`);
+  alert(`【会议待办】${it.title}\n\n来自：${it.sourceLabel}（${state.meetingMeta&&state.meetingMeta.live?'实时':'上次保存'}）\n会议：${it.meetingTitle||'—'}（${it.meetingDate||'—'}）\n交办人：${it.proposer||'—'}\n截止：${it.due||'—'} · 优先级：${it.priority}\n状态：${it.status}${it.blockedReason?(' · 阻塞：'+it.blockedReason):''}${it.completedAt?('\n完成于：'+it.completedAt):''}\n\n处理请到会议助手里操作（这里只做展示，不改会议里的数据）`);
 }
 function todoRowHtml(r){
   const [c,l] = TODO_NODE_ST[r.status] || ['gray', r.status];
@@ -1339,20 +1339,20 @@ function renderTodosView(){
       </details>`).join('');
   }
   const mm = state.meetingMeta || {};
-  const meetingBanner = mt.length ? `<div class="notice" style="border-color:#c9d9ee;background:#f4f8ff;color:#2b4c77">📅 会议助手待办已并入：<b>${mt.length}</b> 条（${mm.live?'实时同步':'快照 '+esc((mm.updatedAt||'').slice(0,16).replace('T',' '))}）· 处理请回会议助手（M10 仅引用，不写专业事实）</div>` : '';
+  const meetingBanner = mt.length ? `<div class="notice" style="border-color:#c9d9ee;background:#f4f8ff;color:#2b4c77">📅 会议待办已并入：<b>${mt.length}</b> 条（${mm.live?'实时':'上次保存 '+esc((mm.updatedAt||'').slice(0,16).replace('T',' '))}）· 处理请到会议助手</div>` : '';
   const tm = state.taskhubMeta || {};
   const taskhubBlock = (th.length || (tm.dept && tm.counts)) ? `<div class="panel" style="border-color:#d7e3f7">
-      <h2>总库任务（个人待办输出） <span class="tag blue">${th.length} 条</span>
-        ${tm.dept?`<span class="tag">部门 ${esc(tm.dept)}</span><button class="btn small" onclick="window.open('/taskhub','_blank')">部门待办视图</button>`:''}
-        <span class="muted" style="font-size:11px;font-weight:400">在此完成/开始会即时回写总库</span></h2>
+      <h2>待办总表分给你的 <span class="tag blue">${th.length} 条</span>
+        ${tm.dept?`<span class="tag">部门 ${esc(tm.dept)}</span><button class="btn small" onclick="window.open('/taskhub','_blank')">查看部门待办</button>`:''}
+        <span class="muted" style="font-size:11px;font-weight:400">在这里点完成/开始，会自动同步到待办总表</span></h2>
       ${th.length?th.map(x=>`<div class="task" style="padding:8px 0;border-bottom:1px solid #eef2f7">
         <div class="body"><b style="font-size:13px">${esc(x.title)}</b><br>
           <small>${esc(x.bizDomainLabel||'')} · ${esc(x.sourceLabel||'总库')} · 截止 ${esc(x.due||'—')} · 状态 ${esc(x.statusText||x.status)}</small></div>
         <div class="row" style="gap:6px">
-          ${x.status!=='done'?`<button class="btn small" onclick="taskhubProgress('${x.id}','in_progress')">开始</button>
+          ${x.status!=='done'?`<button class="btn small" onclick="taskhubProgress('${x.id}','in_progress')">开始处理</button>
           <button class="btn small primary" onclick="taskhubProgress('${x.id}','done')">完成</button>`:'<span class="tag green">已完成</span>'}
         </div>
-      </div>`).join(''):'<div class="muted" style="font-size:12px;padding:6px 0">暂无总库指派给你的任务</div>'}
+      </div>`).join(''):'<div class="muted" style="font-size:12px;padding:6px 0">暂时没有分给你的任务</div>'}
     </div>` : '';
     document.getElementById('content').innerHTML = `
     ${(state.anomalies&&state.anomalies.length)?`<div class="panel" style="border:2px solid #d64545;background:#fef5f5;margin-bottom:14px">
@@ -1381,7 +1381,7 @@ function renderTodosView(){
           <small>制作：${esc(w.createdBy)} · 提交：${esc((w.submittedAt||'').slice(0,16).replace('T',' '))} · 关键内容：${esc(wsSummary(w))}</small></div>
         <div class="row" style="gap:6px">${(w.fields&&(w.fields.sch_file||w.fields.pcb_file))?`<button class="btn small" onclick="showDrawingPreview('${esc(w.fields.sch_file||'')}'${w.fields.pcb_file?`,'${esc(w.fields.pcb_file)}'`:''},'${esc(mkTplName(w.type))} · ${esc(w.projectNo)} · ${esc(w.createdBy)}')">🖼 预览图纸</button>`:''}<button class="btn small" onclick='wsView(${JSON.stringify(w).replace(/'/g,"&#39;")})'>查看</button><button class="btn small primary" onclick="wsApprove('${w.id}',true)">批准归档</button><button class="btn small danger" onclick="wsApprove('${w.id}',false)">驳回</button></div>
       </div>`).join('')}</div>`:''}
-    <div class="notice">复刻 Multica「My Issues」：范围（全部/指派给我/我负责的项目）+ 视图（列表/看板/表格）+ 状态分组计数；点行打开详情抽屉可编辑（状态/计划日/实际日/责任人/交付物），数据口径同 /v1/me/todos。</div>
+    <div class="notice">用法和 PLM 的「我的待办」一样：先选范围（全部 / 派给我的 / 我负责的项目），再切换显示方式（列表 / 看板 / 表格）；点一行可以修改状态、计划日期、实际日期和负责人。</div>
       <div class="row" style="margin-top:10px"><button class="btn small" onclick="syncFromPlm()">⟳ 从 PLM 同步（我负责的项目）</button><span class="muted" id="syncInfo" style="font-size:12px"></span></div>`;
 }
 async function syncFromPlm(){
@@ -1510,8 +1510,8 @@ async function showProject(projectNo, fresh){
       </tr>`;
     }).join('');
     document.getElementById('projDetail').innerHTML = `<div class="panel"><h2>${p.projectNo} · ${esc(p.name)} <span class="tag">${p.gate} ${esc(p.gateName)}</span> <span class="tag">负责人 ${esc(p.owner)} · 进度 ${p.summary.done}/${p.summary.total}</span> <span class="tag green">PLM 实时同步</span> <button class="btn small" onclick="showProject('${p.projectNo}',true)">⟳ 强制从PLM刷新</button></h2>
-      <table><thead><tr><th>#</th><th>节点</th><th>状态</th><th>计划日期</th><th>实际日期</th><th>责任人</th><th>交付物</th><th>资料</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="notice" style="margin:12px 0 0">复刻 PLM「项目明细表」+ 资料制作流程：点「制作」打开该节点真实模板（自动带入项目信息）→ 增删改 → 提交上级审批 → 批准后自动<b>归档并同步 PLM 对应表</b>（/v1/rd/sheets）+ 节点联动；责任人默认项目负责人；实际日期默认当天、点「✔确认」即完成；待办类状态必须填计划日期；「无节点」不计入待办。★=关键节点。</div></div>`;
+      <table><thead><tr><th>#</th><th>节点</th><th>状态</th><th>计划日期</th><th>实际日期</th><th>负责人</th><th>交付物</th><th>资料</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="notice" style="margin:12px 0 0">复刻 PLM「项目明细表」+ 资料制作流程：点「制作」打开该节点真实模板（自动带入项目信息）→ 增删改 → 提交上级审批 → 批准后自动<b>归档并同步 PLM 对应表</b>（/v1/rd/sheets）+ 节点联动；负责人默认是项目负责人；实际日期默认当天、点「✔确认」即完成；待办类状态必须填计划日期；「无节点」不计入待办。★=关键节点。</div></div>`;
     document.getElementById('projDetail').scrollIntoView({behavior:'smooth'});
   }catch(e){ alert('项目加载失败'); }
 }
@@ -1530,7 +1530,7 @@ async function editNode(projectNo, nodeCode){
       <label class="field" style="margin-bottom:10px"><span>状态</span><select id="ndStatus" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px">${NODE_STATUS_LIST.map(s=>`<option value="${s}" ${n.status===s?'selected':''}>${NODE_STATUS_OPTS[s]}</option>`).join('')}</select></label>
       <label class="field" style="margin-bottom:10px"><span>计划日期（待办类状态必填）</span><input type="date" id="ndPlan" value="${n.planDate||''}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
       <label class="field" style="margin-bottom:10px"><span>实际日期（完成时缺省当天 ${today}）</span><input type="date" id="ndActual" value="${n.actualDate||''}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
-      <label class="field" style="margin-bottom:10px"><span>责任人（默认项目负责人：${esc(n.ownerDefault)}）</span><input id="ndOwner" value="${esc(n.owner)}" placeholder="${esc(n.ownerDefault)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+      <label class="field" style="margin-bottom:10px"><span>负责人（默认项目负责人：${esc(n.ownerDefault)}）</span><input id="ndOwner" value="${esc(n.owner)}" placeholder="${esc(n.ownerDefault)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
       <label class="field" style="margin-bottom:10px"><span>交付物（默认该节点应交付资料/表单）</span><input id="ndDelivery" value="${esc(n.deliveryDesc)}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
       <label class="field" style="margin-bottom:10px"><span>备注</span><input id="ndRemark" value="${esc(n.remark||'')}" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
       <div class="muted" style="font-size:11px">校验：待办类状态（已计划/进行中/待定/未完成）保存时计划日期必填。</div>`;
@@ -2038,7 +2038,7 @@ async function capSubmit(){
     if(!r.ok) throw new Error(r.status);
     capEvidence = [];
     attachFiles = [];
-    alert('已提交，状态 pending-review（幂等键 '+key+'）。采集需人机审核，done ≠ verified。');
+    alert('已提交，等待审核。采集结果要由别人审核确认，不能自己验自己。');
     state.page='capture'; render();
   }catch(e){ alert('提交失败：'+e.message); }
 }

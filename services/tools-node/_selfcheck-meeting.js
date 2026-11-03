@@ -33,7 +33,7 @@ function get(p) { return new Promise(r => http.get({ host: '127.0.0.1', port: 41
   ck('会议元数据（connected/updatedAt）', !!t0.meeting && t0.meeting.updatedAt !== undefined);
 
   const pg = (await get('/plm2')).b;
-  ['meetingRowHtml', 'meetingDetail', 'meetingBanner', '会议助手待办已并入'].forEach(k => ck('页面含：' + k, pg.includes(k)));
+  ['meetingRowHtml', 'meetingDetail', 'meetingBanner', '会议待办已并入'].forEach(k => ck('页面含：' + k, pg.includes(k)));
   const g = pg.match(/const TODO_GROUPS = \[([^\]]+)\]/);
   const groups = g ? g[1].split(',').map(s => s.trim().replace(/'/g, '')) : [];
   ck('分组含「异常」', groups.includes('异常'), groups.join('/'));

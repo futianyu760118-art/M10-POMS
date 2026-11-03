@@ -67,7 +67,7 @@ th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
     <div class="brand">M07 × M10 <span style="color:#62a7ff">双端</span><small>恒剑 · 人事行政协同（报修/请假）</small></div>
     <div class="navlabel">M07 · 人力后勤自治中心</div><div id="nav07"></div>
     <div class="navlabel">M10 · 员工个人端</div><div id="nav10"></div>
-    <div class="side-foot">首条 MVP 闭环：员工发起 → M01 Guard → M07 受理/派单/审批 → 处理留证 → 验收（done≠verified）→ 归档 → M10 报告<br>数据经 BFF API（真实 HLC 优先，不可达降级 mock）</div>
+    <div class="side-foot">首条 MVP 闭环：员工发起 → M01 Guard → M07 受理/派单/审批 → 处理留证 → 验收（做完要有人验收）→ 归档 → M10 报告<br>数据经 BFF API（真实 HLC 优先，不可达自动切换 模拟）</div>
   </aside>
   <main class="main">
     <div class="top">
@@ -120,10 +120,10 @@ function renderBanner(){
     const real = state.people.filter(p=>p.hlc_real).map(p=>`${esc(p.name)}${p.plm?'(PLM)':`(${p.person_id}★)`}`).join('、');
     const who = state.auth && state.auth.user ? `<br>当前已登录真实身份：<b>${esc(state.auth.user.name||'')}</b>（HLC 角色 ${esc(state.auth.user.role||'—')}）——界面操作以该身份经 HLC 服务端鉴权。` : '';
     el.className = 'notice ok';
-    el.innerHTML = `✅ <b>已连接真实 HLC 后端</b>（恒聘通 Flask · ${esc(h.api)} · 租户 ${esc(h.tenant)}）——本页全部工单读写直达真实 M07 数据库，状态机/权限/幂等由服务端终审。真实账号演员：${real||'无'}；其余演示身份由服务账号（${esc(h.serviceUser)}）代理。${who}`;
+    el.innerHTML = `✅ <b>已连接真实 HLC 后端</b>（恒聘通 Flask · ${esc(h.api)} · 租户 ${esc(h.tenant)}）——本页全部工单读写直达真实 M07 数据库，状态机/权限/重复提交不会重复创建由服务端终审。真实账号演员：${real||'无'}；其余演示身份由服务账号（${esc(h.serviceUser)}）代理。${who}`;
   } else {
     el.className = 'notice warn';
-    el.innerHTML = `⚠️ 真实 HLC 未连接（${esc(h.error||'不可达')}），当前为 mock 降级模式。启动方式：HLC 仓库 docker compose 预览栈（端口 18280）。`;
+    el.innerHTML = `⚠️ 真实 HLC 未连接（${esc(h.error||'不可达')}），当前为 模拟 自动切换模式。启动方式：HLC 仓库 docker compose 预览栈（端口 18280）。`;
   }
   el.style.display='block';
 }
@@ -242,7 +242,7 @@ function actsFor(r){
 
 function reqRow(r, actions=true){
   const selfBlock = r.state==='AWAITING_ACCEPTANCE' && r.done_by===state.person
-    ? `<div class="muted" style="font-size:11px">执行者不可自验（done≠verified）</div>` : '';
+    ? `<div class="muted" style="font-size:11px">执行者不可自验（做完要有人验收）</div>` : '';
   return `<div class="req" style="padding:11px 0;border-bottom:1px solid #eef2f7">
     <div class="row" style="justify-content:space-between;align-items:flex-start">
       <div style="flex:1;min-width:0">
@@ -262,14 +262,14 @@ const pages = {
       ${[['待分派',cnt(x=>['SUBMITTED','TRIAGED'].includes(x.state))],['处理中',cnt(x=>['ASSIGNED','IN_PROGRESS'].includes(x.state))],['待审批',cnt(x=>x.state==='APPROVAL_PENDING')],['待验收',cnt(x=>x.state==='AWAITING_ACCEPTANCE')],['已关闭',cnt(x=>['CLOSED','ARCHIVED'].includes(x.state))]]
         .map(([a,b])=>`<div class="metric"><span>${a}</span><b>${b}</b></div>`).join('')}
     </div>
-    <div class="panel"><h2>一键演示闭环 <span class="tag">${state.hlc&&state.hlc.connected?'走真实 HLC（'+esc(state.hlc.api)+'）':'mock 降级'}</span></h2>
+    <div class="panel"><h2>一键演示闭环 <span class="tag">${state.hlc&&state.hlc.connected?'走真实 HLC（'+esc(state.hlc.api)+'）':'模拟 自动切换'}</span></h2>
       <div class="row">
         <button class="btn primary" id="demoBtn" onclick="demoLoop()">▶ 发起演示：包跃报修 → 马雅雯受理/派单 → 王栌鑫处理 → 自验被拒(403) → 验收关闭</button>
       </div>
       <div id="demoLog"></div>
     </div>
-    <div class="panel"><h2>业务事务池 <span class="tag">M07 专业处理 · ${state.hlc&&state.hlc.connected?'真实数据':'mock'}</span></h2>${r.map(x=>reqRow(x)).join('')||'<div class="empty">暂无</div>'}</div>
-    <div class="notice" style="margin:0">闭环：员工 M10 发起 → M01 Guard → M07 受理/分派/审批 → 处理上传证据 → <b>申请人/授权验收人验收</b>（done ≠ verified）→ 关闭归档 → M10 查看报告。</div>`;
+    <div class="panel"><h2>业务事务池 <span class="tag">M07 专业处理 · ${state.hlc&&state.hlc.connected?'真实数据':'模拟'}</span></h2>${r.map(x=>reqRow(x)).join('')||'<div class="empty">暂无</div>'}</div>
+    <div class="notice" style="margin:0">闭环：员工 M10 发起 → M01 Guard → M07 受理/分派/审批 → 处理上传证据 → <b>申请人/授权验收人验收</b>（做完要有人验收）→ 关闭归档 → M10 查看报告。</div>`;
   },
   pool(){
     return `<div class="panel"><h2>全部业务事务 <span class="tag">状态机受控 · 非法跳转 409</span></h2>${state.requests.map(x=>reqRow(x)).join('')||'<div class="empty">暂无</div>'}</div>`;
@@ -278,7 +278,7 @@ const pages = {
     const list = state.requests.filter(x=>['APPROVAL_PENDING','AWAITING_ACCEPTANCE','POLICY_CHECKED','SUBMITTED'].includes(x.state));
     return `<div class="panel"><h2>人工审批 / 验收工作池 <span class="tag">人审优先 · 职责分离</span></h2>
       ${list.map(x=>reqRow(x)).join('')||'<div class="empty">暂无待审批/验收事项</div>'}</div>
-      <div class="notice warn" style="margin:0">演示操作经 BFF 转发至 m07 状态机；生产须经 M01 Guard 与双人复核，高风险动作一律人工确认。</div>`;
+      <div class="notice warn" style="margin:0">演示操作经 BFF 转发至 m07 状态机；生产须经 M01 Guard 与双人核对，高风险动作一律人工确认。</div>`;
   },
   home(){
     const mine = state.requests.filter(x=>!CLOSED_STATES.includes(x.state) && (x.requester===state.person||x.assignee===state.person));
@@ -401,7 +401,7 @@ async function demoLoop(){
     await loadAll(); render(); demoRestore(log.innerHTML); await sleep(600);
 
     r = await rawTr(c.id, 'p-003', 'CLOSED');
-    step('6️⃣',`王栌鑫 尝试验收自己的工单 → HTTP ${r.status} · ${r.body.error}（maker-checker：真实 HLC 拒绝执行人自验）`,'err');
+    step('6️⃣',`王栌鑫 尝试验收自己的工单 → HTTP ${r.status} · ${r.body.error}（申请人和验收人不能是同一个人：真实 HLC 拒绝执行人自验）`,'err');
     await sleep(600);
     r = await rawTr(c.id, 'p-002', 'CLOSED', { note:'验收通过' });
     step('7️⃣',`马雅雯 验收关闭 → HTTP ${r.status} · ResultRef=${(r.body.result_ref||r.body.error||'').slice(0,24)} · 验收人=${r.body.verified_by||'—'}`,'ok');

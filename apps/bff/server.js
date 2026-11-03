@@ -307,11 +307,11 @@ const server = http.createServer(async (req, res) => {
     }
     /* 个人待办 / 部门待办输出（总库 → 个人/部门，即时读） */
     if (pathname === '/api/v1/tasks/person' && req.method === 'GET') {
-      if (!q.name) return send(res, 400, { error: 'name required' });
+      if (!q.name) return send(res, 400, { error: '请填写姓名' });
       return send(res, 200, taskhub.forPerson(q.name, {}));
     }
     if (pathname === '/api/v1/tasks/dept' && req.method === 'GET') {
-      if (!q.dept) return send(res, 400, { error: 'dept required' });
+      if (!q.dept) return send(res, 400, { error: '请选择部门' });
       return send(res, 200, taskhub.forDept(q.dept, {}));
     }
     if (pathname === '/api/v1/tasks/activities' && req.method === 'GET') {
@@ -348,7 +348,7 @@ const server = http.createServer(async (req, res) => {
     if (candReview && req.method === 'POST') {
       const body = await readBody(req);
       const reviewer = taskhubReviewer(body.reviewer);
-      if (!reviewer) return send(res, 403, { error: '仅授权验证人可确认抽取结果（角色不足或人员不存在）' });
+      if (!reviewer) return send(res, 403, { error: '只有有权限的管理员才能确认；请检查姓名或权限' });
       const r = candReview[2] === 'confirm'
         ? taskhub.confirmCandidate(decodeURIComponent(candReview[1]), { reviewer: reviewer.name, ownerName: body.ownerName, due: body.due, bizDomain: body.bizDomain })
         : taskhub.rejectCandidate(decodeURIComponent(candReview[1]), { reviewer: reviewer.name, reason: body.reason });
@@ -360,7 +360,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       // 责任人本人可直接更新；其他需管理角色（服务端校验，不信任前端）
       const actorPerson = plm2.getPeople().find(x => x.name === body.actor || x.username === body.actor);
-      if (!actorPerson) return send(res, 403, { error: 'actor 必须是 M10 人员库中的有效人员' });
+      if (!actorPerson) return send(res, 403, { error: '操作人必须是系统里已有的人员' });
       const r = await taskhub.updateProgress(decodeURIComponent(taskProgress[1]), { status: body.status, actor: actorPerson.name, note: body.note });
       if (r.status === 200) taskhubBroadcast('progress', { id: r.body.item.id, status: r.body.item.status, actor: actorPerson.name });
       return send(res, r.status, r.body);
@@ -369,7 +369,7 @@ const server = http.createServer(async (req, res) => {
     if (taskAssign && req.method === 'POST') {
       const body = await readBody(req);
       const reviewer = taskhubReviewer(body.reviewer);
-      if (!reviewer) return send(res, 403, { error: '仅授权验证人可分发任务（角色不足或人员不存在）' });
+      if (!reviewer) return send(res, 403, { error: '只有有权限的管理员才能分配；请检查姓名或权限' });
       const r = taskhub.assignItem(decodeURIComponent(taskAssign[1]), { ownerName: body.ownerName, reviewer: reviewer.name });
       if (r.status === 200) taskhubBroadcast('assign', { id: r.body.item.id, ownerName: r.body.item.ownerName });
       return send(res, r.status, r.body);

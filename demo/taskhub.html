@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>M10 总任务库 · 统一待办与按人分发</title>
+<title>待办总表 · 一处看全部待办</title>
 <style>
 :root{--bg:#f5f7fa;--panel:#fff;--line:#e3e8ef;--text:#1f2937;--muted:#6b7280;--blue:#2563eb;--red:#d64545;--green:#15803d;--orange:#b45309}
 *{box-sizing:border-box}
@@ -66,11 +66,11 @@ th{font-size:11px;color:var(--muted);font-weight:600;background:#fbfcfe}
 .ms-item:hover{background:#f5f8ff}
 .ms-item input{cursor:pointer}
 .ms-foot{display:flex;gap:6px;border-top:1px solid var(--line);margin-top:5px;padding-top:6px}
-/* KPI 穿透 */
+/* KPI 看明细 */
 .kpi{cursor:pointer;transition:.15s;position:relative}
 .kpi:hover{border-color:#c7d2e0;box-shadow:0 2px 8px rgba(37,99,235,.08);transform:translateY(-1px)}
 .kpi.active{border-color:var(--blue);background:#f5f9ff;box-shadow:inset 0 0 0 1px var(--blue)}
-.kpi.active:after{content:"已穿透";position:absolute;right:8px;top:6px;font-size:10px;color:var(--blue)}
+.kpi.active:after{content:"已看明细";position:absolute;right:8px;top:6px;font-size:10px;color:var(--blue)}
 .kpi .drill{position:absolute;right:8px;bottom:6px;font-size:10px;color:#9aa7b8}
 /* 筛选条件 chips */
 .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
@@ -109,43 +109,43 @@ table .cnt{margin-left:4px}
 <body>
 <div class="head">
   <div>
-    <h1>总任务库 · 统一待办</h1>
-    <div class="sub">各系统任务汇总 → 按责任人分发 · 行政归会议中心 / 业务归 PLM · <span id="upd">未加载</span></div>
+    <h1>待办总表</h1>
+    <div class="sub">各系统的待办都汇总到这里 · 行政类来自会议助手，业务类来自 PLM · <span id="upd">未加载</span></div>
   </div>
   <div class="spacer"></div>
-  <button class="btn" id="btnPlmSync" title="从 PLM 拉取最新节点状态并重建总库">同步 PLM</button>
-  <button class="btn" id="btnExtract">规则抽取候选</button>
-  <button class="btn primary" id="btnRefresh">刷新归集</button>
+  <button class="btn" id="btnPlmSync" title="从 PLM 取回最新进度，更新这张总表">同步 PLM</button>
+  <button class="btn" id="btnExtract">自动拆分文本</button>
+  <button class="btn primary" id="btnRefresh">刷新汇总</button>
   <a class="btn" href="/portal">返回门户</a>
 </div>
 <div class="wrap">
   <div class="notice warn" id="notice">
-    M10 总任务库只存<b>引用与快照</b>，不持有业务事实（done ≠ verified）：状态变更请回源系统；抽取结果为<b>规则抽取（非大模型）</b>，须授权验证人确认后才入总库。
+    这里是<b>各系统待办的汇总表</b>，只用来查看，不在本系统里改动业务数据；<b>做完还要有人验收</b>，状态变化请到原来的系统操作。下面的自动拆分是按文字规则拆的（不是 AI 大模型），拆出来的每一条都要由有权限的管理员点确认，才会加到这张表里。
   </div>
   <div class="health" id="health"></div>
   <div class="kpis" id="kpis" style="margin-top:12px"></div>
 
   <div class="panel">
     <div class="filters" style="margin-bottom:8px">
-      <span class="muted" style="font-size:12px">视图</span>
+      <span class="muted" style="font-size:12px">查看范围</span>
       <button class="btn small" id="viewHub" onclick="setView('hub')">总库</button>
       <button class="btn small" id="viewPerson" onclick="setView('person')">个人待办</button>
       <button class="btn small" id="viewDept" onclick="setView('dept')">部门待办</button>
       <span id="viewExtra" class="filters" style="gap:6px"></span>
       <span class="spacer" style="flex:1"></span>
-      <span class="muted" id="syncState" style="font-size:11px">实时同步：连接中…</span>
+      <span class="muted" id="syncState" style="font-size:11px">自动更新：正在连接…</span>
     </div>
     <div class="filters">
-      <select id="fOwner"><option value="">全部责任人</option></select>
-      <select id="fDomain"><option value="">全部业务域</option></select>
+      <select id="fOwner"><option value="">全部负责人</option></select>
+      <select id="fDomain"><option value="">全部业务</option></select>
       <select id="fSource"><option value="">全部来源</option></select>
       <div class="ms" id="msStatus">
         <button type="button" class="ms-btn" id="msStatusBtn">全部状态</button>
         <div class="ms-menu" id="msStatusMenu"></div>
       </div>
-      <input id="fQ" placeholder="搜索任务 / 项目 / 责任人" style="flex:1;min-width:180px">
+      <input id="fQ" placeholder="搜索待办 / 项目 / 负责人" style="flex:1;min-width:180px">
       <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12px;white-space:nowrap">
-        <input type="checkbox" id="fGroup" checked> 合并重复
+        <input type="checkbox" id="fGroup" checked> 相同事项合并
       </label>
       <button class="btn small" id="btnClear">清空</button>
     </div>
@@ -155,9 +155,9 @@ table .cnt{margin-left:4px}
   <div class="cols">
     <div>
       <div class="panel">
-        <h2>任务清单 <span class="tag" id="listCount">0</span> <span class="muted" style="font-size:11px;font-weight:400">点卡片穿透 · 点组头展开 · 可合并重复</span></h2>
+        <h2>任务清单 <span class="tag" id="listCount">0</span> <span class="muted" style="font-size:11px;font-weight:400">点上面的数字看明细 · 点标题展开 · 相同事项可合并</span></h2>
         <div class="filters" style="gap:6px;margin-bottom:8px">
-          <span class="muted" style="font-size:12px">呈现</span>
+          <span class="muted" style="font-size:12px">显示方式</span>
           <button class="btn small" id="modeList" onclick="setMode('list')">列表</button>
           <button class="btn small" id="modeBoard" onclick="setMode('board')">看板</button>
           <button class="btn small" id="modeTable" onclick="setMode('table')">表格</button>
@@ -168,20 +168,20 @@ table .cnt{margin-left:4px}
     </div>
     <div>
       <div class="panel">
-        <h2>按责任人分发 <span class="tag" id="ownerCount">0 人</span></h2>
+        <h2>按负责人查看 <span class="tag" id="ownerCount">0 人</span></h2>
         <div id="owners"></div>
       </div>
       <div class="panel">
-        <h2>抽取候选池（待复核） <span class="tag orange" id="candCount">0</span></h2>
+        <h2>待确认（自动拆出来的） <span class="tag orange" id="candCount">0</span></h2>
         <div style="margin-bottom:8px">
-          <textarea id="fText" placeholder="粘贴会议纪要 / 微信通知 / 口头交办：一次粘贴，自动拆分为多条候选（例：补充试模照片；通知采购准备来料检验 2026-11-20）" style="width:100%;min-height:64px;border:1px solid var(--line);border-radius:7px;padding:8px;font:13px/1.5 inherit;resize:vertical"></textarea>
-          <button class="btn small primary" id="btnExtractText" style="margin-top:6px">拆分这段文本</button>
+          <textarea id="fText" placeholder="把会议记录、微信通知或口头交代粘贴到这里，系统会自动拆成一条条待办（例：补充试模照片；通知采购准备来料检验 2026-11-20）" style="width:100%;min-height:64px;border:1px solid var(--line);border-radius:7px;padding:8px;font:13px/1.5 inherit;resize:vertical"></textarea>
+          <button class="btn small primary" id="btnExtractText" style="margin-top:6px">自动拆分</button>
         </div>
         <div class="filters" style="margin-bottom:8px">
-          <input id="fReviewer" placeholder="复核人（授权验证人）" list="reviewers" style="flex:1" value="">
+          <input id="fReviewer" placeholder="确认人（有权限的管理员）" list="reviewers" style="flex:1" value="">
           <datalist id="reviewers"></datalist>
         </div>
-        <div id="cands"><div class="empty">暂无候选</div></div>
+        <div id="cands"><div class="empty">暂无待确认的内容</div></div>
       </div>
     </div>
   </div>
@@ -192,7 +192,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const state = { data: null, cands: [], people: [], group: true, mode: (localStorage.getItem('taskhub-mode') || 'list'), view: 'hub', person: '', dept: '', deptData: null, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
 const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', confirmed: 'blue', candidate: 'gray', done: 'green', cancelled: 'gray' };
-const ST_TEXT = { overdue: '逾期', blocked: '异常', pending: '待办', in_progress: '进行中', confirmed: '已确认', candidate: '候选', done: '已完成', cancelled: '已取消' };
+const ST_TEXT = { overdue: '已超期', blocked: '有问题', pending: '待办', in_progress: '处理中', confirmed: '已受理', candidate: '待确认', done: '已完成', cancelled: '已作废' };
 const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green', OPS: 'blue' };
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200); }
@@ -258,7 +258,7 @@ function renderKpis() {
     ['已完成', st.done || 0, 'green', 'done']
   ];
   if (st.confirmed) cards.push(['已确认', st.confirmed, 'blue', 'confirmed']);
-  if (st.candidate) cards.push(['候选', st.candidate, 'gray', 'candidate']);
+  if (st.candidate) cards.push(['待确认内容', st.candidate, 'gray', 'candidate']);
   if (st.cancelled) cards.push(['已取消', st.cancelled, 'gray', 'cancelled']);
   const doms = (d.counts && d.counts.byDomain) || {};
   const domCards = Object.keys(doms).map(k => {
@@ -267,40 +267,40 @@ function renderKpis() {
   });
   const html = cards.map(([l, v, , key]) => {
     const on = key === 'all' ? (!f.owner && !f.domain && !f.source && !(f.statuses || []).length && !f.q) : (key && ((f.statuses || []).length === 1 && f.statuses[0] === key));
-    return `<div class="kpi ${on ? 'active' : ''}" onclick="drill('status','${key}')" title="点击穿透到该状态的任务"><b>${v}</b><span>${l}</span><em class="drill">▸</em></div>`;
+    return `<div class="kpi ${on ? 'active' : ''}" onclick="drill('status','${key}')" title="点一下只看这个状态的待办"><b>${v}</b><span>${l}</span><em class="drill">▸</em></div>`;
   }).join('') + domCards.map(([l, v, , key]) => {
     const on = f.domain === key;
-    return `<div class="kpi ${on ? 'active' : ''}" onclick="drill('domain','${key}')" title="点击穿透到该业务域"><b>${v}</b><span>${l}</span><em class="drill">▸</em></div>`;
+    return `<div class="kpi ${on ? 'active' : ''}" onclick="drill('domain','${key}')" title="点一下只看这个业务"><b>${v}</b><span>${l}</span><em class="drill">▸</em></div>`;
   }).join('');
   $('kpis').innerHTML = html;
 }
 
 function renderChips() {
   const f = state.filters; const parts = [];
-  if (f.owner) parts.push(`<span class="chip">责任人 <b>${esc(f.owner)}</b><i onclick="clearFilter('owner')">✕</i></span>`);
+  if (f.owner) parts.push(`<span class="chip">负责人 <b>${esc(f.owner)}</b><i onclick="clearFilter('owner')">✕</i></span>`);
   if (f.domain) {
     const dd = ((state.data && state.data.domains) || []).find(x => x.code === f.domain) || {};
-    parts.push(`<span class="chip">业务域 <b>${esc(dd.label || f.domain)}</b><i onclick="clearFilter('domain')">✕</i></span>`);
+    parts.push(`<span class="chip">所属业务 <b>${esc(dd.label || f.domain)}</b><i onclick="clearFilter('domain')">✕</i></span>`);
   }
   if (f.source) parts.push(`<span class="chip">来源 <b>${esc(f.source)}</b><i onclick="clearFilter('source')">✕</i></span>`);
   (f.statuses || []).forEach(s => parts.push(`<span class="chip">状态 <b>${esc(ST_TEXT[s] || s)}</b><i onclick="toggleStatus('${s}', true)">✕</i></span>`));
   if (f.q) parts.push(`<span class="chip">搜索 <b>${esc(f.q)}</b><i onclick="clearFilter('q')">✕</i></span>`);
-  $('chips').innerHTML = parts.length ? `<span class="muted" style="font-size:11px">穿透条件：</span>${parts.join('')}<span class="chip" style="background:#fff;border-color:var(--line);color:var(--muted)" onclick="resetFilters()">清空全部 ✕</span>` : '<span class="muted" style="font-size:11px">点击上方驾驶舱卡片可穿透筛选；支持多选状态</span>';
+  $('chips').innerHTML = parts.length ? `<span class="muted" style="font-size:11px">当前筛选：</span>${parts.join('')}<span class="chip" style="background:#fff;border-color:var(--line);color:var(--muted)" onclick="resetFilters()">清空全部 ✕</span>` : '<span class="muted" style="font-size:11px">点上面的数字卡片就能筛选；状态可以多选</span>';
 }
 
 function renderHealth() {
   const s = (state.data && state.data.sources) || {};
   $('health').innerHTML = Object.keys(s).map(k => {
     const h = s[k]; const bad = h.ok === false || h.expired;
-    return `<span class="h"><i class="dot ${bad ? 'bad' : ''}"></i>${esc(k)} · ${bad ? '快照过期/源异常' : '正常'} · ${h.itemCount || 0} 条 · ${h.ageMinutes == null ? '无快照' : h.ageMinutes + ' 分钟前'}</span>`;
-  }).join('') || '<span class="muted" style="font-size:12px">尚无归集记录，点击「刷新归集」</span>';
+    return `<span class="h"><i class="dot ${bad ? 'bad' : ''}"></i>${esc(k)} · ${bad ? '数据可能不是最新' : '正常'} · ${h.itemCount || 0} 条 · ${h.ageMinutes == null ? '还没取到数据' : h.ageMinutes + ' 分钟前'}</span>`;
+  }).join('') || '<span class="muted" style="font-size:12px">还没有数据，点上面的「刷新汇总」</span>';
 }
 
 function actionCell(x) {
   if (x.source === 'PLM2') {
-    return `<button class="btn small" onclick="postProgress('${x.id}','in_progress')" title="写透到 PLM 节点：IN_PROGRESS">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')" title="写透到 PLM 节点：DONE">完成</button>`;
+    return `<button class="btn small" onclick="postProgress('${x.id}','in_progress')" title="点一下直接更新到 PLM（处理中）">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')" title="点一下直接更新到 PLM（已完成）">完成</button>`;
   }
-  if (x.origin === 'sync') return `<button class="btn small" onclick="assignTask('${x.id}')">分发</button>`;
+  if (x.origin === 'sync') return `<button class="btn small" onclick="assignTask('${x.id}')">分配</button>`;
   return `<button class="btn small" onclick="postProgress('${x.id}','in_progress')">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')">完成</button>`;
 }
 
@@ -308,12 +308,12 @@ function taskRowHtml(x) {
   return `
     <div class="item">
       <span class="tag ${ST_TAG[x.status] || 'gray'}" style="width:52px;text-align:center">${ST_TEXT[x.status] || x.status}</span>
-      <span class="tag ${DOM_TAG[x.bizDomain] || 'gray'}" title="业务域 → 分库系统">${esc(x.bizDomainLabel)}</span>
+      <span class="tag ${DOM_TAG[x.bizDomain] || 'gray'}" title="所属业务和来源系统">${esc(x.bizDomainLabel)}</span>
       <div class="it-body">
         <b title="${esc(x.title)}">${esc(x.title)}</b>
-        <small>${esc(x.ownerName || '未分配')} · ${esc(x.sourceLabel)}${x.refs && x.refs.projectName ? ' · ' + esc(x.refs.projectName) : ''}${x.origin === 'extract' ? ' · 抽取入总库' : ''}</small>
+        <small>${esc(x.ownerName || '未分配')} · ${esc(x.sourceLabel)}${x.refs && x.refs.projectName ? ' · ' + esc(x.refs.projectName) : ''}${x.origin === 'extract' ? ' · 自动拆分加入' : ''}</small>
       </div>
-      ${x.stale ? '<span class="tag orange" title="源系统不可用，显示本地短期快照">快照</span>' : ''}
+      ${x.stale ? '<span class="tag orange" title="原来的系统暂时连不上，这里显示的是上次保存的数据">旧数据</span>' : ''}
       <span class="muted" style="font-size:12px;width:84px;text-align:right">${esc(x.due || '—')}</span>
       ${actionCell(x)}
     </div>`;
@@ -359,7 +359,7 @@ function renderListMode(rows) {
     const groups = groupRows(rows);
     const shown = groups.slice(0, CAP);
     const more = groups.length > CAP ? `<div class="empty">已显示前 ${CAP} / ${groups.length} 组，请用筛选或搜索缩小范围</div>` : '';
-    const head = `<div class="muted" style="font-size:11px;margin:2px 0 8px">${rows.length} 条 → 合并为 <b>${groups.length}</b> 组（按标题判重），点组头展开看每一条</div>`;
+    const head = `<div class="muted" style="font-size:11px;margin:2px 0 8px">${rows.length} 条 → 合并为 <b>${groups.length}</b> 组（标题相同就合并），点组头展开看每一条</div>`;
     $('list').innerHTML = head + shown.map(g => `
       <details class="grp">
         <summary>
@@ -411,13 +411,13 @@ function renderBoardMode(rows) {
 function renderTableMode(rows) {
   const CAP = 200;
   const groups = state.group ? groupRows(rows) : null;
-  const head = '<thead><tr><th>状态</th><th>业务域</th><th>事项</th><th>责任人</th><th>截止</th><th>来源</th><th>操作</th></tr></thead>';
+  const head = '<thead><tr><th>状态</th><th>所属业务</th><th>事项</th><th>负责人</th><th>截止</th><th>来源</th><th>操作</th></tr></thead>';
   let body;
   if (groups) {
     body = groups.slice(0, CAP).map(g => {
       const main = Object.keys(g.statusCounts).sort((a, b) => g.statusCounts[b] - g.statusCounts[a])[0];
       const titleCell = g.count > 1
-        ? `<details><summary style="cursor:pointer">${esc(g.title)} <span class="cnt">×${g.count}</span> <span class="muted" style="font-size:11px">展开逐条</span></summary>
+        ? `<details><summary style="cursor:pointer">${esc(g.title)} <span class="cnt">×${g.count}</span> <span class="muted" style="font-size:11px">展开看每一条</span></summary>
              <div class="occ" style="border:0">${g.items.map(x => `<div class="item" style="padding:4px 0;border:0"><small class="muted">${esc(x.ownerName || '未分配')} · ${esc(x.due || '—')} · ${esc(ST_TEXT[x.status] || x.status)}</small>${actionCell(x)}</div>`).join('')}</div></details>`
         : esc(g.title);
       return `<tr><td><span class="tag ${ST_TAG[main] || 'gray'}">${ST_TEXT[main] || main}</span></td>
@@ -442,7 +442,7 @@ function renderOwners() {
   rows.forEach(x => { const k = x.ownerName || '未分配'; (map[k] = map[k] || { total: 0, overdue: 0, pending: 0, done: 0 }); map[k].total++; if (x.status === 'overdue') map[k].overdue++; else if (x.status === 'done') map[k].done++; else map[k].pending++; });
   const keys = Object.keys(map).sort((a, b) => map[b].total - map[a].total);
   $('ownerCount').textContent = keys.length + ' 人';
-  $('owners').innerHTML = keys.length ? `<table><thead><tr><th>责任人</th><th>合计</th><th>逾期</th><th>待办/进行</th><th>完成</th></tr></thead><tbody>
+  $('owners').innerHTML = keys.length ? `<table><thead><tr><th>负责人</th><th>合计</th><th>逾期</th><th>待办/进行</th><th>完成</th></tr></thead><tbody>
     ${keys.map(k => `<tr style="cursor:pointer" onclick="pickOwner('${esc(k)}')"><td>${esc(k)}</td><td><b>${map[k].total}</b></td><td>${map[k].overdue ? '<span class="tag red">' + map[k].overdue + '</span>' : '0'}</td><td>${map[k].pending}</td><td>${map[k].done}</td></tr>`).join('')}
   </tbody></table>` : '<div class="empty">无数据</div>';
 }
@@ -450,15 +450,15 @@ function renderOwners() {
 function renderCands() {
   const cs = state.cands || [];
   $('candCount').textContent = cs.length;
-  if (!cs.length) { $('cands').innerHTML = '<div class="empty">暂无候选：抽取会跳过已归集项，并对编码损坏的源文本明确跳过</div>'; return; }
+  if (!cs.length) { $('cands').innerHTML = '<div class="empty">暂无待确认的内容：已经汇总过的不再重复拆，文字乱码的会跳过</div>'; return; }
   $('cands').innerHTML = cs.map(c => `
     <div class="cand">
       <b>${esc(c.title)}</b>
-      <div class="muted" style="font-size:11px">来源 ${esc(c.sourceLabel)} · ${esc(c.bizDomain)} · 期限 ${esc(c.due || '未识别')} · 责任人 ${esc(c.ownerName || '未识别')} · 置信度 ${c.confidence}</div>
+      <div class="muted" style="font-size:11px">来源 ${esc(c.sourceLabel)} · ${esc(c.bizDomain)} · 期限 ${esc(c.due || '未识别')} · 负责人 ${esc(c.ownerName || '未识别')} · 置信度 ${c.confidence}</div>
       <div class="row">
-        <button class="btn small primary" onclick="confirmCand('${c.id}')">确认入总库</button>
-        <button class="btn small" onclick="rejectCand('${c.id}')">驳回</button>
-        <span class="tag gray" title="${esc(c.engineNote)}">规则抽取</span>
+        <button class="btn small primary" onclick="confirmCand('${c.id}')">确认加入总表</button>
+        <button class="btn small" onclick="rejectCand('${c.id}')">不加入</button>
+        <span class="tag gray" title="${esc(c.engineNote)}">按文字规则拆分</span>
       </div>
     </div>`).join('');
 }
@@ -466,8 +466,8 @@ function renderCands() {
 function renderFilters() {
   const d = state.data; if (!d) return;
   const owners = Object.keys((d.counts && d.counts.byOwner) || {});
-  $('fOwner').innerHTML = '<option value="">全部责任人</option>' + owners.map(o => `<option ${state.filters.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('');
-  $('fDomain').innerHTML = '<option value="">全部业务域</option>' + (d.domains || []).map(x => `<option value="${x.code}" ${state.filters.domain === x.code ? 'selected' : ''}>${esc(x.label)} → ${esc(x.bizSysLabel)}</option>`).join('');
+  $('fOwner').innerHTML = '<option value="">全部负责人</option>' + owners.map(o => `<option ${state.filters.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('');
+  $('fDomain').innerHTML = '<option value="">全部所属业务</option>' + (d.domains || []).map(x => `<option value="${x.code}" ${state.filters.domain === x.code ? 'selected' : ''}>${esc(x.label)} → ${esc(x.bizSysLabel)}</option>`).join('');
   const srcs = [...new Set((d.items || []).map(x => x.source))];
   $('fSource').innerHTML = '<option value="">全部来源</option>' + srcs.map(s => `<option ${state.filters.source === s ? 'selected' : ''}>${esc(s)}</option>`).join('');
   renderStatusMenu();
@@ -491,7 +491,7 @@ function renderStatusMenu() {
 
 function renderAll() {
   const d = state.data;
-  $('upd').textContent = d && d.updatedAt ? '归集于 ' + d.updatedAt.slice(0, 16).replace('T', ' ') : '未归集';
+  $('upd').textContent = d && d.updatedAt ? '汇总时间：' + d.updatedAt.slice(0, 16).replace('T', ' ') : '还没有汇总';
   renderViewBar();
   renderHealth(); renderKpis(); renderChips(); renderList(); renderOwners(); renderCands();
 }
@@ -544,10 +544,10 @@ window.setView = async (v) => {
 
 window.postProgress = async (id, status) => {
   const actor = state.view === 'person' ? state.person : prompt('操作人（M10 人员姓名）', state.person || '');
-  if (!actor) return toast('需要操作人才能留痕');
+  if (!actor) return toast('请先填写操作人，方便留下记录');
   try {
     await api('/api/v1/tasks/' + encodeURIComponent(id) + '/progress', 'POST', { status, actor });
-    toast(status === 'done' ? '已完成（已同步到总库）' : '已开始（已同步到总库）');
+    toast(status === 'done' ? '已完成，已同步到总表' : '已开始，已同步到总表');
     await reloadAll();
   } catch (e) { toast('更新失败：' + e.message); }
 };
@@ -557,8 +557,8 @@ let reloadTimer = null;
 function connectStream() {
   try {
     const es = new EventSource('/api/v1/tasks/stream');
-    es.onopen = () => { $('syncState').textContent = '实时同步：已连接'; };
-    es.onerror = () => { $('syncState').textContent = '实时同步：重连中…'; };
+    es.onopen = () => { $('syncState').textContent = '自动更新：已连接'; };
+    es.onerror = () => { $('syncState').textContent = '自动更新：重新连接中…'; };
     es.onmessage = (ev) => {
       let m = {}; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.kind === 'hello') return;
@@ -567,7 +567,7 @@ function connectStream() {
       clearTimeout(reloadTimer);
       reloadTimer = setTimeout(() => reloadAll(), 400);
     };
-  } catch (e) { $('syncState').textContent = '实时同步：不可用'; }
+  } catch (e) { $('syncState').textContent = '自动更新：暂不可用'; }
 }
 
 async function reloadAll() {
@@ -577,7 +577,7 @@ async function reloadAll() {
   renderFilters(); renderAll();
 }
 
-// 驾驶舱穿透
+// 数字卡片点开看明细
 window.drill = (dim, key) => {
   const f = state.filters;
   if (dim === 'status') {
@@ -618,7 +618,7 @@ async function load() {
   const d = await api('/api/v1/tasks');
   state.data = d;
   if (!d.total) {
-    toast('总库为空，正在执行首次归集…');
+    toast('还没有数据，正在第一次汇总…');
     await api('/api/v1/tasks/refresh', 'POST', {});
     state.data = await api('/api/v1/tasks');
   }
@@ -643,38 +643,38 @@ async function loadPeople() {
 
 window.pickOwner = (o) => { state.filters.owner = o; $('fOwner').value = o; renderAll(); };
 window.confirmCand = async (id) => {
-  if (!reviewer()) return toast('请先填写复核人（授权验证人）');
+  if (!reviewer()) return toast('请先填写确认人（有权限的管理员）');
   const c = state.cands.find(x => x.id === id) || {};
   try {
     const r = await api('/api/v1/tasks/candidates/' + encodeURIComponent(id) + '/confirm', 'POST', { reviewer: reviewer(), ownerName: c.ownerName || '' });
-    toast('已入总库：' + (r.item ? r.item.title : ''));
+    toast('已加入总表：' + (r.item ? r.item.title : ''));
     state.data = await api('/api/v1/tasks'); await loadCands(); renderFilters(); renderAll();
-  } catch (e) { toast('确认失败：' + e.message); }
+  } catch (e) { toast('加入失败：' + e.message); }
 };
 window.rejectCand = async (id) => {
-  if (!reviewer()) return toast('请先填写复核人（授权验证人）');
+  if (!reviewer()) return toast('请先填写确认人（有权限的管理员）');
   try {
     await api('/api/v1/tasks/candidates/' + encodeURIComponent(id) + '/reject', 'POST', { reviewer: reviewer(), reason: '人工判定非任务' });
-    toast('已驳回'); await loadCands(); renderCands();
-  } catch (e) { toast('驳回失败：' + e.message); }
+    toast('已标记不加入'); await loadCands(); renderCands();
+  } catch (e) { toast('操作失败：' + e.message); }
 };
 window.assignTask = async (id) => {
   const it = (state.data.items || []).find(x => x.id === id);
   if (!it) return;
-  if (it.origin === 'sync') { toast('该任务责任人由 ' + it.bizSysLabel + ' 持有，请回源系统调整（M10 不双写）'); return; }
-  if (!reviewer()) return toast('请先在右侧填写复核人（授权验证人）');
-  const owner = prompt('分发给哪位责任人？', it.ownerName || ''); if (!owner) return;
+  if (it.origin === 'sync') { toast('这条待办由 ' + it.bizSysLabel + ' 管理，请到那里修改；这里只做展示，避免两边不一致'); return; }
+  if (!reviewer()) return toast('请先在右侧填写确认人（有权限的管理员）');
+  const owner = prompt('分发给哪位负责人？', it.ownerName || ''); if (!owner) return;
   try {
     await api('/api/v1/tasks/' + encodeURIComponent(id) + '/assign', 'POST', { ownerName: owner, reviewer: reviewer() });
-    toast('已分发：' + owner);
+    toast('已分配给：' + owner);
     state.data = await api('/api/v1/tasks'); renderFilters(); renderAll();
-  } catch (e) { toast('分发失败：' + e.message); }
+  } catch (e) { toast('分配失败：' + e.message); }
 };
 
 $('btnRefresh').onclick = async () => {
   const b = $('btnRefresh'); b.disabled = true;
-  try { const r = await api('/api/v1/tasks/refresh', 'POST', {}); toast('归集完成：' + r.total + ' 条'); state.data = await api('/api/v1/tasks'); await loadCands(); renderFilters(); renderAll(); }
-  catch (e) { toast('归集失败：' + e.message); } finally { b.disabled = false; }
+  try { const r = await api('/api/v1/tasks/refresh', 'POST', {}); toast('汇总完成：' + r.total + ' 条'); state.data = await api('/api/v1/tasks'); await loadCands(); renderFilters(); renderAll(); }
+  catch (e) { toast('汇总失败：' + e.message); } finally { b.disabled = false; }
 };
 $('btnPlmSync').onclick = async () => {
   const b = $('btnPlmSync'); b.disabled = true;
@@ -689,17 +689,17 @@ $('btnExtract').onclick = async () => {
   try {
     const r = await api('/api/v1/tasks/extract', 'POST', {});
     const sk = (r.skipped || []).length;
-    toast('抽取完成：新增候选 ' + r.produced + ' 条' + (sk ? '，跳过编码损坏 ' + sk + ' 条' : '') + '（需复核后才入总库）');
+    toast('拆分完成：新增待确认 ' + r.produced + ' 条' + (sk ? '，跳过编码损坏 ' + sk + ' 条' : '') + '（确认后才会加入总表）');
     await loadCands(); renderCands();
   } catch (e) { toast('抽取失败：' + e.message); } finally { b.disabled = false; }
 };
 $('btnExtractText').onclick = async () => {
   const text = ($('fText').value || '').trim();
-  if (!text) return toast('请先粘贴文本');
+  if (!text) return toast('请先把文字粘贴进来');
   const b = $('btnExtractText'); b.disabled = true;
   try {
     const r = await api('/api/v1/tasks/extract', 'POST', { text });
-    toast('拆分完成：新增候选 ' + r.produced + ' 条（需复核后才入总库）');
+    toast('拆分完成：新增待确认 ' + r.produced + ' 条（确认后才会加入总表）');
     $('fText').value = '';
     await loadCands(); renderCands();
   } catch (e) { toast('拆分失败：' + e.message); } finally { b.disabled = false; }

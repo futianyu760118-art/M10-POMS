@@ -38,7 +38,7 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
   <p>岗位与个人运营微系统（M10 POMS）· 选择业务系统进入工作台</p>
   <div class="pills">
     <span class="pill">已接入：PLM（真实数据 166 项目）</span>
-    <span class="pill">总任务库：会议 + PLM 统一待办</span>
+    <span class="pill">待办总表：会议和 PLM 的待办都能看到</span>
     <span class="pill">HLC 报修/请假闭环</span>
     <span class="pill">AI 录入 8002 · 水印 8003</span>
   </div>
@@ -47,10 +47,10 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
   <h2 class="sec">业务系统（按系统选择进入）</h2>
   <div class="grid">
     <div class="card">
-      <div class="top"><b class="t">总任务库 · 统一待办</b><span class="tag ok">已接入 · 会议 + PLM</span></div>
+      <div class="top"><b class="t">待办总表 · 一处看全部待办</b><span class="tag ok">已接入 · 会议 + PLM</span></div>
       <span class="code">M10 · /taskhub</span>
-      <p>各业务系统任务汇总总库并按责任人分发：行政类归会议中心，业务类（订单/采购/生产/研发）归 PLM。本地短期快照保底，源系统故障仍可查看（标注过期）；规则抽取先入候选池，人工确认后才进总库。</p>
-      <a class="btn primary" href="/taskhub">进入总任务库</a>
+      <p>把各系统的待办汇总到一处，按负责人查看：行政类来自会议助手，业务类（订单/采购/生产/研发）来自 PLM。原来的系统连不上时会显示上次保存的数据（会标注）；自动拆出来的内容要管理员确认后才会加入。</p>
+      <a class="btn primary" href="/taskhub">打开待办总表</a>
     </div>
     <div class="card">
       <div class="top"><b class="t">PLM 研发自治中心</b><span class="tag ok">已接入 · 真实数据</span></div>
@@ -61,7 +61,7 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
     <div class="card">
       <div class="top"><b class="t">HLC 人力后勤自治中心</b><span class="tag ok">已接入 · 双端闭环</span></div>
       <span class="code">M07×M10 · /hlc</span>
-      <p>报修/请假首条 MVP 闭环：员工发起 → 受理/派单/审批 → 留证 → 验收（done≠verified）→ 归档 → 个人报告</p>
+      <p>报修/请假首条 MVP 闭环：员工发起 → 受理/派单/审批 → 留证 → 验收（做完要由别人验收）→ 归档 → 个人报告</p>
       <a class="btn primary" href="/hlc">进入 HLC</a>
     </div>
     <div class="card">
@@ -115,7 +115,7 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
     </div>
     <div class="card">
       <div class="top"><b class="t">品质检验演示</b><span class="tag ok">Demo</span></div>
-      <span class="code">扫码匹配 · 采集 · done≠verified</span>
+      <span class="code">扫码匹配 · 采集 · 做完要验收</span>
       <p>V2.3 场景演示页（灯具/定时器能力包）。</p>
       <a class="btn" href="/demo/inspection.html">打开</a>
     </div>
@@ -127,6 +127,6 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
     </div>
   </div>
 </div>
-<div class="foot">AEOS V7.2.2 · M10 POMS L0 · 数据来源：plm-postgres/plm_v4（真实）+ 本地演示 · 未经 Owner 签批均为候选状态</div>
+<div class="foot">AEOS V7.2.2 · M10 POMS L0 · 数据来源：plm-postgres/plm_v4（真实）+ 本地演示 · 还没经过负责人或主管签字确认的，都算待定</div>
 </body>
 </html>
