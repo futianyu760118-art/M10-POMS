@@ -10,6 +10,10 @@ const CHECKLIST = [
   ['session', '登录会话'],
   ['task_access', '待办事项办理权限']
 ];
+const STATUS_LABELS = {
+  synced: '已完成', stale: '已跳过', pending_confirmation: '待管理员确认',
+  pending: '待处理', retrying: '处理中', failed: '处理失败'
+};
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -104,6 +108,8 @@ function createPersonLifecycleService({ file = path.join(ROOT, 'data', 'person-l
     } else {
       throw new Error(`不支持的人员状态事件：${event.event_type}`);
     }
+
+    result.status_text = STATUS_LABELS[result.status] || '处理中';
 
     state.people[personId] = person;
     const record = { ...event, result };
