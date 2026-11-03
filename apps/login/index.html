@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>统一登录 · AEOS 微系统</title>
+<style>
+:root{--bg:#eef2f8;--panel:#fff;--line:#dfe7f2;--text:#16283f;--muted:#7186a0;--blue:#2f6fbd;--green:#1c8a4e;--red:#c0392b;--orange:#c47a12}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:linear-gradient(180deg,#eaf1fb,#f6f8fc 40%,#f6f8fc);color:var(--text);min-height:100vh}
+.wrap{max-width:520px;margin:0 auto;padding:40px 18px 60px}
+.brand{text-align:center;margin-bottom:22px}
+.brand .logo{width:54px;height:54px;border-radius:16px;background:linear-gradient(135deg,#2f6fbd,#4a9be0);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:24px;box-shadow:0 8px 22px rgba(47,111,189,.28)}
+.brand h1{font-size:20px;margin:12px 0 4px}
+.brand p{margin:0;color:var(--muted);font-size:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(15,39,68,.07)}
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}
+input{width:100%;font:inherit;padding:12px 14px;border:1px solid #d5dfec;border-radius:11px;background:#fff;margin-bottom:14px;outline:none}
+input:focus{border-color:#8fb8e8;box-shadow:0 0 0 3px rgba(47,111,189,.12)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:11px;padding:11px 16px;font:inherit;font-size:14px;cursor:pointer;text-decoration:none}
+.btn:hover{background:#f7faff;border-color:#c7d7ea}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;width:100%}
+.btn.primary[disabled]{opacity:.55;cursor:not-allowed}
+.btn.small{padding:7px 12px;font-size:13px;border-radius:9px}
+.hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7}
+.sys{margin-top:16px;border-top:1px dashed var(--line);padding-top:14px}
+.sys h2{font-size:13px;margin:0 0 8px;color:var(--muted);font-weight:600}
+.sysrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 2px;font-size:13px;border-bottom:1px solid #f2f6fb}
+.sysrow:last-child{border-bottom:0}
+.tag{font-size:11px;padding:2px 9px;border-radius:20px;border:1px solid var(--line);background:#f6f9fd;color:var(--muted);white-space:nowrap}
+.tag.ok{background:#eefaf2;border-color:#bfe6cd;color:var(--green)}
+.tag.bad{background:#fdf1f0;border-color:#f0c9c4;color:var(--red)}
+.tag.warn{background:#fff8ec;border-color:#f1dcb6;color:var(--orange)}
+.err{background:#fdf1f0;border:1px solid #f0c9c4;color:#a93226;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:12px;display:none}
+.okbox{display:none;margin-top:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.foot{text-align:center;color:var(--muted);font-size:11px;margin-top:22px;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="logo">AE</div>
+    <h1>统一登录</h1>
+    <p>一次登录，进入各系统 · 浏览器只保存本系统会话</p>
+  </div>
+
+  <div class="panel">
+    <div class="err" id="err"></div>
+    <form id="form">
+      <label for="account">账号</label>
+      <input id="account" name="account" autocomplete="username" placeholder="例如：admin 或 你的姓名" autofocus>
+      <label for="password">密码</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码">
+      <button class="btn primary" id="submit" type="submit">登录</button>
+      <div class="hint">账号密码与 PLM 一致。会议助手按姓名（中文名）验证；个别系统若登录不通过，会在下面单独提示，不影响其他系统。</div>
+    </form>
+
+    <div class="sys" id="sysBox" style="display:none">
+      <h2>各系统连接情况</h2>
+      <div id="sysList"></div>
+    </div>
+
+    <div class="okbox" id="okBox">
+      <div class="row">
+        <a class="btn primary" href="/m" style="width:auto">进入手机工作台</a>
+        <a class="btn" href="/portal">进入门户</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">AEOS V7.2.2 · M10 岗位与个人运营微系统<br>首次使用请联系管理员开通账号</div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const SYS_NAME = { plm: 'PLM 研发中心', hub: 'Hub 智能体中心', meeting: '会议助手', hlc: '人事后勤 HLC' };
+const SYS_ERR = {
+  'Hub 账号或密码不正确': 'Hub 用的是它自己的账号，和 PLM 不同',
+  '未配置会议助手地址（MEETING_API）': '未配置会议助手地址',
+  '需要先用 PLM 账号登录': 'PLM 没登录成功，HLC 暂时用不了'
+};
+
+function chip(ok, text) { return `<span class="tag ${ok ? 'ok' : 'bad'}">${text}</span>`; }
+function renderSystems(systems) {
+  $('sysBox').style.display = 'block';
+  $('sysList').innerHTML = Object.keys(SYS_NAME).map(k => {
+    const s = (systems && systems[k]) || {};
+    const label = s.ok ? '已连接' : (s.configured === false ? '未配置' : '未通过');
+    const tip = s.ok ? (s.name || s.role || '') : (SYS_ERR[s.error] || s.error || '');
+    return `<div class="sysrow"><span>${SYS_NAME[k]}</span><span style="display:flex;gap:6px;align-items:center">${tip ? `<span class="tag warn">${tip}</span>` : ''}${chip(!!s.ok, label)}</span></div>`;
+  }).join('');
+}
+
+async function checkStatus() {
+  try {
+    const r = await fetch('/api/v1/sso/status', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (j.loggedIn) {
+      renderSystems(j.systems);
+      $('okBox').style.display = 'block';
+    }
+  } catch (e) { /* 未登录 */ }
+}
+
+$('form').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const username = $('account').value.trim();
+  const password = $('password').value;
+  $('err').style.display = 'none';
+  $('okBox').style.display = 'none';
+  if (!username || !password) { $('err').textContent = '请填写账号和密码'; $('err').style.display = 'block'; return; }
+  const btn = $('submit');
+  btn.disabled = true; btn.textContent = '正在登录…';
+  try {
+    const r = await fetch('/api/v1/sso/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+    const j = await r.json();
+    if (!r.ok) {
+      $('err').textContent = j.error || '登录失败';
+      $('err').style.display = 'block';
+      if (j.systems) renderSystems(j.systems);
+      return;
+    }
+    renderSystems(j.systems);
+    $('okBox').style.display = 'block';
+    btn.textContent = '已登录';
+  } catch (e) {
+    $('err').textContent = '网络异常：' + e.message;
+    $('err').style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    if (btn.textContent === '正在登录…') btn.textContent = '登录';
+  }
+};
+
+checkStatus();
+</script>
+</body>
+</html>

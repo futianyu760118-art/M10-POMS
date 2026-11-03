@@ -34,6 +34,58 @@ function deriveRole(roleCodeStr) {
   return ROLE_MAP[primary] || 'VIEWER';
 }
 const TASKHUB_REVIEWER_ROLES = ['ADMIN', 'admin', 'gm', 'rd_manager', 'project_manager', 'hr_manager', 'cw1', 'sales_director', 'sales_manager'];
+/* ---- 统一登录（服务端代登录各系统，浏览器只拿 M10 会话） ---- */
+const crypto = require('crypto');
+const SSO_SESSIONS = new Map();
+const SSO_TTL = 8 * 60 * 60 * 1000;
+function cookieOf(req, name) {
+  const h = req.headers.cookie || '';
+  const m = h.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+function ssoSession(req) {
+  const sid = cookieOf(req, 'm10sess');
+  if (!sid) return null;
+  const s = SSO_SESSIONS.get(sid);
+  if (!s) return null;
+  if (Date.now() - s.at > SSO_TTL) { SSO_SESSIONS.delete(sid); return null; }
+  s.at = Date.now();
+  return s;
+}
+async function ssoLogin(username, password) {
+  const systems = {};
+  let user = { name: username };
+  let plmToken = '';
+  try {
+    const x = await plmSync.loginWith(username, password);
+    plmToken = x.token || '';
+    const vo = x.vo || {};
+    systems.plm = { ok: true, name: vo.realName || username, role: vo.roleCode || (vo.roles && vo.roles[0]) || '' };
+    user = { name: vo.realName || username, role: vo.roleCode || (vo.roles && vo.roles[0]) || '', userId: vo.userId || null, roles: vo.roles || [] };
+  } catch (e) { systems.plm = { ok: false, error: e.message }; }
+
+  try {
+    const x = await hub.loginWith(username, password);
+    systems.hub = { ok: !!x.ok, error: x.error || '' };
+  } catch (e) { systems.hub = { ok: false, error: e.message }; }
+
+  try {
+    const x = await meetingAdapter.loginAs(username);
+    systems.meeting = { ok: !!x.ok, configured: x.configured !== false, error: x.error || '', role: x.role || '' };
+    if (x.ok && x.name && user.name === username) user.name = x.name;
+  } catch (e) { systems.meeting = { ok: false, error: e.message }; }
+
+  if (plmToken) {
+    try {
+      const s = await hlc.exchangePlm(plmToken);
+      systems.hlc = { ok: !!s, role: (s && s.role) || '' };
+    } catch (e) { systems.hlc = { ok: false, error: e.message }; }
+  } else {
+    systems.hlc = { ok: false, error: '需要先用 PLM 账号登录' };
+  }
+
+  return { user, systems, plmToken };
+}
 function taskhubReviewer(name) {
   if (!name) return null;
   const p = plm2.getPeople().find(x => x.name === name || x.username === name);
@@ -179,6 +231,32 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/plm2' || pathname === '/plm2/') return serveStatic('/demo/plm2.html', res);
     if (pathname === '/hlc' || pathname === '/hlc/') return serveStatic('/demo/hlc.html', res);
     if (pathname === '/taskhub' || pathname === '/taskhub/') return serveStatic('/demo/taskhub.html', res);
+    if (pathname === '/login' || pathname === '/login/') return serveStatic('/apps/login/index.html', res);
+    if (pathname === '/m' || pathname === '/m/') return serveStatic('/apps/mobile-web/role.html', res);
+    /* ---- 统一登录：一个登录页连接各系统（服务端代登录） ---- */
+    if (pathname === '/api/v1/sso/login' && req.method === 'POST') {
+      const body = await readBody(req);
+      const username = String(body.username || '').trim();
+      const password = String(body.password || '');
+      if (!username || !password) return send(res, 400, { error: '请填写账号和密码' });
+      const r = await ssoLogin(username, password);
+      const anyOk = Object.values(r.systems).some(x => x.ok);
+      if (!anyOk) return send(res, 401, { error: '账号或密码不正确：各系统都没有通过', systems: r.systems });
+      const sid = crypto.randomBytes(16).toString('hex');
+      SSO_SESSIONS.set(sid, { at: Date.now(), user: r.user, systems: r.systems });
+      res.setHeader('Set-Cookie', 'm10sess=' + sid + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800');
+      return send(res, 200, { ok: true, user: r.user, systems: r.systems });
+    }
+    if (pathname === '/api/v1/sso/status' && req.method === 'GET') {
+      const s = ssoSession(req);
+      return send(res, 200, { loggedIn: !!s, user: s ? s.user : null, systems: s ? s.systems : null });
+    }
+    if (pathname === '/api/v1/sso/logout' && req.method === 'POST') {
+      const sid = cookieOf(req, 'm10sess');
+      if (sid) SSO_SESSIONS.delete(sid);
+      res.setHeader('Set-Cookie', 'm10sess=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+      return send(res, 200, { ok: true });
+    }
     if (pathname.startsWith('/demo/') || pathname.startsWith('/apps/') || pathname.startsWith('/vendor/')) return serveStatic(pathname, res);
     if (pathname.startsWith('/favicon')) return send(res, 204, '');
 

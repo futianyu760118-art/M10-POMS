@@ -116,4 +116,40 @@ function normalize(x, today, opts) {
   };
 }
 
-module.exports = { listMine, listAll, loadSnapshot };
+/**
+ * 统一登录：用 OA 账号（中文姓名）登录会议助手，验证账号是否有效
+ * 需要 MEETING_API（如 http://192.168.0.127:18081）
+ */
+function loginAs(loginid) {
+  return new Promise((resolve) => {
+    const base = (process.env.MEETING_API || 'http://192.168.0.127:18081').replace(/\/$/, '');
+    if (!base) return resolve({ ok: false, configured: false, error: '未配置会议助手地址（MEETING_API）' });
+    const u = new URL(base + '/api/auth/login');
+    const lib = u.protocol === 'https:' ? require('https') : require('http');
+    const body = Buffer.from(JSON.stringify({ loginid }));
+    const req = lib.request({
+      host: u.hostname, port: u.port || (u.protocol === 'https:' ? 443 : 80),
+      path: u.pathname, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': body.length, Accept: 'application/json' },
+      timeout: 10000
+    }, res => {
+      const c = []; res.on('data', d => c.push(d));
+      res.on('end', () => {
+        const text = Buffer.concat(c).toString('utf8');
+        let j = {}; try { j = JSON.parse(text); } catch (e) { /* ignore */ }
+        if (res.statusCode !== 200) {
+          return resolve({ ok: false, status: res.statusCode, error: (j && j.error) || ('会议助手返回 ' + res.statusCode) });
+        }
+        const sc = res.headers['set-cookie'] || [];
+        const cookie = (Array.isArray(sc) ? sc : [sc]).map(x => String(x).split(';')[0]).filter(Boolean).join('; ');
+        resolve({ ok: true, configured: true, cookie, name: (j.data && j.data.name) || loginid, role: (j.data && j.data.role) || '' });
+      });
+    });
+    req.on('error', e => resolve({ ok: false, configured: true, error: '会议助手连接失败：' + e.message }));
+    req.setTimeout(10000, () => req.destroy(new Error('会议助手登录超时')));
+    req.write(body);
+    req.end();
+  });
+}
+
+module.exports = { listMine, listAll, loadSnapshot, loginAs };

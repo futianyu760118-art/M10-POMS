@@ -161,4 +161,19 @@ function openSession(agentId) {
   return { session_id: 'ses_' + Date.now(), agent_id: agentId, status: 'created' };
 }
 
-module.exports = { listAgents, openSession, listTodos, status, configured, HUB_CONNECTED, conf };
+/** 用给定账号密码登录（统一登录用），成功则复用该会话 */
+async function loginWith(account, password) {
+  const c = conf();
+  if (!c.api) return { ok: false, error: '未配置 Hub 地址' };
+  try {
+    const r = await request(c.api + '/api/auth/login', { method: 'POST', body: { account, password } });
+    if (r.status !== 200) return { ok: false, status: r.status, error: 'Hub 账号或密码不正确' };
+    const sc = r.headers['set-cookie'] || [];
+    const cookie = (Array.isArray(sc) ? sc : [sc]).map(x => String(x).split(';')[0]).filter(Boolean).join('; ');
+    if (!cookie) return { ok: false, error: 'Hub 登录未返回会话' };
+    SESSION = { cookie, at: Date.now() };
+    return { ok: true, account };
+  } catch (e) { return { ok: false, error: 'Hub 连接失败：' + e.message }; }
+}
+
+module.exports = { listAgents, openSession, listTodos, status, configured, loginWith, HUB_CONNECTED, conf };

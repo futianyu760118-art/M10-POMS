@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f6fbd">
+<title>AEOS 手机工作台 · 按岗位使用</title>
+<style>
+:root{--bg:#eef2f8;--panel:#fff;--line:#dfe7f2;--text:#16283f;--muted:#7186a0;--blue:#2f6fbd;--green:#1c8a4e;--red:#c0392b;--orange:#c47a12;--radius:14px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-bottom:78px}
+.top{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#2f6fbd,#4a9be0);color:#fff;padding:14px 16px 12px;border-radius:0 0 18px 18px;box-shadow:0 6px 18px rgba(47,111,189,.22)}
+.top .row1{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.top h1{font-size:17px;margin:0;font-weight:600}
+.top .sub{font-size:11px;opacity:.85;margin-top:2px}
+.me{font-size:11px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:20px;padding:4px 10px;text-decoration:none;color:#fff;white-space:nowrap}
+.picks{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+.picks select{width:100%;font:inherit;font-size:12px;padding:8px 8px;border-radius:9px;border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.95);color:#16283f}
+.wrap{padding:14px 14px 10px;max-width:640px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:0 4px 14px rgba(15,39,68,.05)}
+.card h2{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;border:1px solid var(--line);background:#f6f9fd;color:var(--muted);white-space:nowrap}
+.tag.ok{background:#eefaf2;border-color:#bfe6cd;color:var(--green)}
+.tag.bad{background:#fdf1f0;border-color:#f0c9c4;color:var(--red)}
+.tag.warn{background:#fff8ec;border-color:#f1dcb6;color:var(--orange)}
+.tag.blue{background:#eef5fd;border-color:#c9dcf5;color:#24508f}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 8px;text-align:center}
+.kpi b{display:block;font-size:18px;line-height:1.25}
+.kpi span{font-size:11px;color:var(--muted)}
+.item{display:flex;gap:9px;align-items:center;padding:10px 2px;border-bottom:1px solid #f1f5fa}
+.item:last-child{border-bottom:0}
+.item .body{flex:1;min-width:0}
+.item b{display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item small{color:var(--muted);font-size:11px}
+.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:10px;padding:9px 13px;font:inherit;font-size:13px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.small{padding:6px 10px;font-size:12px;border-radius:9px}
+.btn[disabled]{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+label.f{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px}
+input,textarea,select{width:100%;font:inherit;font-size:14px;padding:10px 12px;border:1px solid #d5dfec;border-radius:10px;background:#fff;outline:none}
+input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3px rgba(47,111,189,.12)}
+.empty{color:var(--muted);font-size:12px;padding:8px 2px}
+.nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);z-index:30;padding-bottom:env(safe-area-inset-bottom)}
+.nav button{background:none;border:0;font:inherit;font-size:11px;color:var(--muted);padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+.nav button .ico{font-size:17px;line-height:1}
+.nav button.on{color:var(--blue);font-weight:600}
+.notice{font-size:12px;color:#24508f;background:#eef5fd;border:1px solid #c9dcf5;border-radius:10px;padding:9px 11px;margin-bottom:12px;line-height:1.65}
+.muted{color:var(--muted)}
+.list-sec{margin-bottom:6px}
+.sec-title{font-size:12px;color:var(--muted);margin:12px 0 4px;font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(10px);background:#16283f;color:#fff;font-size:13px;padding:9px 15px;border-radius:22px;opacity:0;pointer-events:none;transition:.25s;z-index:40;max-width:88vw;text-align:center}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="row1">
+    <div>
+      <h1>AEOS 手机工作台</h1>
+      <div class="sub" id="sub">按岗位使用 · 数据来自各系统</div>
+    </div>
+    <a class="me" id="me" href="/login">未登录</a>
+  </div>
+  <div class="picks">
+    <select id="selCompany"></select>
+    <select id="selDept"></select>
+    <select id="selPos"></select>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="loginHint" class="notice" style="display:none">
+    还没登录：<a href="/login">去统一登录</a> 后能看到你自己的待办；不登录也可以先看看岗位内容。
+  </div>
+
+  <div id="tab-todos">
+    <div class="card">
+      <h2>我的待办 <span class="tag" id="todoTag">—</span></h2>
+      <div class="kpis" id="todoKpis"></div>
+      <div id="todoList"><div class="empty">加载中…</div></div>
+    </div>
+  </div>
+
+  <div id="tab-capture" style="display:none">
+    <div class="card">
+      <h2>品质检验 / 采集 <span class="tag" id="capRoleTag">—</span></h2>
+      <div class="notice" id="capNotice">扫码或输入料号后，系统会按岗位允许的类型显示可填写的检验项；提交后进入待审核，不能自己验收。</div>
+      <label class="f">料号（扫码或手输）</label>
+      <input id="partNo" placeholder="例如 HJ202607230001">
+      <div class="row" style="margin-top:8px">
+        <button class="btn small" id="btnFindMat">查料号</button>
+        <span class="muted" id="matInfo" style="font-size:12px"></span>
+      </div>
+      <label class="f">采集类型</label>
+      <select id="capType"></select>
+      <div id="capFields"></div>
+      <div id="capEvidence" style="display:none">
+        <label class="f">备注 / 现场情况</label>
+        <textarea id="capNote" rows="2" placeholder="可填写不良描述、批次等"></textarea>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="btnSubmitCap">提交</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>我提交的 <span class="tag" id="capCount">0</span></h2>
+      <div id="capList"><div class="empty">暂无</div></div>
+    </div>
+  </div>
+
+  <div id="tab-approval" style="display:none">
+    <div class="card">
+      <h2>待我审批 <span class="tag" id="apprTag">—</span></h2>
+      <div id="apprList"><div class="empty">加载中…</div></div>
+    </div>
+  </div>
+
+  <div id="tab-mine" style="display:none">
+    <div class="card">
+      <h2>当前岗位 <span class="tag blue" id="minePos">—</span></h2>
+      <div id="mineDuties"><div class="empty">选择岗位后显示职责</div></div>
+      <div class="sec-title">常用系统</div>
+      <div class="row">
+        <a class="btn small" href="/plm2">PLM 研发</a>
+        <a class="btn small" href="/hlc">报修 / 请假</a>
+        <a class="btn small" href="/taskhub">待办总表</a>
+        <a class="btn small" href="/portal">门户</a>
+      </div>
+      <div class="sec-title">登录状态</div>
+      <div id="ssoBox" class="chips"></div>
+      <div class="row" style="margin-top:12px">
+        <a class="btn small" href="/login">统一登录</a>
+        <button class="btn small" id="btnLogout">退出登录</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <button data-tab="todos" class="on"><span class="ico">☑</span>待办</button>
+  <button data-tab="capture"><span class="ico">📷</span>采集</button>
+  <button data-tab="approval"><span class="ico">✔</span>审批</button>
+  <button data-tab="mine"><span class="ico">👤</span>我的</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const state = { tab: 'todos', sso: null, people: [], person: null, company: '', dept: '', position: '', asm: null, demoRole: 'VIEWER', todos: null, caps: [], capTypes: [], capFields: [], mat: null };
+
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => { t.className = 'toast'; }, 2600); }
+async function api(path, method, body) {
+  const r = await fetch(path, { method: method || 'GET', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  let j = null; try { j = await r.json(); } catch (e) { j = { error: 'HTTP ' + r.status }; }
+  if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status, body: j });
+  return j;
+}
+
+// 岗位 → 系统演示角色（决定能做什么采集/审批）
+function roleOf(dept, pos) {
+  if (/质检|质量工程师/.test(pos)) return 'QUALITY';
+  if (/研发经理/.test(pos)) return 'RD_LEAD';
+  if (/研发|结构|电子工程师/.test(pos)) return 'ENGINEER';
+  if (/现场负责人/.test(pos)) return 'PROJECT_MANAGER';
+  if (/销售经理/.test(pos)) return 'SALES_MANAGER';
+  if (/销售|外贸/.test(pos)) return 'SALES';
+  if (/采购/.test(pos)) return 'PURCHASE';
+  if (/会计|财务/.test(pos)) return 'FINANCE';
+  if (dept === '生产部') return 'VIEWER';
+  return 'VIEWER';
+}
+
+/* ---------- 登录状态 ---------- */
+async function loadSso() {
+  try {
+    const s = await api('/api/v1/sso/status');
+    state.sso = s;
+    $('loginHint').style.display = s.loggedIn ? 'none' : 'block';
+    $('me').textContent = s.loggedIn ? (s.user && s.user.name || '已登录') : '未登录';
+    $('ssoBox').innerHTML = s.loggedIn ? Object.keys(s.systems || {}).map(k => `<span class="tag ${s.systems[k].ok ? 'ok' : 'bad'}">${({ plm: 'PLM', hub: 'Hub', meeting: '会议助手', hlc: 'HLC' })[k] || k}·${s.systems[k].ok ? '已连接' : '未通过'}</span>`).join('') : '<span class="muted" style="font-size:12px">未登录</span>';
+    if (s.loggedIn && s.user && s.user.name) {
+      const p = state.people.find(x => x.name === s.user.name);
+      if (p) state.person = p;
+    }
+  } catch (e) { /* 忽略 */ }
+}
+
+/* ---------- 岗位 ---------- */
+async function loadOrg() {
+  const c = await api('/api/v1/org/companies');
+  $('selCompany').innerHTML = c.companies.map(x => `<option value="${x.id}">${esc(x.short || x.name)}</option>`).join('');
+  state.company = c.companies[0] ? c.companies[0].id : '';
+  await loadDepts();
+}
+async function loadDepts() {
+  const d = await api('/api/v1/org/departments?company=' + encodeURIComponent(state.company));
+  const list = d.departments || [];
+  $('selDept').innerHTML = list.map(x => `<option>${esc(x)}</option>`).join('');
+  state.dept = list[0] || '';
+  await loadPositions();
+}
+async function loadPositions() {
+  const p = await api('/api/v1/org/positions?company=' + encodeURIComponent(state.company) + '&department=' + encodeURIComponent(state.dept));
+  const list = p.positions || [];
+  $('selPos').innerHTML = list.map(x => `<option>${esc(x)}</option>`).join('');
+  state.position = list[0] || '';
+  await loadAssemble();
+}
+async function loadAssemble() {
+  if (!state.position) return;
+  try {
+    state.asm = await api('/api/v1/org/assemble?company=' + encodeURIComponent(state.company) + '&department=' + encodeURIComponent(state.dept) + '&position=' + encodeURIComponent(state.position));
+  } catch (e) { state.asm = null; }
+  state.demoRole = roleOf(state.dept, state.position);
+  $('minePos').textContent = state.position;
+  $('sub').textContent = (state.asm && state.asm.company ? state.asm.company.short : '') + ' · ' + state.dept + ' · ' + state.position;
+  renderMine();
+  await loadCapTypes();
+  await loadTodos();
+  await loadApprovals();
+}
+
+function renderMine() {
+  const a = state.asm;
+  if (!a) { $('mineDuties').innerHTML = '<div class="empty">暂无岗位信息</div>'; return; }
+  $('mineDuties').innerHTML = `
+    <div class="chips" style="margin-bottom:8px">${(a.packs || []).map(p => `<span class="tag blue">${esc(p.name)}</span>`).join('')}</div>
+    <div class="sec-title">岗位职责</div>
+    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8">${(a.duties || []).map(d => `<li>${esc(d)}</li>`).join('')}</ul>
+    <div class="sec-title">日常任务</div>
+    ${(a.tasks || []).map(t => `<div class="item"><div class="body"><b>${esc(t.t)}</b><small>${esc(t.kind || '')} · ${esc(t.due || '')}</small></div></div>`).join('') || '<div class="empty">暂无</div>'}`;
+}
+
+/* ---------- 待办 ---------- */
+async function loadTodos() {
+  if (!state.person) { $('todoList').innerHTML = '<div class="empty">登录后可看到你自己的待办</div>'; $('todoTag').textContent = '未登录'; $('todoKpis').innerHTML = ''; return; }
+  $('todoList').innerHTML = '<div class="empty">加载中…</div>';
+  try {
+    const t = await api('/api/v1/plm2/me/todos?user=' + state.person.id);
+    state.todos = t;
+    const m = t.meeting || { items: [], counts: {} };
+    const th = (t.taskhub && t.taskhub.items) || [];
+    const plmOpen = (t.overdueCount || 0) + (t.todoCount || 0);
+    $('todoTag').textContent = state.person.name;
+    $('todoKpis').innerHTML = [
+      ['PLM 待办', plmOpen], ['会议待办', (m.items || []).length], ['总表分派', th.length], ['已完成(会议)', (m.counts && m.counts.done) || 0]
+    ].map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
+
+    const sec = [];
+    if (m.connected === false && m.error) sec.push(`<div class="notice">会议待办暂时读不到：${esc(m.error)}</div>`);
+    sec.push(`<div class="sec-title">总表分给你的（可在这里处理）</div>`);
+    sec.push(th.length ? th.map(x => `<div class="item"><span class="tag ${x.status === 'done' ? 'ok' : (x.status === 'overdue' ? 'bad' : 'blue')}">${esc(x.statusText || x.status)}</span>
+      <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · ${esc(x.bizDomainLabel || '')}</small></div>
+      ${x.status !== 'done' ? `<button class="btn small" onclick="finishTaskhub('${x.id}')">完成</button>` : ''}</div>`).join('') : '<div class="empty">暂时没有</div>');
+    sec.push(`<div class="sec-title">会议待办（只读）</div>`);
+    sec.push((m.items || []).length ? m.items.slice(0, 10).map(x => `<div class="item"><span class="tag ${x.category === '已完成' ? 'ok' : (x.category === '逾期' || x.category === '异常' ? 'bad' : 'blue')}">${esc(x.category)}</span>
+      <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · 来自会议助手</small></div></div>`).join('') : '<div class="empty">暂无</div>');
+    sec.push(`<div class="sec-title">PLM 研发待办（去 PLM 处理）</div>`);
+    const plmRows = [...(t.overdue || []).map(r => ({ ...r, _cat: '已超期' })), ...(t.todo || []).slice(0, 10).map(r => ({ ...r, _cat: '待办' }))];
+    sec.push(plmRows.length ? plmRows.slice(0, 12).map(r => `<div class="item"><span class="tag ${r._cat === '已超期' ? 'bad' : 'blue'}">${r._cat}</span>
+      <div class="body"><b>${esc(r.nodeName)}</b><small>${esc(r.projectNo)} · 计划 ${esc(r.planDate || '未排期')}</small></div></div>`).join('') : '<div class="empty">暂无</div>');
+    $('todoList').innerHTML = sec.join('');
+  } catch (e) {
+    $('todoList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`;
+  }
+}
+window.finishTaskhub = async (id) => {
+  if (!state.person) return toast('请先登录');
+  try { await api('/api/v1/tasks/' + encodeURIComponent(id) + '/progress', 'POST', { status: 'done', actor: state.person.name }); toast('已完成，已同步回总表'); loadTodos(); }
+  catch (e) { toast('操作失败：' + e.message); }
+};
+
+/* ---------- 采集 / 品质检验 ---------- */
+async function loadCapTypes() {
+  try {
+    const d = await api('/api/v1/plm2/capture-types?role=' + encodeURIComponent(state.demoRole));
+    state.capTypes = d.captureTypes || [];
+    $('capRoleTag').textContent = '岗位权限：' + state.demoRole;
+    $('capType').innerHTML = state.capTypes.map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('') || '<option value="">无可用类型</option>';
+    renderCapFields();
+    await loadCaps();
+  } catch (e) { $('capNotice').textContent = '读取采集类型失败：' + e.message; }
+}
+function renderCapFields() {
+  const t = state.capTypes.find(x => x.code === $('capType').value) || { fields: [] };
+  state.capFields = t.fields || [];
+  $('capFields').innerHTML = state.capFields.map(f => {
+    if (f.type === 'enum') return `<label class="f">${esc(f.label)}</label><select data-k="${esc(f.k)}">${(f.options || []).map(o => `<option>${esc(o)}</option>`).join('')}</select>`;
+    return `<label class="f">${esc(f.label)}</label><input data-k="${esc(f.k)}" type="${f.type === 'number' ? 'number' : 'text'}" placeholder="请输入${esc(f.label)}">`;
+  }).join('');
+  $('capEvidence').style.display = $('capType').value === 'PHOTO' ? 'block' : 'none';
+}
+async function loadCaps() {
+  if (!state.person) { $('capList').innerHTML = '<div class="empty">登录后可查看自己提交的记录</div>'; return; }
+  try {
+    const d = await api('/api/v1/plm2/captures?operator=' + encodeURIComponent(state.person.name));
+    state.caps = d.captures || [];
+    $('capCount').textContent = state.caps.length;
+    $('capList').innerHTML = state.caps.slice(0, 15).map(c => `<div class="item"><span class="tag ${c.status === 'pending-review' ? 'warn' : (c.status === 'verified' ? 'ok' : 'blue')}">${c.status === 'pending-review' ? '待审核' : (c.status === 'verified' ? '已验收' : esc(c.status))}</span>
+      <div class="body"><b>${esc(c.captureTypeName || c.captureType)}</b><small>${esc(c.partNo)} · ${esc(c.materialName || '')}</small></div></div>`).join('') || '<div class="empty">暂无</div>';
+  } catch (e) { $('capList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+}
+$('btnFindMat').onclick = async () => {
+  const partNo = $('partNo').value.trim(); if (!partNo) return toast('请先输入料号');
+  try {
+    const d = await api('/api/v1/plm2/materials?role=' + encodeURIComponent(state.demoRole));
+    const m = (d.materials || []).find(x => x.partNo === partNo);
+    state.mat = m || null;
+    $('matInfo').textContent = m ? (m.name + ' · ' + (m.statusLabel || m.status || '')) : '没找到这个料号，请核对（扫码错配会被拒绝）';
+  } catch (e) { toast('查料号失败：' + e.message); }
+};
+$('capType').onchange = renderCapFields;
+$('btnSubmitCap').onclick = async () => {
+  if (!state.person) return toast('请先登录');
+  const partNo = $('partNo').value.trim(); if (!partNo) return toast('请先输入料号');
+  const values = {};
+  [...document.querySelectorAll('#capFields [data-k]')].forEach(el => { values[el.getAttribute('data-k')] = el.value; });
+  if ($('capNote').value.trim()) values.note = $('capNote').value.trim();
+  const btn = $('btnSubmitCap'); btn.disabled = true;
+  try {
+    const r = await api('/api/v1/plm2/captures', 'POST', { partNo, captureType: $('capType').value, values, operator: state.person.name, role: state.demoRole, idempotency_key: 'm-' + Date.now() });
+    toast('已提交，等待审核（不能自己验收）');
+    await loadCaps();
+  } catch (e) {
+    const map = { 403: '当前岗位没有这个采集权限', 404: '料号不存在', 400: '提交信息不完整' };
+    toast(map[e.status] || ('提交失败：' + e.message));
+  } finally { btn.disabled = false; }
+};
+
+/* ---------- 审批 ---------- */
+async function loadApprovals() {
+  const canApprove = ['RD_LEAD', 'ADMIN'].includes(state.demoRole);
+  $('apprTag').textContent = canApprove ? '可审批' : '当前岗位无审批权限';
+  if (!canApprove) { $('apprList').innerHTML = '<div class="empty">审批只对研发主管/管理员开放；其他岗位请在待办里查看自己的事项。</div>'; return; }
+  try {
+    const d = await api('/api/v1/plm2/ws-v2?approvals=1');
+    const items = d.items || [];
+    $('apprList').innerHTML = items.length ? items.map(w => `<div class="item"><span class="tag warn">待审批</span>
+      <div class="body"><b>${esc(w.title || w.id)}</b><small>${esc(w.projectNo || '')} · ${esc(w.nodeCode || '')} · 提交人 ${esc(w.createdBy || '')}</small></div>
+      <button class="btn small primary" onclick="approveWs('${esc(w.id)}','approve')">批准</button>
+      <button class="btn small" onclick="approveWs('${esc(w.id)}','reject')">退回</button></div>`).join('') : '<div class="empty">暂无待审批资料</div>';
+  } catch (e) { $('apprList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+}
+window.approveWs = async (id, action) => {
+  if (!state.person) return toast('请先登录');
+  try {
+    await api('/api/v1/plm2/ws-v2/' + encodeURIComponent(id) + '/' + action, 'POST', { approver: state.person.name, role: state.demoRole, reason: action === 'reject' ? '请补充资料' : undefined });
+    toast(action === 'approve' ? '已批准并归档' : '已退回');
+    loadApprovals();
+  } catch (e) { toast('操作失败：' + e.message); }
+};
+
+/* ---------- 交互 ---------- */
+document.querySelectorAll('.nav button').forEach(b => {
+  b.onclick = () => {
+    state.tab = b.getAttribute('data-tab');
+    document.querySelectorAll('.nav button').forEach(x => x.classList.toggle('on', x === b));
+    ['todos', 'capture', 'approval', 'mine'].forEach(k => { $('tab-' + k).style.display = k === state.tab ? 'block' : 'none'; });
+    if (state.tab === 'todos') loadTodos();
+    if (state.tab === 'capture') { loadCapTypes(); loadCaps(); }
+    if (state.tab === 'approval') loadApprovals();
+    if (state.tab === 'mine') { renderMine(); loadSso(); }
+  };
+});
+$('selCompany').onchange = async (e) => { state.company = e.target.value; await loadDepts(); };
+$('selDept').onchange = async (e) => { state.dept = e.target.value; await loadPositions(); };
+$('selPos').onchange = async (e) => { state.position = e.target.value; await loadAssemble(); };
+$('btnLogout').onclick = async () => {
+  try { await api('/api/v1/sso/logout', 'POST', {}); } catch (e) { /* 忽略 */ }
+  toast('已退出'); setTimeout(() => location.href = '/login', 400);
+};
+
+(async () => {
+  try {
+    const ppl = await api('/api/v1/plm2/people');
+    state.people = ppl.people || [];
+  } catch (e) { state.people = []; }
+  await loadSso();
+  if (!state.person && state.people.length) state.person = state.people.find(p => p.name === '包跃') || state.people[0];
+  await loadOrg();
+  await loadTodos();
+})();
+</script>
+</body>
+</html>
