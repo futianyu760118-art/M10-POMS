@@ -20,6 +20,7 @@ const plmSync = require('../../adapters/plm2/sync');
 const TOOLS = require('../../configs/tools.json');
 const SKILLS = require('../../configs/skills.json');
 const hub = require('../../adapters/hub');
+const { defaultPersonLifecycleService } = require('./person-lifecycle');
 const {
   JsonlLeadOutbox,
   PUBLIC_LEAD_PATH,
@@ -188,6 +189,40 @@ function readBody(req, maxBytes = 1e6) {
   });
 }
 
+function readRawBody(req, maxBytes = 1e6) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    req.on('data', chunk => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(Object.assign(new Error('request body too large'), { status: 413 }));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function verifyPersonLifecycleSignature(req, raw) {
+  const keyId = String(req.headers['x-aeos-key-id'] || '');
+  const timestamp = String(req.headers['x-aeos-timestamp'] || '');
+  const supplied = String(req.headers['x-aeos-signature'] || '').replace(/^sha256=/, '');
+  const configuredKeyId = process.env.AEOS_PERSON_LIFECYCLE_KEY_ID || 'm01-kernel';
+  const secret = process.env.AEOS_PERSON_LIFECYCLE_SECRET || process.env.M10_PERSON_LIFECYCLE_SECRET || '';
+  const timestampMs = Number(timestamp);
+  if (!keyId || keyId !== configuredKeyId || !timestamp || !Number.isInteger(timestampMs) || !supplied || !secret) return false;
+  const maxSkew = Number(process.env.AEOS_PERSON_LIFECYCLE_MAX_SKEW_SECONDS || 300) * 1000;
+  if (Math.abs(Date.now() - timestampMs) > maxSkew) return false;
+  const expected = require('crypto').createHmac('sha256', secret).update(timestamp).update('.').update(raw).digest('hex');
+  const expectedBytes = Buffer.from(expected);
+  const suppliedBytes = Buffer.from(supplied);
+  return expectedBytes.length === suppliedBytes.length && require('crypto').timingSafeEqual(expectedBytes, suppliedBytes);
+}
+
 function publicLeadCorsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': origin,
@@ -269,6 +304,22 @@ const server = http.createServer(async (req, res) => {
         idempotencyKey: Array.isArray(req.headers['idempotency-key']) ? req.headers['idempotency-key'][0] : req.headers['idempotency-key']
       });
       return send(res, 202, { lead_reference: result.lead_reference }, publicLeadCorsHeaders(origin));
+    }
+
+    // M01 → POMS 人员状态同步。该入口只接受 AEOS HMAC 签名，不接受浏览器会话。
+    if (pathname === '/internal/aeos/person-lifecycle') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });
+      const raw = await readRawBody(req, 256 * 1024);
+      if (!verifyPersonLifecycleSignature(req, raw)) return send(res, 401, { error: '人员同步签名无效' });
+      let body;
+      try { body = JSON.parse(raw.toString('utf8')); }
+      catch { return send(res, 400, { error: '人员同步请求不是有效 JSON' }); }
+      try {
+        const result = defaultPersonLifecycleService.apply(body);
+        return send(res, 200, result);
+      } catch (e) {
+        return send(res, 400, { error: e.message });
+      }
     }
 
     // 生产默认 fail-closed；开发环境可显式关闭以保留 L0 演示。登录和当前用户查询是唯一公开认证入口。
