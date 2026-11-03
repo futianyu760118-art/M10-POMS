@@ -82,6 +82,21 @@ function mobileDevice(req) {
   return d ? { token, device: d, db } : null;
 }
 
+// 手机端「只看与本人相关」：人员变动只对人事/管理员开放
+function personnelIdentity(req) {
+  const d = mobileDevice(req);
+  if (d) return { name: d.device.name, role: d.device.role, dept: d.device.dept, via: 'mobile' };
+  const s = ssoSession(req);
+  if (s && s.user) return { name: s.user.name, role: s.user.role, dept: '', via: 'sso' };
+  return null;
+}
+function isHrAdmin(who) {
+  if (!who) return false;
+  const roles = ['ADMIN', 'admin', 'GM', 'gm', 'HR_MANAGER', 'hr_manager'];
+  if (roles.includes(who.role)) return true;
+  return /人事|行政/.test(who.dept || '');
+}
+
 const crypto = require('crypto');
 /* ---- 统一登录（服务端代登录各系统，浏览器只拿 M10 会话） ---- */
 const SSO_SESSIONS = new Map();
@@ -342,6 +357,12 @@ const server = http.createServer(async (req, res) => {
       catch (e) { return send(res, e.status || 503, { error: e.message, configured: ebms.configured() }); }
     }
     /* ---- 人员变动（离职/调岗）：M07 提交 → M01 办理 ---- */
+    // 只对「本人相关」：人员变动属于人事/管理层职责，其他人不呈现也不可访问
+    if (pathname.startsWith('/api/v1/personnel/')) {
+      const who = personnelIdentity(req);
+      if (!who) return send(res, 401, { error: '请先在微系统登录' });
+      if (!isHrAdmin(who)) return send(res, 403, { error: '人员变动只对人事/管理员开放' });
+    }
     if (pathname === '/api/v1/personnel/status' && req.method === 'GET') {
       return send(res, 200, await personnel.status());
     }

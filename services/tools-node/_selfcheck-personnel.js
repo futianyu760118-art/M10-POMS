@@ -10,13 +10,15 @@ const ROOT = path.join(__dirname, '..', '..');
 const PORT = Number(process.env.SELFCHECK_PORT || 4196);
 const ACTOR = '系统管理员';
 
+let COOKIE = '';
 function req(p, m, b) {
   return new Promise((resolve, reject) => {
     const h = {};
     if (b) h['Content-Type'] = 'application/json';
+    if (COOKIE) h.Cookie = COOKIE;
     const q = http.request({ host: '127.0.0.1', port: PORT, path: p, method: m || 'GET', headers: h }, x => {
       x.setEncoding('utf8'); let d = ''; x.on('data', c => d += c);
-      x.on('end', () => resolve({ s: x.statusCode, b: d }));
+      x.on('end', () => resolve({ s: x.statusCode, b: d, h: x.headers }));
     });
     q.on('error', reject);
     if (b) q.write(JSON.stringify(b));
@@ -85,13 +87,21 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   });
   try {
     let up = false;
-    for (let i = 0; i < 40; i++) { try { const r = await req('/api/v1/personnel/status'); if (r.s === 200) { up = true; break; } } catch (e) { /* wait */ } await sleep(250); }
+    for (let i = 0; i < 40; i++) { try { const r = await req('/api/v1/mobile/me'); if (r.s === 200) { up = true; break; } } catch (e) { /* wait */ } await sleep(250); }
     if (!up) throw new Error('BFF 未就绪');
+
+    const denied = await req('/api/v1/personnel/status');
+    ck('未登录不呈现人员变动（401）', denied.s === 401);
+    const bind = await req('/api/v1/mobile/bind', 'POST', { phone: '13900000009', username: 'admin', password: '736669' });
+    COOKIE = ((bind.h['set-cookie'] || [''])[0] || '').split(';')[0];
+    ck('人事/管理员登录后可访问', bind.s === 200 && !!COOKIE);
 
     const page = await req('/personnel');
     ck('人员变动页可访问（离职/M01 办理/明细）', page.s === 200 && ['离职申请', 'M01 办理', '交接事项', '微信'].every(k => page.b.includes(k)));
     const wx = await req('/wechat');
     ck('微信入口页可访问（同微系统）', wx.s === 200 && wx.b.includes('微信') && wx.b.includes('/m'));
+    const mpage = await req('/m');
+    ck('手机端按本人角色隐藏无关内容', mpage.b.includes('function hideTab') && mpage.b.includes('function canApprove') && mpage.b.includes('personnelLink') && !mpage.b.includes('id="spcCard"') && mpage.b.includes("k === 'crm'"));
 
     const st = j(await req('/api/v1/personnel/status'));
     ck('M07 / M01 均已连接', st.m07 && st.m07.ok === true && st.m01 && st.m01.ok === true);

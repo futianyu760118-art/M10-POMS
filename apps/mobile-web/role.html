@@ -84,7 +84,6 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
 <div class="wrap">
   <!-- 待办 -->
   <div id="tab-todos">
-    <div id="spcCard" style="display:none"></div>
     <div class="card">
       <h2>我的待办 <span class="tag" id="todoTag">—</span></h2>
       <div class="kpis" id="todoKpis"></div>
@@ -147,7 +146,7 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
     <div class="card">
       <h2>常用</h2>
       <div class="row">
-        <a class="btn small" href="/personnel">人事变动</a>
+        <a class="btn small" id="personnelLink" href="/personnel" style="display:none">人事变动</a>
         <a class="btn small" href="/taskhub">待办总表</a>
         <a class="btn small" href="/portal">门户</a>
       </div>
@@ -217,7 +216,23 @@ async function boot() {
     ['账号', me.user.username], ['手机号', me.user.phone]
   ].map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('');
   $('capRoleTag').textContent = '岗位权限：' + state.demoRole;
-  loadTodos(); loadCapTypes(); loadCaps(); loadApprovals(); loadLogins(); loadSpcCard();
+  loadTodos(); loadCapTypes(); loadCaps(); loadLogins();
+  if (canApprove()) loadApprovals(); else hideTab('approval');
+  if (isHr()) { const pl = $('personnelLink'); if (pl) pl.style.display = ''; }
+}
+
+// 只呈现与本人相关：无审批权限就不显示审批页签
+function canApprove() { return ['RD_LEAD', 'ADMIN'].includes(state.me && state.me.role); }
+function isHr() {
+  const r = state.me && state.me.role;
+  return ['ADMIN', 'GM', 'HR_MANAGER', 'hr_manager'].includes(r) || /人事|行政/.test((state.me && state.me.dept) || '');
+}
+function hideTab(k) {
+  const b = document.querySelector('.nav button[data-tab="' + k + '"]');
+  if (b) b.style.display = 'none';
+  const t = $('tab-' + k);
+  if (t) { t.style.display = 'none'; t.dataset.hidden = '1'; }
+  if (state.tab === k) switchTab('todos');
 }
 
 // 系统总览：各系统连接状态 + 入口（只读；未接入不显示假数据）
@@ -238,7 +253,19 @@ async function loadSystems() {
   try {
     const d = await api('/api/v1/systems');
     const systems = d.systems || {};
-    const list = Object.keys(SYSTEMS_META).map(k => Object.assign({ key: k }, SYSTEMS_META[k], systems[k] || {}));
+    const role = state.me && state.me.role;
+    const SPC_ROLES = ['ADMIN', 'GM', 'PURCHASE', 'SALES_MANAGER', 'SALES', 'PROJECT_MANAGER'];
+    const CRM_ROLES = ['ADMIN', 'GM', 'SALES_MANAGER', 'SALES'];
+    const HUB_ROLES = ['ADMIN', 'GM'];
+    // 只呈现与本人岗位相关、且确实部署了的系统
+    const keys = Object.keys(SYSTEMS_META).filter(k => {
+      if (k === 'fac' || k === 'edp') return false;
+      if (k === 'spc') return SPC_ROLES.includes(role);
+      if (k === 'crm') return CRM_ROLES.includes(role);
+      if (k === 'hub') return HUB_ROLES.includes(role);
+      return true;
+    });
+    const list = keys.map(k => Object.assign({ key: k }, SYSTEMS_META[k], systems[k] || {}));
     const okCount = list.filter(x => x.ok).length;
     $('sysTag').textContent = okCount + ' / ' + list.length + ' 已连接';
     box.innerHTML = list.map(x => {
