@@ -70,10 +70,10 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
       <a class="btn primary" href="/hlc">进入 HLC</a>
     </div>
     <div class="card">
-      <div class="top"><b class="t">CRM 销售自治中心</b><span class="tag run">本机运行 · 待导入</span></div>
-      <span class="code">M05 · crm-postgres:55434 / crm-backend:8000</span>
-      <p>客户/线索/报价/订单。生产容器已在运行，参照 import-from-plm.js 模式即可接入真实数据。</p>
-      <button class="btn" disabled>待接入</button>
+      <div class="top"><b class="t">CRM 销售自治中心</b><span class="tag ok">已接入 · 只读</span></div>
+      <span class="code">M05 · /m/crm · 客户/线索/商机/订单</span>
+      <p>从本地 CRM 读取客户、线索、商机与订单（服务端登录 + Bearer，只读）；手机端可直接看商机/订单状态。</p>
+      <a class="btn primary" href="/m/crm">打开 CRM 手机版</a>
     </div>
     <div class="card">
       <div class="top"><b class="t">SPC 供应链与生产协同</b><span class="tag ok">已接入 · 只读引用</span></div>
@@ -107,11 +107,11 @@ h2.sec{font-size:15px;color:var(--muted);font-weight:600;margin:18px 0 12px}
     </div>
     <div class="card">
       <div class="top"><b class="t">EBMS 企业经营管理</b><span class="tag ok">已接入 · 微系统</span></div>
-      <span class="code">M03 · 192.168.0.71:3010</span>
-      <p>经营看板、SOP Action、AI 经营行动与执行结果；已接入 M10 POMS 工作台，可与 PLM 项目进度、组织角色联动。</p>
+      <span class="code">M03 · /m/ebms · 本机 :3010</span>
+      <p>经营看板、岗位事项与经营结果（只读）；已接入 M10 微系统，手机端可直接查看自己的 EBMS 事项。</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a class="btn primary" href="http://192.168.0.71:3010/m10.html" target="_blank" rel="noopener">进入 EBMS 微系统</a>
-        <a class="btn" href="http://192.168.0.71:3010/" target="_blank" rel="noopener">EBMS 主页</a>
+        <a class="btn primary" href="/m/ebms">打开 EBMS 手机版</a>
+        <a class="btn" href="http://192.168.0.71:3010/m10.html" target="_blank" rel="noopener">原 EBMS 微系统</a>
       </div>
     </div>
   </div>

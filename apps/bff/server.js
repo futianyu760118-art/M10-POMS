@@ -19,6 +19,8 @@ const plm2 = require('../../adapters/plm2');
 const plmSync = require('../../adapters/plm2/sync');
 const meetingAdapter = require('../../adapters/meeting');
 const spc = require('../../adapters/spc');
+const crm = require('../../adapters/crm');
+const ebms = require('../../adapters/ebms');
 const taskhub = require('../../packages/taskhub');
 const TOOLS = require('../../configs/tools.json');
 const SKILLS = require('../../configs/skills.json');
@@ -148,6 +150,7 @@ function taskhubReviewer(name) {
   return roles.some(r => TASKHUB_REVIEWER_ROLES.includes(r)) ? p : null;
 }
 const TASKHUB_SSE = new Set();
+let SYSTEMS_CACHE = null;
 function taskhubBroadcast(kind, payload) {
   const line = 'data: ' + JSON.stringify({ kind, payload: payload || {}, at: Date.now() }) + '\n\n';
   for (const c of [...TASKHUB_SSE]) { try { c.write(line); } catch (e) { TASKHUB_SSE.delete(c); } }
@@ -309,10 +312,69 @@ const server = http.createServer(async (req, res) => {
       try { return send(res, 200, await fn(params)); }
       catch (e) { return send(res, e.status || 503, { error: e.message, configured: spc.configured() }); }
     }
+    /* ---- CRM（M05）只读接入 ---- */
+    if (pathname === '/api/v1/crm/status' && req.method === 'GET') return send(res, 200, await crm.status());
+    const crmApi = pathname.match(/^\/api\/v1\/crm\/(dashboard|leads|customers|opportunities|tasks|orders|approvals)$/);
+    if (crmApi && req.method === 'GET') {
+      const fn = crmApi[1] === 'dashboard' ? crm.dashboard
+        : crmApi[1] === 'leads' ? crm.leads
+        : crmApi[1] === 'customers' ? crm.customers
+        : crmApi[1] === 'opportunities' ? crm.opportunities
+        : crmApi[1] === 'tasks' ? crm.tasksMine
+        : crmApi[1] === 'orders' ? crm.orders : crm.approvalsCount;
+      const crmParams = { page: q.page || 1, page_size: q.page_size || 20 };
+      if (q.status) crmParams.status = q.status;
+      if (q.keyword) crmParams.keyword = q.keyword;
+      try { return send(res, 200, await fn(crmParams)); }
+      catch (e) { return send(res, e.status || 503, { error: e.message, configured: crm.configured() }); }
+    }
+    /* ---- EBMS（M03）只读接入 ---- */
+    if (pathname === '/api/v1/ebms/status' && req.method === 'GET') return send(res, 200, await ebms.status());
+    const ebmsApi = pathname.match(/^\/api\/v1\/ebms\/(system|workspace|work-items|results)$/);
+    if (ebmsApi && req.method === 'GET') {
+      const personId = q.person_id || 1;
+      const fn = ebmsApi[1] === 'system' ? ebms.systemStatus
+        : ebmsApi[1] === 'workspace' ? () => ebms.workspace(personId)
+        : ebmsApi[1] === 'work-items' ? () => ebms.workItems(personId)
+        : () => ebms.results(personId);
+      try { return send(res, 200, await fn()); }
+      catch (e) { return send(res, e.status || 503, { error: e.message, configured: ebms.configured() }); }
+    }
+    /* ---- 全部系统连接总览（30s 缓存） ---- */
+    if (pathname === '/api/v1/systems' && req.method === 'GET') {
+      if (!SYSTEMS_CACHE || Date.now() - SYSTEMS_CACHE.at > 30000) {
+        const one = async (fn, extra) => {
+          try { const s = await fn(); return Object.assign({ ok: !!(s && s.connected) }, extra || {}, s || {}); }
+          catch (e) { return Object.assign({ ok: false, error: e.message }, extra || {}); }
+        };
+        const [plm, meeting, hubSt, spcSt, crmSt, ebmsSt, hlcSt] = await Promise.all([
+          one(async () => { await plmSync.login(); return { connected: true, api: plmSync.apiBase() }; }),
+          one(async () => { const a = meetingAdapter.listAll(); return { connected: a.items.length > 0, items: a.items.length, updatedAt: a.updatedAt, live: a.live }; }, { label: '会议助手' }),
+          one(() => hub.status(), { label: 'Hub 经营中心' }),
+          one(() => spc.status(), { label: 'SPC 供应链' }),
+          one(() => crm.status(), { label: 'CRM 销售' }),
+          one(() => ebms.status(), { label: 'EBMS 经营' }),
+          one(() => hlc.status(), { label: 'HLC 人事后勤' })
+        ]);
+        SYSTEMS_CACHE = {
+          at: Date.now(),
+          data: {
+            plm: Object.assign({ label: 'PLM 研发' }, plm),
+            meeting, hub: hubSt, spc: spcSt, crm: crmSt, ebms: ebmsSt, hlc: hlcSt,
+            fac: { label: 'FAC 财经', ok: false, configured: false, error: '未接入（未部署）' },
+            edp: { label: 'EDP 数据证据', ok: false, configured: false, error: '未接入（未部署）' }
+          }
+        };
+      }
+      return send(res, 200, { checkedAt: new Date(SYSTEMS_CACHE.at).toISOString(), systems: SYSTEMS_CACHE.data });
+    }
     if (pathname === '/login' || pathname === '/login/') return serveStatic('/apps/login/index.html', res);
     if (pathname === '/m' || pathname === '/m/') return serveStatic('/apps/mobile-web/role.html', res);
     if (pathname === '/m/login' || pathname === '/m/login/') return serveStatic('/apps/mobile-web/login.html', res);
     if (pathname === '/m/spc' || pathname === '/m/spc/') return serveStatic('/apps/mobile-web/spc.html', res);
+
+    if (pathname === '/m/crm' || pathname === '/m/crm/') return serveStatic('/apps/mobile-web/crm.html', res);
+    if (pathname === '/m/ebms' || pathname === '/m/ebms/') return serveStatic('/apps/mobile-web/ebms.html', res);
     /* ---- 手机号绑定登录 ---- */
     if (pathname === '/api/v1/mobile/bind' && req.method === 'POST') {
       const body = await readBody(req);

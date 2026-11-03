@@ -229,8 +229,18 @@ MEETING_API=... MEETING_LOGINID=... MEETING_STATUS=pending,in_progress node scri
 | 会议助手（192.168.0.127:18081） | 已连通 | 全量待办 2038 条按人过滤；统一登录按中文姓名验证 |
 | Hub（8787） | 已连通（独立账号） | 登录需 Hub 自己的账号密码；经营事项/收件箱待办已接入总表 |
 | SPC（spc.hengyou-soft.com） | 已连通 | 服务端 OAuth2 登录 + Bearer 只读；控制塔/订单/物料/异常/供应商风险（详见下节） |
+| CRM（本机 :8000） | 已连通 | 服务端登录 + Bearer 只读；客户/线索/商机/订单/待审批；`configs/crm.local.json`（gitignore） |
+| EBMS（本机 :3010） | 已连通 | `/api/users/login` → Bearer；按 M10 契约读取岗位事项与经营结果；`configs/ebms.local.json`（gitignore） |
+| FAC / EDP | 未部署 | 系统总览里如实标「未接入」，不造数据 |
 
-- 自查：`node services/tools-node/_selfcheck-mobile.js`（32 项）。
+### 全部系统接入微系统
+
+- **系统总览**：`GET /api/v1/systems`（30s 缓存）统一返回 9 个系统状态：PLM / 会议 / Hub / SPC / CRM / EBMS / HLC / FAC / EDP；`ok` / `configured` / `error` 如实，不伪造。
+- **接入标准统一**（与 PLM 一致）：服务端账号登录 → Bearer 令牌 → 只读；401 自动重登；断连回旧数据标 stale；未配置/未部署明确失败。
+- **手机端**：新增「系统」页签，逐个显示连接状态与「打开」入口；新增 `/m/crm`（客户/线索/商机/订单）与 `/m/ebms`（我的岗位/待办事项/经营结果）；PLM、SPC、HLC、待办总表也都在这一页。
+- **门户**：CRM、EBMS 卡片改为「已接入 · 只读」，可直接进手机版。
+
+- 自查：`node services/tools-node/_selfcheck-mobile.js`（32 项）、`node services/tools-node/_selfcheck-systems.js`（16 项：9 系统状态、CRM/EBMS 真实数据、手机端入口）。
 
 ## SPC 供应链与生产协同（接入标准同 PLM）
 

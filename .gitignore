@@ -16,3 +16,5 @@ configs/meeting-actions.live.json
 configs/hub.local.json
 configs/mobile-auth.local.json
 configs/spc.local.json
+configs/crm.local.json
+configs/ebms.local.json

@@ -40,7 +40,7 @@ label.f{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px}
 input,textarea,select{width:100%;font:inherit;font-size:14px;padding:10px 12px;border:1px solid #d5dfec;border-radius:10px;background:#fff;outline:none}
 input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3px rgba(47,111,189,.12)}
 .empty{color:var(--muted);font-size:12px;padding:8px 2px}
-.nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom);z-index:30}
+.nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom);z-index:30}
 .nav button{background:none;border:0;font:inherit;font-size:11px;color:var(--muted);padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px}
 .nav button.on{color:var(--blue);font-weight:600}
 .nav .ico{font-size:17px;line-height:1}
@@ -137,19 +137,27 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
     </div>
   </div>
 
+  <!-- 系统 -->
+  <div id="tab-systems" style="display:none">
+    <div class="card">
+      <h2>各系统 <span class="tag" id="sysTag">—</span></h2>
+      <div id="sysList"><div class="empty">检查连接…</div></div>
+      <div class="muted" style="font-size:11px;margin-top:6px">状态由服务端实时检查；未接入的系统不会显示假数据。</div>
+    </div>
+    <div class="card">
+      <h2>常用</h2>
+      <div class="row">
+        <a class="btn small" href="/taskhub">待办总表</a>
+        <a class="btn small" href="/portal">门户</a>
+      </div>
+    </div>
+  </div>
+
   <!-- 我的 -->
   <div id="tab-mine" style="display:none">
     <div class="card">
       <h2>账号</h2>
       <div class="dl" id="acctInfo"></div>
-      <div class="sec-title">常用系统</div>
-      <div class="row">
-        <a class="btn small" href="/plm2">PLM 研发</a>
-        <a class="btn small" href="/m/spc">SPC 供应链</a>
-        <a class="btn small" href="/hlc">报修 / 请假</a>
-        <a class="btn small" href="/taskhub">待办总表</a>
-        <a class="btn small" href="/portal">门户</a>
-      </div>
       <div class="row" style="margin-top:12px">
         <button class="btn small" onclick="switchAccount()">切换账号</button>
         <button class="btn small" onclick="logout()">退出登录</button>
@@ -167,6 +175,7 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
   <button data-tab="todos" class="on"><span class="ico">☑</span>待办</button>
   <button data-tab="capture"><span class="ico">📷</span>采集</button>
   <button data-tab="approval"><span class="ico">✔</span>审批</button>
+  <button data-tab="systems"><span class="ico">▦</span>系统</button>
   <button data-tab="mine"><span class="ico">👤</span>我的</button>
 </div>
 
@@ -208,6 +217,42 @@ async function boot() {
   ].map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('');
   $('capRoleTag').textContent = '岗位权限：' + state.demoRole;
   loadTodos(); loadCapTypes(); loadCaps(); loadApprovals(); loadLogins(); loadSpcCard();
+}
+
+// 系统总览：各系统连接状态 + 入口（只读；未接入不显示假数据）
+const SYSTEMS_META = {
+  plm: { label: 'PLM 研发', desc: '项目 / 节点 / 采集 / 审批', href: '/plm2' },
+  spc: { label: 'SPC 供应链', desc: '控制塔 / 订单 / 异常 / 供应商', href: '/m/spc' },
+  crm: { label: 'CRM 销售', desc: '客户 / 线索 / 商机 / 订单', href: '/m/crm' },
+  ebms: { label: 'EBMS 经营', desc: '岗位事项 / 经营结果', href: '/m/ebms' },
+  meeting: { label: '会议助手', desc: '会议待办（已并入待办）', href: '/taskhub' },
+  hub: { label: 'Hub 智能体', desc: '经营事项 / 收件箱', href: '#' },
+  hlc: { label: 'HLC 人事后勤', desc: '报修 / 请假', href: '/hlc' },
+  fac: { label: 'FAC 财经', desc: '规划中，未接入', href: '' },
+  edp: { label: 'EDP 数据证据', desc: '规划中，未接入', href: '' }
+};
+async function loadSystems() {
+  const box = $('sysList');
+  box.innerHTML = '<div class="empty">检查连接…</div>';
+  try {
+    const d = await api('/api/v1/systems');
+    const systems = d.systems || {};
+    const list = Object.keys(SYSTEMS_META).map(k => Object.assign({ key: k }, SYSTEMS_META[k], systems[k] || {}));
+    const okCount = list.filter(x => x.ok).length;
+    $('sysTag').textContent = okCount + ' / ' + list.length + ' 已连接';
+    box.innerHTML = list.map(x => {
+      const meta = SYSTEMS_META[x.key];
+      const link = meta.href === '#' ? ('http://' + location.hostname + ':8787') : meta.href;
+      const chip = x.ok ? '<span class="tag ok">已连接</span>'
+        : (x.configured === false ? '<span class="tag">未接入</span>' : '<span class="tag bad">连接失败</span>');
+      const detail = x.ok ? '' : `<div class="muted" style="font-size:11px">${esc(x.error || '')}</div>`;
+      const btn = (meta.href && x.ok)
+        ? `<a class="btn small" href="${link}" ${meta.href === '#' ? 'target="_blank" rel="noopener"' : ''}>打开</a>` : '';
+      return `<div class="item"><div class="body"><b>${esc(meta.label)}</b><small>${esc(meta.desc)}</small>${detail}</div>${chip}${btn}</div>`;
+    }).join('');
+  } catch (e) {
+    box.innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`;
+  }
 }
 
 // 供应链相关岗位在待办页看到一张 SPC 小卡（只读）
@@ -492,10 +537,11 @@ window.switchAccount = () => { window.logout(); };
 function switchTab(k) {
   state.tab = k;
   document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('on', b.getAttribute('data-tab') === k));
-  ['todos', 'capture', 'approval', 'mine'].forEach(t => { $('tab-' + t).style.display = t === k ? 'block' : 'none'; });
+  ['todos', 'capture', 'approval', 'systems', 'mine'].forEach(t => { $('tab-' + t).style.display = t === k ? 'block' : 'none'; });
   if (k === 'todos') loadTodos();
   if (k === 'capture') { ensureMaterials().catch(() => {}); loadCaps(); }
   if (k === 'approval') loadApprovals();
+  if (k === 'systems') loadSystems();
   if (k === 'mine') loadLogins();
   window.scrollTo({ top: 0 });
 }
