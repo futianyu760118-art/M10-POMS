@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f6fbd">
+<title>AEOS 微系统 · 微信入口</title>
+<style>
+body{margin:0;font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:#f3f6fb;color:#16283f;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.card{background:#fff;border:1px solid #e2e9f3;border-radius:16px;padding:22px;max-width:420px;width:100%;text-align:center;box-shadow:0 10px 30px rgba(15,39,68,.08)}
+.logo{width:54px;height:54px;border-radius:16px;background:linear-gradient(135deg,#2f6fbd,#4a9be0);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px}
+h1{font-size:18px;margin:0 0 6px}
+p{color:#7186a0;font-size:13px;margin:0 0 14px}
+.btn{display:block;border:1px solid #2f6fbd;background:#2f6fbd;color:#fff;border-radius:11px;padding:12px;text-decoration:none;font-size:15px;margin-top:10px}
+.btn.ghost{background:#fff;color:#16283f;border-color:#e2e9f3}
+.hint{font-size:11px;color:#9aa7b8;margin-top:14px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">AE</div>
+  <h1>AEOS 微系统</h1>
+  <p>在微信 / 企业微信里直接用，处理待办、采集、审批、人员变动等</p>
+  <a class="btn" href="/m" id="go">进入微系统</a>
+  <a class="btn ghost" href="/m/personnel">人员变动（离职/调岗）</a>
+  <a class="btn ghost" href="/login">手机号绑定登录</a>
+  <div class="hint">提示：拍照/扫码需要在 HTTPS 或本机访问；微信内置浏览器可用手输兜底。所有操作都从微系统发起。</div>
+</div>
+<script>
+(function () {
+  var ua = navigator.userAgent || '';
+  var isWechat = /MicroMessenger/i.test(ua);
+  var isWecom = /wxwork/i.test(ua);
+  if (isWechat || isWecom) {
+    setTimeout(function () { location.replace('/m'); }, 1200);
+  }
+})();
+</script>
+</body>
+</html>

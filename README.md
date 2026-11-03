@@ -242,6 +242,28 @@ MEETING_API=... MEETING_LOGINID=... MEETING_STATUS=pending,in_progress node scri
 
 - 自查：`node services/tools-node/_selfcheck-mobile.js`（32 项）、`node services/tools-node/_selfcheck-systems.js`（16 项：9 系统状态、CRM/EBMS 真实数据、手机端入口）。
 
+## 人员变动大流程（M07 提交 → M01 办理）
+
+**大流程（确定）**
+1. 在 **M07（人事/HLC）** 提交离职或人员变动申请，写清楚**工作岗位、部门、工号、交接事项**等具体内容 → 自动进入 M07 审批流程。
+2. 审批通过后，在 **M01（身份内核）** 办理：离职＝停用身份/撤销权限；调岗＝变更岗位与授权。
+3. **也可以直接在 M01 里办理**（M01 quick/person-action），M10 只发起与展示，不持有专业事实。
+
+**微系统入口（PC / 手机 / 微信同一页面）**
+- `/personnel`（= `/m/personnel`）：离职申请、人员变动、M01 办理、待审批四个视图 + **点击查看明细**（岗位/部门/工号/交接事项）。
+- `/wechat`：微信/企业微信打开自动进入微系统；`/m` 系统页与门户/HLC 卡片均有「人员变动」入口。
+- **原则：所有操作都从微系统发起**，服务端再调 M07/M01 官方接口。
+
+**安全与边界**
+- M10 不直连库、不写专业主数据；只调 M07 的 `/api/hrm/*` 与 M01 的 `/kernel/v1/*`。
+- 离职/调岗是**高风险动作**：办理必须人工确认（未确认返回 428），并记录操作人、M01 流水号/审批单。
+- 提交/审批/办理都要求操作人具备人事或管理员角色（服务端校验，非前端）。
+- M07 人事库当前为空（需先初始化/导入员工）；M01 演示环境有 149 人可用于「直接办理」。
+
+**接口**：`/api/v1/personnel/status|changes|employees|approvals`、`POST /api/v1/personnel/resignations`、`/resignations/:id/submit`、`/approvals/:id/approve|reject`、`/m01/persons`、`POST /m01/handle`。
+
+**自查**：`node services/tools-node/_selfcheck-personnel.js`（14 项：页面与明细、岗位字段、M07 提交与审批、M01 未确认拒绝/确认执行、权限校验）。
+
 ## SPC 供应链与生产协同（接入标准同 PLM）
 
 系统：Gitee `ningbohengjianguangdian/spc`（FastAPI + React，控制塔/订单/物料/异常/供应商风险）。

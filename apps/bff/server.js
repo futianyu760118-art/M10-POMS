@@ -21,6 +21,7 @@ const meetingAdapter = require('../../adapters/meeting');
 const spc = require('../../adapters/spc');
 const crm = require('../../adapters/crm');
 const ebms = require('../../adapters/ebms');
+const personnel = require('../../adapters/personnel');
 const taskhub = require('../../packages/taskhub');
 const TOOLS = require('../../configs/tools.json');
 const SKILLS = require('../../configs/skills.json');
@@ -340,6 +341,72 @@ const server = http.createServer(async (req, res) => {
       try { return send(res, 200, await fn()); }
       catch (e) { return send(res, e.status || 503, { error: e.message, configured: ebms.configured() }); }
     }
+    /* ---- 人员变动（离职/调岗）：M07 提交 → M01 办理 ---- */
+    if (pathname === '/api/v1/personnel/status' && req.method === 'GET') {
+      return send(res, 200, await personnel.status());
+    }
+    if (pathname === '/api/v1/personnel/changes' && req.method === 'GET') {
+      const out = { resignations: [], employeeChanges: [], errors: {} };
+      try { out.resignations = await personnel.listResignations({ page: q.page || 1, page_size: q.page_size || 50 }); }
+      catch (e) { out.errors.resignations = e.message; }
+      try { out.employeeChanges = await personnel.listEmployeeChanges({ page: q.page || 1, page_size: q.page_size || 50 }); }
+      catch (e) { out.errors.employeeChanges = e.message; }
+      return send(res, 200, out);
+    }
+    if (pathname === '/api/v1/personnel/employees' && req.method === 'GET') {
+      try { return send(res, 200, { items: await personnel.listEmployees(q.search) }); }
+      catch (e) { return send(res, e.status || 503, { error: e.message }); }
+    }
+    if (pathname === '/api/v1/personnel/m01/persons' && req.method === 'GET') {
+      try { return send(res, 200, await personnel.m01Snapshot()); }
+      catch (e) { return send(res, e.status || 503, { error: e.message }); }
+    }
+    if (pathname === '/api/v1/personnel/resignations' && req.method === 'POST') {
+      const body = await readBody(req);
+      const actor = taskhubReviewer(body.actor) || plm2.getPeople().find(x => x.name === body.actor);
+      if (!actor) return send(res, 403, { error: '只有人事/管理员可以提交离职（请填写操作人）' });
+      try {
+        const created = await personnel.createResignation(body);
+        let submitted = null;
+        if (body.submit !== false) {
+          const id = created.id || (created.resignation && created.resignation.id);
+          if (id) { try { submitted = await personnel.submitResignation(id); } catch (e) { submitted = { error: e.message }; } }
+        }
+        return send(res, 201, { ok: true, created, submitted, actor: actor.name });
+      } catch (e) { return send(res, e.status || 503, { error: e.message }); }
+    }
+    const resignSubmit = pathname.match(/^\/api\/v1\/personnel\/resignations\/([^/]+)\/submit$/);
+    if (resignSubmit && req.method === 'POST') {
+      const body = await readBody(req);
+      const actor = taskhubReviewer(body.actor) || plm2.getPeople().find(x => x.name === body.actor);
+      if (!actor) return send(res, 403, { error: '只有人事/管理员可以提交审批（请填写操作人）' });
+      try { return send(res, 200, { ok: true, result: await personnel.submitResignation(decodeURIComponent(resignSubmit[1])), actor: actor.name }); }
+      catch (e) { return send(res, e.status || 503, { error: e.message }); }
+    }
+    if (pathname === '/api/v1/personnel/approvals' && req.method === 'GET') {
+      try { return send(res, 200, { items: await personnel.pendingApprovals() }); }
+      catch (e) { return send(res, e.status || 503, { error: e.message }); }
+    }
+    const persAppr = pathname.match(/^\/api\/v1\/personnel\/approvals\/([^/]+)\/(approve|reject)$/);
+    if (persAppr && req.method === 'POST') {
+      const body = await readBody(req);
+      const actor = taskhubReviewer(body.actor) || plm2.getPeople().find(x => x.name === body.actor);
+      if (!actor) return send(res, 403, { error: '只有人事/管理员可以审批（请填写操作人）' });
+      try { return send(res, 200, { ok: true, result: await personnel.actApproval(decodeURIComponent(persAppr[1]), persAppr[2]), actor: actor.name }); }
+      catch (e) { return send(res, e.status || 503, { error: e.message }); }
+    }
+    if (pathname === '/api/v1/personnel/m01/handle' && req.method === 'POST') {
+      const body = await readBody(req);
+      const actor = taskhubReviewer(body.actor) || plm2.getPeople().find(x => x.name === body.actor);
+      if (!actor) return send(res, 403, { error: '只有人事/管理员可以办理（请填写操作人）' });
+      try {
+        const r = await personnel.m01Handle({
+          personId: body.personId, action: body.action, effectiveAt: body.effectiveAt,
+          approvalTicket: body.approvalTicket, confirm: body.confirm === true
+        });
+        return send(res, 200, Object.assign({ actor: actor.name }, r));
+      } catch (e) { return send(res, e.status || 503, { error: e.message }); }
+    }
     /* ---- 全部系统连接总览（30s 缓存） ---- */
     if (pathname === '/api/v1/systems' && req.method === 'GET') {
       if (!SYSTEMS_CACHE || Date.now() - SYSTEMS_CACHE.at > 30000) {
@@ -375,6 +442,9 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/m/crm' || pathname === '/m/crm/') return serveStatic('/apps/mobile-web/crm.html', res);
     if (pathname === '/m/ebms' || pathname === '/m/ebms/') return serveStatic('/apps/mobile-web/ebms.html', res);
+    if (pathname === '/m/personnel' || pathname === '/m/personnel/') return serveStatic('/apps/mobile-web/personnel.html', res);
+    if (pathname === '/personnel' || pathname === '/personnel/') return serveStatic('/apps/mobile-web/personnel.html', res);
+    if (pathname === '/wechat' || pathname === '/wechat/') return serveStatic('/apps/mobile-web/wechat.html', res);
     /* ---- 手机号绑定登录 ---- */
     if (pathname === '/api/v1/mobile/bind' && req.method === 'POST') {
       const body = await readBody(req);

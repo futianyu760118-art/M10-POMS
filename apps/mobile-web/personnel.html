@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f6fbd">
+<title>人员变动（离职 / 调岗）· AEOS</title>
+<style>
+:root{--bg:#f3f6fb;--panel:#fff;--line:#e2e9f3;--text:#16283f;--muted:#7186a0;--blue:#2f6fbd;--green:#1c8a4e;--red:#c0392b;--orange:#c47a12}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-bottom:20px}
+.top{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#2f6fbd,#4a9be0);color:#fff;padding:12px 14px;border-radius:0 0 14px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.top a{color:#fff;text-decoration:none;font-size:18px}
+.top h1{font-size:16px;margin:0;flex:1}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);background:#f6f9fd;color:var(--muted);white-space:nowrap}
+.tag.ok{background:#eefaf2;border-color:#bfe6cd;color:var(--green)}
+.tag.bad{background:#fdf1f0;border-color:#f0c9c4;color:var(--red)}
+.tag.blue{background:#eef5fd;border-color:#c9dcf5;color:#24508f}
+.tag.orange{background:#fff8ec;border-color:#f1dcb6;color:var(--orange)}
+.wrap{padding:12px 14px;max-width:900px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:10px}
+.card h2{font-size:14px;margin:0 0 9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.notice{font-size:12px;color:#24508f;background:#eef5fd;border:1px solid #c9dcf5;border-radius:10px;padding:9px 11px;margin-bottom:10px}
+.notice.warn{color:#8a5a12;background:#fffbf3;border-color:#f1dcb6}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tabs button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 12px;font:inherit;font-size:13px;color:var(--muted)}
+.tabs button.on{background:#eef5fd;border-color:#9cc2ea;color:#1d4ed8;font-weight:600}
+.item{display:flex;gap:9px;align-items:center;padding:9px 2px;border-bottom:1px solid #f1f5fa;cursor:pointer}
+.item:last-child{border-bottom:0}
+.item .body{flex:1;min-width:0}
+.item b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item small{color:var(--muted);font-size:11px}
+.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:9px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.danger{background:var(--red);border-color:var(--red);color:#fff}
+.btn.small{padding:5px 10px;font-size:12px}
+.btn[disabled]{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+label.f{display:block;font-size:12px;color:var(--muted);margin:9px 0 4px}
+input,select,textarea{width:100%;font:inherit;font-size:14px;padding:9px 11px;border:1px solid #d5dfec;border-radius:10px;background:#fff;outline:none}
+input:focus,select:focus,textarea:focus{border-color:#8fb8e8;box-shadow:0 0 0 3px rgba(47,111,189,.12)}
+.empty{color:var(--muted);font-size:12px;padding:8px 2px}
+.drawer{position:fixed;inset:0;background:rgba(10,20,35,.5);display:none;z-index:60;align-items:flex-end;justify-content:center}
+.drawer.on{display:flex}
+.drawer .box{background:#fff;width:100%;max-width:720px;max-height:86vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px}
+.drawer .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:600}
+.dl>div{display:flex;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid #f1f5fa}
+.dl span{width:96px;color:var(--muted);flex:none}
+.dl b{font-weight:600;word-break:break-all}
+.pre{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:12px;white-space:pre-wrap;word-break:break-all}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#16283f;color:#fff;font-size:13px;padding:9px 15px;border-radius:22px;opacity:0;transition:.25s;pointer-events:none;z-index:70;max-width:90vw;text-align:center}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="top">
+  <a href="/m">‹</a>
+  <h1>人员变动（离职 / 调岗）</h1>
+  <span class="tag" id="stM07">M07 检查中</span>
+  <span class="tag" id="stM01">M01 检查中</span>
+</div>
+<div class="wrap">
+  <div class="notice">流程：在 <b>M07</b> 提交离职/变动申请（写明岗位等信息）→ 审批通过 → 在 <b>M01</b> 办理（停用身份/撤权/调岗）。也可以在 M01 直接办理。高风险动作必须人工确认，所有操作从本微系统发起（微信打开同一页面即可）。</div>
+
+  <div class="tabs">
+    <button data-v="resign" class="on">离职申请</button>
+    <button data-v="change">人员变动</button>
+    <button data-v="m01">M01 办理</button>
+    <button data-v="appr">待审批</button>
+  </div>
+
+  <div id="view-resign">
+    <div class="card">
+      <h2>离职申请 <span class="tag" id="resignCount">0</span>
+        <span class="row" style="margin-left:auto"><button class="btn small primary" id="btnNew">新建离职</button></span></h2>
+      <div id="resignList"><div class="empty">加载中…</div></div>
+    </div>
+    <div class="card" id="newBox" style="display:none">
+      <h2>新建离职申请（提交到 M07）</h2>
+      <label class="f">员工（含岗位信息）</label>
+      <select id="fEmp"><option value="">选择员工…</option></select>
+      <div class="row" style="margin-top:8px"><span class="muted" id="empInfo" style="font-size:12px"></span></div>
+      <label class="f">申请日期</label>
+      <input id="fApply" type="date">
+      <label class="f">预计离职日期</label>
+      <input id="fLeave" type="date">
+      <label class="f">离职原因</label>
+      <input id="fReason" placeholder="例如：个人原因 / 合同到期">
+      <label class="f">交接事项（岗位工作内容）</label>
+      <textarea id="fHandover" rows="3" placeholder="例如：在研项目资料/客户交接/工装夹具/账号权限"></textarea>
+      <label class="f">提交人（人事或管理员）</label>
+      <input id="fActor" placeholder="例如：马雅雯">
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="btnSubmitResign">提交到 M07</button>
+        <button class="btn" id="btnCancelNew">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-change" style="display:none">
+    <div class="card"><h2>人员变动 <span class="tag" id="changeCount">0</span></h2><div id="changeList"><div class="empty">加载中…</div></div></div>
+  </div>
+
+  <div id="view-m01" style="display:none">
+    <div class="card">
+      <h2>M01 办理（高风险，需人工确认）</h2>
+      <div class="notice warn">这里直接调用 M01 身份内核办理；离职会停用身份并撤销权限。必须勾选确认后才执行。</div>
+      <label class="f">M01 人员</label>
+      <input id="m01Person" list="m01List" placeholder="输入姓名搜索，例如：曾庆…">
+      <datalist id="m01List"></datalist>
+      <label class="f">办理事项</label>
+      <select id="m01Action"><option value="offboard">离职（停用身份/撤权）</option><option value="transfer">调岗</option></select>
+      <label class="f">生效日期（可选）</label>
+      <input id="m01Date" type="date">
+      <label class="f">办理人（人事或管理员）</label>
+      <input id="m01Actor" placeholder="例如：马雅雯">
+      <label class="row" style="margin-top:10px;font-size:13px"><input type="checkbox" id="m01Confirm" style="width:auto"> 我已核对岗位与人员，确认办理</label>
+      <div class="row" style="margin-top:12px"><button class="btn danger" id="btnM01">确认办理</button></div>
+      <div id="m01Result" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div id="view-appr" style="display:none">
+    <div class="card"><h2>待我审批（M07）</h2><div id="apprList"><div class="empty">加载中…</div></div></div>
+  </div>
+</div>
+
+<div class="drawer" id="drawer"><div class="box"><div class="hd"><span id="dTitle">明细</span><button class="btn small" onclick="closeDrawer()">关闭</button></div><div id="dBody"></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const state = { view: 'resign', resignations: [], changes: [], employees: [], m01Persons: [] };
+function toast(m) { const t = $('toast'); t.textContent = m; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2600); }
+async function api(p, method, body) {
+  const r = await fetch(p, { method: method || 'GET', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  let j = null; try { j = await r.json(); } catch (e) { j = { error: 'HTTP ' + r.status }; }
+  if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status, body: j });
+  return j;
+}
+const ST = { draft: '草稿', submitted: '已提交', pending: '待审批', approved: '已批准', rejected: '已退回', applied: '已生效', archived: '已归档', cancelled: '已取消' };
+const stTag = (s) => `<span class="tag ${/approved|applied|archived/.test(s) ? 'ok' : (/rejected|cancelled/.test(s) ? 'bad' : 'orange')}">${esc(ST[s] || s || '')}</span>`;
+
+async function loadStatus() {
+  try {
+    const s = await api('/api/v1/personnel/status');
+    $('stM07').className = 'tag ' + (s.m07.ok ? 'ok' : 'bad');
+    $('stM07').textContent = 'M07 ' + (s.m07.ok ? '已连接' : '未连接');
+    $('stM01').className = 'tag ' + (s.m01.ok ? 'ok' : 'bad');
+    $('stM01').textContent = 'M01 ' + (s.m01.ok ? '已连接' : '未连接');
+  } catch (e) { $('stM07').textContent = 'M07 检查失败'; $('stM01').textContent = 'M01 检查失败'; }
+}
+
+async function loadChanges() {
+  const d = await api('/api/v1/personnel/changes');
+  state.resignations = d.resignations || [];
+  state.changes = d.employeeChanges || [];
+  $('resignCount').textContent = state.resignations.length;
+  $('changeCount').textContent = state.changes.length;
+  $('resignList').innerHTML = state.resignations.length ? state.resignations.map(r => `
+    <div class="item" onclick="showResign('${esc(r.id)}')">${stTag(r.status)}
+      <div class="body"><b>${esc(r.employeeName || r.employeeId)}</b>
+        <small>${esc(r.jobTitle || '')}${r.positionName ? ' · ' + esc(r.positionName) : ''}${r.deptName ? ' · ' + esc(r.deptName) : ''} · 申请 ${esc(r.applyDate || '')}${r.expectedLeaveDate ? ' · 预计离职 ' + esc(r.expectedLeaveDate) : ''}</small></div></div>`).join('')
+    : `<div class="empty">还没有离职申请。${d.errors && d.errors.resignations ? '（' + esc(d.errors.resignations) + '）' : '可在上方「新建离职」提交到 M07。'}</div>`;
+  $('changeList').innerHTML = state.changes.length ? state.changes.map(c => `
+    <div class="item" onclick="showChange('${esc(c.id)}')">${stTag(c.status)}
+      <div class="body"><b>${esc(c.employeeName || '')} · ${esc(c.changeType || c.change_type || '')}</b>
+        <small>${esc(c.jobTitle || '')}${c.positionName ? ' · ' + esc(c.positionName) : ''}${c.deptName ? ' · ' + esc(c.deptName) : ''} · 生效 ${esc(c.effectiveDate || '')}</small></div></div>`).join('')
+    : '<div class="empty">暂无人员变动记录</div>';
+}
+
+function showResign(id) {
+  const r = state.resignations.find(x => x.id === id); if (!r) return;
+  $('dTitle').textContent = '离职申请明细';
+  $('dBody').innerHTML = `<div class="dl">
+    ${[['员工', r.employeeName], ['工号', r.employeeNo], ['岗位', r.jobTitle], ['职位', r.positionName], ['部门', r.deptName],
+      ['申请日期', r.applyDate], ['预计离职', r.expectedLeaveDate], ['实际离职', r.actualLeaveDate], ['原因', r.reason]]
+      .map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('')}
+    </div>
+    <div style="font-size:12px;color:#7186a0;margin-top:10px">交接事项（岗位工作内容）</div>
+    <div class="pre">${esc(typeof r.handoverItems === 'string' ? r.handoverItems : JSON.stringify(r.handoverItems || {}, null, 2))}</div>
+    <div class="row" style="margin-top:12px"><button class="btn" onclick="closeDrawer()">关闭</button></div>`;
+  $('drawer').classList.add('on');
+}
+function showChange(id) {
+  const c = state.changes.find(x => x.id === id); if (!c) return;
+  $('dTitle').textContent = '人员变动明细';
+  $('dBody').innerHTML = `<div class="dl">${[['员工', c.employeeName], ['变动类型', c.changeType || c.change_type], ['岗位', c.jobTitle], ['职位', c.positionName], ['部门', c.deptName], ['生效日期', c.effectiveDate], ['原因', c.reason]].map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('')}</div>
+    <div class="row" style="margin-top:12px"><button class="btn" onclick="closeDrawer()">关闭</button></div>`;
+  $('drawer').classList.add('on');
+}
+window.closeDrawer = () => $('drawer').classList.remove('on');
+window.showResign = showResign; window.showChange = showChange;
+
+async function loadEmployees() {
+  try {
+    const d = await api('/api/v1/personnel/employees');
+    state.employees = d.items || [];
+    $('fEmp').innerHTML = '<option value="">选择员工…</option>' + state.employees.map(e => `<option value="${esc(e.id)}">${esc(e.name)}（${esc(e.jobTitle || e.positionName || '未设岗位')} · ${esc(e.deptName || '')}）</option>`).join('');
+    if (!state.employees.length) $('empInfo').textContent = 'M07 还没有员工档案：请先在 M07 初始化/导入员工，再提交离职。';
+  } catch (e) { $('empInfo').textContent = '读取员工失败：' + e.message; }
+}
+
+$('fEmp').onchange = () => {
+  const e = state.employees.find(x => x.id === $('fEmp').value);
+  $('empInfo').textContent = e ? `岗位：${e.jobTitle || '—'} · 职位：${e.positionName || '—'} · 部门：${e.deptName || '—'} · 工号：${e.employeeNo || '—'}` : '';
+};
+
+$('btnNew').onclick = () => {
+  $('newBox').style.display = 'block';
+  loadEmployees();
+  const t = new Date();
+  $('fApply').value = t.toISOString().slice(0, 10);
+  $('fLeave').value = '';
+};
+$('btnCancelNew').onclick = () => { $('newBox').style.display = 'none'; };
+
+$('btnSubmitResign').onclick = async () => {
+  const employeeId = $('fEmp').value;
+  const actor = $('fActor').value.trim();
+  if (!employeeId) return toast('请选择员工');
+  if (!$('fReason').value.trim()) return toast('请填写离职原因');
+  if (!actor) return toast('请填写提交人');
+  const btn = $('btnSubmitResign'); btn.disabled = true;
+  try {
+    const r = await api('/api/v1/personnel/resignations', 'POST', {
+      employeeId, applyDate: $('fApply').value || undefined, expectedLeaveDate: $('fLeave').value || undefined,
+      reason: $('fReason').value.trim(), handoverItems: $('fHandover').value.trim() || undefined, actor
+    });
+    toast('已提交到 M07' + (r.submitted && r.submitted.error ? '（提交审批失败：' + r.submitted.error + '）' : '并进入审批'));
+    $('newBox').style.display = 'none';
+    $('fReason').value = ''; $('fHandover').value = '';
+    await loadChanges();
+  } catch (e) { toast('提交失败：' + e.message); }
+  finally { btn.disabled = false; }
+};
+
+async function loadM01() {
+  try {
+    const d = await api('/api/v1/personnel/m01/persons');
+    state.m01Persons = d.persons || [];
+    $('m01List').innerHTML = state.m01Persons.slice(0, 200).map(p => `<option value="${esc(p.name)}">${esc(p.employeeCode || '')} · ${esc(p.status)}</option>`).join('');
+  } catch (e) { $('m01Result').innerHTML = `<div class="empty">M01 人员读取失败：${esc(e.message)}</div>`; }
+}
+
+$('btnM01').onclick = async () => {
+  const name = $('m01Person').value.trim();
+  const person = state.m01Persons.find(p => p.name === name);
+  const actor = $('m01Actor').value.trim();
+  if (!person) return toast('请从列表选择 M01 人员');
+  if (!actor) return toast('请填写办理人');
+  if (!$('m01Confirm').checked) return toast('请先勾选「我已核对岗位与人员」');
+  if (!confirm('确认在 M01 办理「' + (person.name) + '」的' + ($('m01Action').value === 'offboard' ? '离职（停用身份/撤权）' : '调岗') + '吗？')) return;
+  const btn = $('btnM01'); btn.disabled = true;
+  try {
+    const r = await api('/api/v1/personnel/m01/handle', 'POST', {
+      personId: person.personId, action: $('m01Action').value, effectiveAt: $('m01Date').value || undefined,
+      confirm: true, actor
+    });
+    $('m01Result').innerHTML = `<div class="notice">办理结果：${esc(r.decision || '')}${r.traceId ? ' · 流水号 ' + esc(r.traceId) : ''}${r.approval ? ' · 已生成审批：' + esc(r.approval.id || '') : ''}</div>`;
+    toast(r.decision === 'EXECUTED' ? '已在 M01 执行' : '已提交 M01（待审批）');
+  } catch (e) { $('m01Result').innerHTML = `<div class="notice warn">办理失败：${esc(e.message)}</div>`; }
+  finally { btn.disabled = false; }
+};
+
+async function loadAppr() {
+  try {
+    const d = await api('/api/v1/personnel/approvals');
+    const items = d.items || [];
+    $('apprList').innerHTML = items.length ? items.map(a => `<div class="item"><div class="body">
+      <b>${esc(a.businessType || a.business_type || '')} · ${esc(a.title || a.summary || a.id)}</b>
+      <small>${esc(a.applicantName || a.applicant || '')} · ${esc((a.createdAt || '').slice(0, 16))}</small></div>
+      <button class="btn small primary" onclick="actAppr('${esc(a.id)}','approve')">批准</button>
+      <button class="btn small" onclick="actAppr('${esc(a.id)}','reject')">退回</button></div>`).join('')
+      : '<div class="empty">暂无待审批</div>';
+  } catch (e) { $('apprList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+}
+window.actAppr = async (id, action) => {
+  const actor = prompt('审批人（人事或管理员）'); if (!actor) return;
+  try { await api('/api/v1/personnel/approvals/' + encodeURIComponent(id) + '/' + action, 'POST', { actor }); toast('已处理'); loadAppr(); }
+  catch (e) { toast('处理失败：' + e.message); }
+};
+
+document.querySelectorAll('.tabs button').forEach(b => {
+  b.onclick = () => {
+    state.view = b.getAttribute('data-v');
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+    ['resign', 'change', 'm01', 'appr'].forEach(v => { $('view-' + v).style.display = v === state.view ? 'block' : 'none'; });
+    if (state.view === 'm01') loadM01();
+    if (state.view === 'appr') loadAppr();
+  };
+});
+
+(async () => { loadStatus(); loadChanges().catch(e => toast('读取失败：' + e.message)); })();
+</script>
+</body>
+</html>
