@@ -45,7 +45,7 @@ test('离职关闭工作台和会话，把办理中的工作转给重新安排�
     assert.equal(result.status, 'synced');
     assert.deepEqual(new Set(result.closed_items), new Set(['workspace', 'session', 'task_access']));
     const state = service.snapshot();
-    assert.equal(state.people['person-1'].access, 'revoked');
+    assert.equal(state.people['tenant-hengjian:person-1'].access, 'revoked');
     assert.equal(state.sessions['session-1'].status, 'rejected');
     assert.equal(state.work_items['work-1'].status, 'reassignment_required');
     assert.deepEqual(state.checklists.map((item) => item.item_type), ['workspace', 'session', 'task_access']);
@@ -61,7 +61,7 @@ test('复职只恢复基础访问，权限和智能体配备仍需确认', () =>
     }));
     assert.equal(result.status, 'pending_confirmation');
     assert.deepEqual(result.pending_confirmation, { permissions: true, agents: true });
-    assert.equal(service.snapshot().people['person-1'].access, 'basic_pending_confirmation');
+    assert.equal(service.snapshot().people['tenant-hengjian:person-1'].access, 'basic_pending_confirmation');
   } finally { cleanup(); }
 });
 

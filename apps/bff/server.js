@@ -316,7 +316,16 @@ const server = http.createServer(async (req, res) => {
       catch { return send(res, 400, { error: '人员同步请求不是有效 JSON' }); }
       try {
         const result = defaultPersonLifecycleService.apply(body);
-        return send(res, 200, result);
+        const rawStatus = String(result.status || 'failed').toLowerCase();
+        const status = rawStatus === 'stale' ? 'skipped' : rawStatus === 'scheduled' ? 'pending_confirmation' : ['synced', 'skipped', 'pending_confirmation', 'retrying', 'failed'].includes(rawStatus) ? rawStatus : 'failed';
+        return send(res, 200, {
+          ...result,
+          event_id: result.event_id || body.event_id,
+          target_system: 'M10_POMS',
+          status,
+          changed: result.changed || { closed_items: (result.closed_items || []).length, reassigned_tasks: (result.reassigned_tasks || []).length },
+          received_at: new Date().toISOString(),
+        });
       } catch (e) {
         return send(res, 400, { error: e.message });
       }

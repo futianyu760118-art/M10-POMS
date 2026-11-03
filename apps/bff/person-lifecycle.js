@@ -42,6 +42,12 @@ function eventFields(event) {
       throw new Error(`人员同步事件缺少必填内容：${field}`);
     }
   }
+  const configuredTenant = String(process.env.AEOS_TENANT_ID || '').trim();
+  if (configuredTenant && String(event.tenant_id) !== configuredTenant) throw new Error('人员同步单位不匹配');
+}
+
+function personKey(event) {
+  return `${String(event.tenant_id)}:${String(event.object_id)}`;
 }
 
 function createPersonLifecycleService({ file = path.join(ROOT, 'data', 'person-lifecycle.json'), initialState } = {}) {
@@ -63,7 +69,8 @@ function createPersonLifecycleService({ file = path.join(ROOT, 'data', 'person-l
     }
 
     const personId = String(event.object_id);
-    const person = state.people[personId] || { tenant_id: event.tenant_id, emp_code: event.person.emp_code };
+    const key = personKey(event);
+    const person = state.people[key] || { tenant_id: event.tenant_id, object_id: personId, emp_code: event.person.emp_code };
     person.tenant_id = event.tenant_id;
     person.emp_code = event.person.emp_code || person.emp_code;
     const result = {
@@ -111,7 +118,7 @@ function createPersonLifecycleService({ file = path.join(ROOT, 'data', 'person-l
 
     result.status_text = STATUS_LABELS[result.status] || '处理中';
 
-    state.people[personId] = person;
+    state.people[key] = person;
     const record = { ...event, result };
     state.events.push(record);
     persist();
@@ -121,7 +128,10 @@ function createPersonLifecycleService({ file = path.join(ROOT, 'data', 'person-l
   return {
     apply,
     snapshot,
-    isPersonAccessRevoked: (personId) => state.people[personId]?.access === 'revoked',
+    isPersonAccessRevoked: (personId, tenantId) => {
+      if (tenantId) return state.people[`${tenantId}:${personId}`]?.access === 'revoked';
+      return Object.values(state.people).some((person) => person.object_id === personId && person.access === 'revoked');
+    },
   };
 }
 
