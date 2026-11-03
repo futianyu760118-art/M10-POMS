@@ -70,9 +70,13 @@ async function ssoLogin(username, password) {
   } catch (e) { systems.hub = { ok: false, error: e.message }; }
 
   try {
-    const x = await meetingAdapter.loginAs(username);
+    // 会议助手按中文姓名登录：先用账号，失败再用 PLM 返回的真实姓名重试
+    let x = await meetingAdapter.loginAs(username);
+    if (!x.ok && user.name && user.name !== username) {
+      const y = await meetingAdapter.loginAs(user.name);
+      if (y.ok) x = y;
+    }
     systems.meeting = { ok: !!x.ok, configured: x.configured !== false, error: x.error || '', role: x.role || '' };
-    if (x.ok && x.name && user.name === username) user.name = x.name;
   } catch (e) { systems.meeting = { ok: false, error: e.message }; }
 
   if (plmToken) {

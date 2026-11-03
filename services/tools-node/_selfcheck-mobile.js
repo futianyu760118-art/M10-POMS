@@ -29,6 +29,9 @@ const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
   const m = await req('/m');
   ck('手机工作台可访问（岗位选择 + 品质检验）', m.s === 200 && m.b.includes('AEOS 手机工作台') && m.b.includes('品质检验') && m.b.includes('selCompany') && m.b.includes('selDept') && m.b.includes('selPos'));
   ck('手机端四个页签（待办/采集/审批/我的）', ['tab-todos', 'tab-capture', 'tab-approval', 'tab-mine'].every(k => m.b.includes(k)));
+  ck('手机端支持摄像头扫码（无摄像头时降级手输）', m.b.includes('btnScan') && m.b.includes('BarcodeDetector') && m.b.includes('打不开摄像头'));
+  ck('手机端支持拍照留证并随采集提交', m.b.includes('photoInput') && m.b.includes("capture=\"environment\"") && m.b.includes('evidence: state.photo'));
+  ck('首页卡片按岗位定制（顺序可配）', m.b.includes('function quickCardsFor') && m.b.includes('function renderQuick') && m.b.includes("cap:IQC") && m.b.includes("tab:approval"));
   const portal = await req('/portal');
   ck('门户含统一登录与手机端入口', portal.b.includes('href="/login"') && portal.b.includes('href="/m"'));
 
@@ -53,6 +56,22 @@ const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
   ck('工程岗位不能做 IQC（按岗位限制）', !eng.some(t => t.code === 'IQC') && eng.length > 0, eng.map(t => t.code).join(','));
   const mats = j(await req('/api/v1/plm2/materials?role=QUALITY')).materials || [];
   ck('真实物料可扫码匹配', mats.length > 0, '物料 ' + mats.length + ' 条');
+
+  // 真实提交一条采集（写入 M10 本地采集记录，操作人用「自检机器人」，不污染真人列表）
+  if (mats.length) {
+    const cap = await req('/api/v1/plm2/captures', 'POST', {
+      partNo: mats[0].partNo, captureType: 'IQC',
+      values: { supplier: '自检', batch: 'SELFCHECK', dimension: '10', appearance: '合格', function: '合格', note: '自检用，可忽略' },
+      operator: '自检机器人', role: 'QUALITY',
+      evidence: [{ kind: 'photo', name: '现场.jpg', takenAt: new Date().toISOString(), dataUrl: 'data:image/jpeg;base64,AAAA' }],
+      idempotency_key: 'selfcheck-cap-' + Date.now()
+    });
+    const cj = j(cap);
+    ck('品质检验提交成功并进入待审核', (cap.s === 201 || cap.s === 200) && cj.status === 'pending-review', cj.captureId || cj.error);
+    ck('照片证据随采集保存', (cj.evidence || []).length === 1 && cj.evidence[0].kind === 'photo');
+    const list = j(await req('/api/v1/plm2/captures?operator=' + encodeURIComponent('自检机器人'))).captures || [];
+    ck('按操作人可查回自己的采集', list.some(x => x.captureId === cj.captureId), '共 ' + list.length + ' 条');
+  }
 
   // 统一登录
   const bad = await req('/api/v1/sso/login', 'POST', { username: 'admin', password: 'wrong-pass' });

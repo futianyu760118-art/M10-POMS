@@ -54,6 +54,24 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(10px);background:#16283f;color:#fff;font-size:13px;padding:9px 15px;border-radius:22px;opacity:0;pointer-events:none;transition:.25s;z-index:40;max-width:88vw;text-align:center}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+/* 岗位快捷卡片 */
+.quick{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+.qcard{display:flex;align-items:center;gap:9px;background:#f7faff;border:1px solid #dbe7f7;border-radius:12px;padding:10px 11px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.qcard:active{transform:scale(.99)}
+.qcard .qi{font-size:18px;width:26px;text-align:center}
+.qcard .qb{flex:1;min-width:0}
+.qcard b{display:block;font-size:13px}
+.qcard small{color:var(--muted);font-size:11px}
+.qcard .qn{font-size:12px;color:var(--blue);font-weight:600}
+/* 扫码 */
+.scan{position:fixed;inset:0;background:rgba(10,20,35,.78);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px}
+.scan .box{background:#0f1c2e;border-radius:16px;padding:12px;width:100%;max-width:420px;color:#fff}
+.scan video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:cover}
+.scan .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
+.scan .tip{font-size:12px;opacity:.85;margin-top:8px;line-height:1.5}
+.scan .btn{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
+.photoPrev{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--muted)}
+.photoPrev img{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -80,6 +98,7 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
   <div id="tab-todos">
     <div class="card">
       <h2>我的待办 <span class="tag" id="todoTag">—</span></h2>
+      <div class="quick" id="quickCards"></div>
       <div class="kpis" id="todoKpis"></div>
       <div id="todoList"><div class="empty">加载中…</div></div>
     </div>
@@ -92,6 +111,7 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
       <label class="f">料号（扫码或手输）</label>
       <input id="partNo" placeholder="例如 HJ202607230001">
       <div class="row" style="margin-top:8px">
+        <button class="btn small" id="btnScan">扫一扫</button>
         <button class="btn small" id="btnFindMat">查料号</button>
         <span class="muted" id="matInfo" style="font-size:12px"></span>
       </div>
@@ -99,6 +119,13 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
       <select id="capType"></select>
       <div id="capFields"></div>
       <div id="capEvidence" style="display:none">
+        <label class="f">现场照片（可选）</label>
+        <div class="row">
+          <button class="btn small" id="btnPhoto">拍照留证</button>
+          <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+          <span class="muted" id="photoState" style="font-size:12px">未拍照</span>
+        </div>
+        <div class="photoPrev" id="photoPrev" style="display:none"><img id="photoThumb" alt="现场照片"><span id="photoMeta"></span><button class="btn small" id="btnPhotoDel">删除</button></div>
         <label class="f">备注 / 现场情况</label>
         <textarea id="capNote" rows="2" placeholder="可填写不良描述、批次等"></textarea>
       </div>
@@ -146,12 +173,19 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
   <button data-tab="approval"><span class="ico">✔</span>审批</button>
   <button data-tab="mine"><span class="ico">👤</span>我的</button>
 </div>
+<div class="scan" id="scanModal" style="display:none">
+  <div class="box">
+    <div class="hd"><span>扫料号条码</span><button class="btn small" id="scanClose">关闭</button></div>
+    <video id="scanVideo" playsinline muted></video>
+    <div class="tip" id="scanTip">正在启动摄像头…</div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { tab: 'todos', sso: null, people: [], person: null, company: '', dept: '', position: '', asm: null, demoRole: 'VIEWER', todos: null, caps: [], capTypes: [], capFields: [], mat: null };
+const state = { tab: 'todos', sso: null, people: [], person: null, company: '', dept: '', position: '', asm: null, demoRole: 'VIEWER', todos: null, caps: [], capTypes: [], capFields: [], mat: null, photo: null, approvals: [] };
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => { t.className = 'toast'; }, 2600); }
 async function api(path, method, body) {
@@ -265,6 +299,7 @@ async function loadTodos() {
     sec.push(plmRows.length ? plmRows.slice(0, 12).map(r => `<div class="item"><span class="tag ${r._cat === '已超期' ? 'bad' : 'blue'}">${r._cat}</span>
       <div class="body"><b>${esc(r.nodeName)}</b><small>${esc(r.projectNo)} · 计划 ${esc(r.planDate || '未排期')}</small></div></div>`).join('') : '<div class="empty">暂无</div>');
     $('todoList').innerHTML = sec.join('');
+    renderQuick();
   } catch (e) {
     $('todoList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`;
   }
@@ -293,7 +328,7 @@ function renderCapFields() {
     if (f.type === 'enum') return `<label class="f">${esc(f.label)}</label><select data-k="${esc(f.k)}">${(f.options || []).map(o => `<option>${esc(o)}</option>`).join('')}</select>`;
     return `<label class="f">${esc(f.label)}</label><input data-k="${esc(f.k)}" type="${f.type === 'number' ? 'number' : 'text'}" placeholder="请输入${esc(f.label)}">`;
   }).join('');
-  $('capEvidence').style.display = $('capType').value === 'PHOTO' ? 'block' : 'none';
+  $('capEvidence').style.display = 'block';
 }
 async function loadCaps() {
   if (!state.person) { $('capList').innerHTML = '<div class="empty">登录后可查看自己提交的记录</div>'; return; }
@@ -301,6 +336,7 @@ async function loadCaps() {
     const d = await api('/api/v1/plm2/captures?operator=' + encodeURIComponent(state.person.name));
     state.caps = d.captures || [];
     $('capCount').textContent = state.caps.length;
+    renderQuick();
     $('capList').innerHTML = state.caps.slice(0, 15).map(c => `<div class="item"><span class="tag ${c.status === 'pending-review' ? 'warn' : (c.status === 'verified' ? 'ok' : 'blue')}">${c.status === 'pending-review' ? '待审核' : (c.status === 'verified' ? '已验收' : esc(c.status))}</span>
       <div class="body"><b>${esc(c.captureTypeName || c.captureType)}</b><small>${esc(c.partNo)} · ${esc(c.materialName || '')}</small></div></div>`).join('') || '<div class="empty">暂无</div>';
   } catch (e) { $('capList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
@@ -315,6 +351,80 @@ $('btnFindMat').onclick = async () => {
   } catch (e) { toast('查料号失败：' + e.message); }
 };
 $('capType').onchange = renderCapFields;
+
+/* ---------- 摄像头扫码 + 拍照留证 ---------- */
+let scanStream = null, scanTimer = null;
+async function openScan() {
+  $('scanModal').style.display = 'flex';
+  $('scanTip').textContent = '正在启动摄像头…';
+  const video = $('scanVideo');
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    video.srcObject = scanStream;
+    await video.play();
+  } catch (e) {
+    $('scanTip').textContent = '打不开摄像头：' + (e.message || '请检查权限') + '；可直接手输料号。';
+    return;
+  }
+  if (!('BarcodeDetector' in window)) {
+    $('scanTip').textContent = '当前浏览器不支持自动识别条码（建议用 Chrome/Edge 手机版）；可以看画面后手动输入料号。';
+    return;
+  }
+  let detector;
+  try { detector = new window.BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'itf', 'qr_code'] }); }
+  catch (e) { detector = new window.BarcodeDetector(); }
+  $('scanTip').textContent = '把料号条码对准取景框…';
+  scanTimer = setInterval(async () => {
+    try {
+      const codes = await detector.detect(video);
+      if (codes && codes.length) {
+        const text = (codes[0].rawValue || '').trim();
+        if (text) { $('partNo').value = text; closeScan(); toast('已识别：' + text); $('btnFindMat').click(); }
+      }
+    } catch (e) { /* 单帧失败忽略 */ }
+  }, 350);
+}
+function closeScan() {
+  if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  $('scanVideo').srcObject = null;
+  $('scanModal').style.display = 'none';
+}
+$('btnScan').onclick = openScan;
+$('scanClose').onclick = closeScan;
+$('scanModal').addEventListener('click', (e) => { if (e.target === $('scanModal')) closeScan(); });
+
+$('btnPhoto').onclick = () => $('photoInput').click();
+$('photoInput').onchange = () => {
+  const file = $('photoInput').files && $('photoInput').files[0];
+  if (!file) return;
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = () => {
+    img.onload = () => {
+      const max = 900;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      const dataUrl = cv.toDataURL('image/jpeg', 0.7);
+      state.photo = { kind: 'photo', name: file.name || '现场照片', takenAt: new Date().toISOString(), dataUrl };
+      $('photoThumb').src = dataUrl;
+      $('photoMeta').textContent = state.photo.takenAt.slice(11, 16) + ' 已拍 1 张';
+      $('photoPrev').style.display = 'flex';
+      $('photoState').textContent = '已附 1 张照片';
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+};
+$('btnPhotoDel').onclick = () => {
+  state.photo = null;
+  $('photoPrev').style.display = 'none';
+  $('photoState').textContent = '未拍照';
+  $('photoInput').value = '';
+};
+
 $('btnSubmitCap').onclick = async () => {
   if (!state.person) return toast('请先登录');
   const partNo = $('partNo').value.trim(); if (!partNo) return toast('请先输入料号');
@@ -323,8 +433,13 @@ $('btnSubmitCap').onclick = async () => {
   if ($('capNote').value.trim()) values.note = $('capNote').value.trim();
   const btn = $('btnSubmitCap'); btn.disabled = true;
   try {
-    const r = await api('/api/v1/plm2/captures', 'POST', { partNo, captureType: $('capType').value, values, operator: state.person.name, role: state.demoRole, idempotency_key: 'm-' + Date.now() });
+    await api('/api/v1/plm2/captures', 'POST', {
+      partNo, captureType: $('capType').value, values, operator: state.person.name, role: state.demoRole,
+      evidence: state.photo ? [state.photo] : [],
+      idempotency_key: 'm-' + Date.now()
+    });
     toast('已提交，等待审核（不能自己验收）');
+    state.photo = null; $('photoPrev').style.display = 'none'; $('photoState').textContent = '未拍照'; $('photoInput').value = '';
     await loadCaps();
   } catch (e) {
     const map = { 403: '当前岗位没有这个采集权限', 404: '料号不存在', 400: '提交信息不完整' };
@@ -340,6 +455,8 @@ async function loadApprovals() {
   try {
     const d = await api('/api/v1/plm2/ws-v2?approvals=1');
     const items = d.items || [];
+    state.approvals = items;
+    renderQuick();
     $('apprList').innerHTML = items.length ? items.map(w => `<div class="item"><span class="tag warn">待审批</span>
       <div class="body"><b>${esc(w.title || w.id)}</b><small>${esc(w.projectNo || '')} · ${esc(w.nodeCode || '')} · 提交人 ${esc(w.createdBy || '')}</small></div>
       <button class="btn small primary" onclick="approveWs('${esc(w.id)}','approve')">批准</button>
@@ -356,17 +473,67 @@ window.approveWs = async (id, action) => {
 };
 
 /* ---------- 交互 ---------- */
-document.querySelectorAll('.nav button').forEach(b => {
-  b.onclick = () => {
-    state.tab = b.getAttribute('data-tab');
-    document.querySelectorAll('.nav button').forEach(x => x.classList.toggle('on', x === b));
-    ['todos', 'capture', 'approval', 'mine'].forEach(k => { $('tab-' + k).style.display = k === state.tab ? 'block' : 'none'; });
-    if (state.tab === 'todos') loadTodos();
-    if (state.tab === 'capture') { loadCapTypes(); loadCaps(); }
-    if (state.tab === 'approval') loadApprovals();
-    if (state.tab === 'mine') { renderMine(); loadSso(); }
-  };
-});
+function switchTab(k) {
+  state.tab = k;
+  document.querySelectorAll('.nav button').forEach(x => x.classList.toggle('on', x.getAttribute('data-tab') === k));
+  ['todos', 'capture', 'approval', 'mine'].forEach(t => { $('tab-' + t).style.display = t === k ? 'block' : 'none'; });
+  if (k === 'todos') loadTodos();
+  if (k === 'capture') { loadCapTypes(); loadCaps(); }
+  if (k === 'approval') loadApprovals();
+  if (k === 'mine') { renderMine(); loadSso(); }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+window.switchTab = switchTab;
+document.querySelectorAll('.nav button').forEach(b => { b.onclick = () => switchTab(b.getAttribute('data-tab')); });
+
+/* ---------- 按岗位定制首页卡片（顺序即岗位优先级） ---------- */
+function quickCardsFor() {
+  const pos = state.position || '';
+  const dept = state.dept || '';
+  const C = (label, sub, icon, act) => ({ label, sub, icon, act });
+  if (/质检|质量工程师/.test(pos)) return [C('扫码检验', '来料检验 IQC', '🔍', 'cap:IQC'), C('我的待办', '今天要做的', '☑', 'tab:todos'), C('已提交', '待审核记录', '📄', 'tab:capture'), C('待办总表', '全部系统', '📋', 'url:/taskhub')];
+  if (/研发经理/.test(pos)) return [C('待审批', '资料审批', '✔', 'tab:approval'), C('我的待办', '今天要做的', '☑', 'tab:todos'), C('规格书采集', '资料填报', '📝', 'cap:SPEC'), C('待办总表', '全部系统', '📋', 'url:/taskhub')];
+  if (/研发|结构|电子工程师/.test(pos)) return [C('我的待办', '今天要做的', '☑', 'tab:todos'), C('规格书采集', '资料填报', '📝', 'cap:SPEC'), C('待办总表', '全部系统', '📋', 'url:/taskhub'), C('PLM 研发', '项目与节点', '🏗', 'url:/plm2')];
+  if (/采购/.test(pos)) return [C('来料检验', '到货抽检', '🔍', 'cap:IQC'), C('我的待办', '今天要做的', '☑', 'tab:todos'), C('待办总表', '全部系统', '📋', 'url:/taskhub'), C('门户', '其他系统', '🏠', 'url:/portal')];
+  if (/现场负责人|生产操作|班组长/.test(pos)) return [C('我的待办', '今天要做的', '☑', 'tab:todos'), C('拍照留证', '现场问题', '📷', 'cap:PHOTO'), C('报修 / 请假', '人事后勤', '🛠', 'url:/hlc'), C('待办总表', '全部系统', '📋', 'url:/taskhub')];
+  if (/销售经理|销售|外贸/.test(pos)) return [C('我的待办', '今天要做的', '☑', 'tab:todos'), C('拍照留证', '现场情况', '📷', 'cap:PHOTO'), C('待办总表', '全部系统', '📋', 'url:/taskhub'), C('门户', '其他系统', '🏠', 'url:/portal')];
+  if (/会计|财务/.test(pos)) return [C('我的待办', '今天要做的', '☑', 'tab:todos'), C('工作表采集', '资料填报', '🧾', 'cap:WORKSHEET'), C('待办总表', '全部系统', '📋', 'url:/taskhub'), C('门户', '其他系统', '🏠', 'url:/portal')];
+  if (/人事|招聘|培训|行政/.test(pos) || dept === '人事行政部') return [C('我的待办', '今天要做的', '☑', 'tab:todos'), C('报修 / 请假', '人事后勤', '🛠', 'url:/hlc'), C('待办总表', '全部系统', '📋', 'url:/taskhub'), C('门户', '其他系统', '🏠', 'url:/portal')];
+  return [C('我的待办', '今天要做的', '☑', 'tab:todos'), C('采集', '资料/照片', '📷', 'tab:capture'), C('待办总表', '全部系统', '📋', 'url:/taskhub'), C('门户', '其他系统', '🏠', 'url:/portal')];
+}
+function quickCount(act) {
+  if (act === 'tab:todos') {
+    const t = state.todos || {};
+    const m = (t.meeting && t.meeting.items) || [];
+    const th = (t.taskhub && t.taskhub.items) || [];
+    return (t.overdueCount || 0) + (t.todoCount || 0) + m.length + th.filter(x => x.status !== 'done').length;
+  }
+  if (act === 'tab:capture' || /^cap:/.test(act)) return (state.caps || []).filter(c => c.status === 'pending-review').length;
+  if (act === 'tab:approval') return (state.approvals || []).length;
+  return 0;
+}
+function renderQuick() {
+  const box = $('quickCards');
+  if (!box) return;
+  box.innerHTML = quickCardsFor().map(c => {
+    const n = quickCount(c.act);
+    return `<button class="qcard" onclick="quickGo('${c.act}')"><span class="qi">${c.icon}</span><span class="qb"><b>${esc(c.label)}</b><small>${esc(c.sub)}</small></span>${n ? `<span class="qn">${n}</span>` : ''}</button>`;
+  }).join('');
+}
+window.quickGo = (act) => {
+  if (act.startsWith('url:')) { location.href = act.slice(4); return; }
+  if (act.startsWith('cap:')) {
+    switchTab('capture');
+    const code = act.slice(4);
+    setTimeout(() => {
+      const sel = $('capType');
+      if ([...sel.options].some(o => o.value === code)) { sel.value = code; renderCapFields(); }
+      else toast('当前岗位没有这个采集类型');
+    }, 120);
+    return;
+  }
+  switchTab(act.slice(4));
+};
 $('selCompany').onchange = async (e) => { state.company = e.target.value; await loadDepts(); };
 $('selDept').onchange = async (e) => { state.dept = e.target.value; await loadPositions(); };
 $('selPos').onchange = async (e) => { state.position = e.target.value; await loadAssemble(); };
