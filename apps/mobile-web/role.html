@@ -84,6 +84,7 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
 <div class="wrap">
   <!-- 待办 -->
   <div id="tab-todos">
+    <div id="spcCard" style="display:none"></div>
     <div class="card">
       <h2>我的待办 <span class="tag" id="todoTag">—</span></h2>
       <div class="kpis" id="todoKpis"></div>
@@ -141,6 +142,14 @@ input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3p
     <div class="card">
       <h2>账号</h2>
       <div class="dl" id="acctInfo"></div>
+      <div class="sec-title">常用系统</div>
+      <div class="row">
+        <a class="btn small" href="/plm2">PLM 研发</a>
+        <a class="btn small" href="/m/spc">SPC 供应链</a>
+        <a class="btn small" href="/hlc">报修 / 请假</a>
+        <a class="btn small" href="/taskhub">待办总表</a>
+        <a class="btn small" href="/portal">门户</a>
+      </div>
       <div class="row" style="margin-top:12px">
         <button class="btn small" onclick="switchAccount()">切换账号</button>
         <button class="btn small" onclick="logout()">退出登录</button>
@@ -198,7 +207,34 @@ async function boot() {
     ['账号', me.user.username], ['手机号', me.user.phone]
   ].map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('');
   $('capRoleTag').textContent = '岗位权限：' + state.demoRole;
-  loadTodos(); loadCapTypes(); loadCaps(); loadApprovals(); loadLogins();
+  loadTodos(); loadCapTypes(); loadCaps(); loadApprovals(); loadLogins(); loadSpcCard();
+}
+
+// 供应链相关岗位在待办页看到一张 SPC 小卡（只读）
+const SPC_ROLES = ['ADMIN', 'GM', 'PURCHASE', 'SALES_MANAGER', 'SALES', 'PROJECT_MANAGER'];
+async function loadSpcCard() {
+  const box = $('spcCard');
+  if (!box) return;
+  if (!SPC_ROLES.includes(state.me.role)) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = `<div class="card"><h2>供应链 SPC <span class="tag blue">只读</span></h2>
+    <div class="kpis"><div class="kpi"><b>…</b><span>读取中</span></div></div>
+    <a class="btn small" href="/m/spc">查看订单 / 异常 / 供应商</a></div>`;
+  try {
+    const d = await api('/api/v1/spc/dashboard');
+    const t = (d.parts && d.parts.today && d.parts.today.data) || {};
+    box.innerHTML = `<div class="card"><h2>供应链 SPC <span class="tag blue">只读</span></h2>
+      <div class="kpis">
+        <div class="kpi"><b>${t.yellow_orders == null ? '—' : t.yellow_orders}</b><span>关注订单</span></div>
+        <div class="kpi"><b>${t.pending_close_issues == null ? '—' : t.pending_close_issues}</b><span>待关闭异常</span></div>
+        <div class="kpi"><b>${t.eta_overdue_po == null ? '—' : t.eta_overdue_po}</b><span>ETA 逾期采购</span></div>
+      </div>
+      <a class="btn small primary" href="/m/spc">查看明细</a></div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="card"><h2>供应链 SPC <span class="tag">未连接</span></h2>
+      <div class="muted" style="font-size:12px">暂时读不到 SPC 数据（${esc(e.message)}）</div>
+      <a class="btn small" href="/m/spc">打开 SPC</a></div>`;
+  }
 }
 
 /* ---------- 待办 ---------- */

@@ -80,6 +80,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const page = await req('/spc');
     ck('SPC 页面可访问且含五个栏目', page.s === 200 && ['控制塔', '订单风险', '物料风险', '异常台账', '供应商风险'].every(k => page.b.includes(k)));
     ck('页面注明只读（改动请到 SPC）', page.b.includes('只读') && page.b.includes('改动请到 SPC'));
+    const mPage = await req('/m/spc');
+    ck('手机内 SPC 页可访问（订单/异常/供应商）', mPage.s === 200 && mPage.b.includes('订单风险') && mPage.b.includes('异常台账') && mPage.b.includes('供应商风险'));
+    const mobile = await req('/m');
+    ck('手机工作台含 SPC 入口与岗位卡片', mobile.b.includes('/m/spc') && mobile.b.includes('loadSpcCard') && mobile.b.includes('SPC_ROLES'));
     const portal = await req('/portal');
     ck('门户含 SPC 入口', portal.b.includes('href="/spc"') && portal.b.includes('SPC 供应链与生产协同'));
 

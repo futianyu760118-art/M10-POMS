@@ -312,6 +312,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/login' || pathname === '/login/') return serveStatic('/apps/login/index.html', res);
     if (pathname === '/m' || pathname === '/m/') return serveStatic('/apps/mobile-web/role.html', res);
     if (pathname === '/m/login' || pathname === '/m/login/') return serveStatic('/apps/mobile-web/login.html', res);
+    if (pathname === '/m/spc' || pathname === '/m/spc/') return serveStatic('/apps/mobile-web/spc.html', res);
     /* ---- 手机号绑定登录 ---- */
     if (pathname === '/api/v1/mobile/bind' && req.method === 'POST') {
       const body = await readBody(req);

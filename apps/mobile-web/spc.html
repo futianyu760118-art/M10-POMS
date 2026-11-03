@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f6fbd">
+<title>SPC 供应链 · 手机版</title>
+<style>
+:root{--bg:#f3f6fb;--panel:#fff;--line:#e2e9f3;--text:#16283f;--muted:#7186a0;--blue:#2f6fbd;--green:#1c8a4e;--red:#c0392b;--orange:#c47a12}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-bottom:20px}
+.top{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#2f6fbd,#4a9be0);color:#fff;padding:12px 14px;border-radius:0 0 14px 14px;display:flex;align-items:center;gap:10px}
+.top a{color:#fff;text-decoration:none;font-size:18px;line-height:1}
+.top h1{font-size:16px;margin:0;flex:1}
+.top .st{font-size:11px;opacity:.9}
+.wrap{padding:12px 14px;max-width:640px;margin:0 auto}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kpi b{display:block;font-size:22px;line-height:1.2}
+.kpi span{font-size:11px;color:var(--muted)}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.card h2{font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);background:#f6f9fd;color:var(--muted);white-space:nowrap}
+.tag.red{background:#fdf1f0;border-color:#f0c9c4;color:var(--red)}
+.tag.orange{background:#fff8ec;border-color:#f1dcb6;color:var(--orange)}
+.tag.blue{background:#eef5fd;border-color:#c9dcf5;color:#24508f}
+.tag.green{background:#eefaf2;border-color:#bfe6cd;color:var(--green)}
+.item{display:flex;gap:8px;align-items:center;padding:8px 2px;border-bottom:1px solid #f1f5fa}
+.item:last-child{border-bottom:0}
+.item .body{flex:1;min-width:0}
+.item b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item small{color:var(--muted);font-size:11px}
+.muted{color:var(--muted)}
+.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:9px;padding:8px 12px;font:inherit;font-size:13px;text-decoration:none;display:inline-flex;align-items:center}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.notice{font-size:12px;color:#24508f;background:#eef5fd;border:1px solid #c9dcf5;border-radius:10px;padding:9px 11px;margin-bottom:10px}
+.notice.warn{color:#8a5a12;background:#fffbf3;border-color:#f1dcb6}
+.empty{color:var(--muted);font-size:12px;padding:8px 2px}
+</style>
+</head>
+<body>
+<div class="top">
+  <a href="/m">‹</a>
+  <h1>SPC 供应链</h1>
+  <span class="st" id="conn">检查连接…</span>
+</div>
+<div class="wrap">
+  <div class="notice" id="tip">数据来自 SPC 系统，只读；要处理请到 SPC。</div>
+  <div class="kpis" id="kpis"></div>
+  <div class="card"><h2>订单风险 <span class="tag" id="orderTag">—</span></h2><div id="orders"><div class="empty">加载中…</div></div></div>
+  <div class="card"><h2>异常台账 <span class="tag" id="issueTag">—</span></h2><div id="issues"><div class="empty">加载中…</div></div></div>
+  <div class="card"><h2>供应商风险 <span class="tag" id="supTag">—</span></h2><div id="suppliers"><div class="empty">加载中…</div></div></div>
+  <div style="display:flex;gap:8px;margin-top:4px">
+    <a class="btn primary" href="/spc">打开完整 SPC</a>
+    <a class="btn" href="/m">返回工作台</a>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const RISK = { red: 'red', yellow: 'orange', blue: 'blue', green: 'green' };
+const RISK_TXT = { red: '严重', yellow: '关注', blue: '一般', green: '正常' };
+async function api(p) {
+  const r = await fetch(p, { credentials: 'same-origin' });
+  let j = null; try { j = await r.json(); } catch (e) { j = { error: 'HTTP ' + r.status }; }
+  if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status });
+  return j;
+}
+function rowsOf(page) { if (!page) return []; if (Array.isArray(page)) return page; return page.items || page.records || []; }
+(async () => {
+  try {
+    const st = await api('/api/v1/spc/status');
+    $('conn').textContent = st.connected ? '已连接' : (st.configured ? '连接失败' : '未配置');
+    if (!st.connected) {
+      $('tip').className = 'notice warn';
+      $('tip').textContent = st.configured ? ('SPC 暂时连不上：' + (st.error || '请检查网络')) : '未配置 SPC 地址/账号，请联系管理员（SPC_API/SPC_USER/SPC_PASS）';
+    }
+  } catch (e) { $('conn').textContent = '连接检查失败'; }
+  try {
+    const d = await api('/api/v1/spc/dashboard');
+    const t = (d.parts.today && d.parts.today.data) || {};
+    const s = (d.parts.summary && d.parts.summary.data) || {};
+    const rs = s.risk_summary || {};
+    $('kpis').innerHTML = [
+      ['关注订单', t.yellow_orders], ['严重订单', t.red_orders],
+      ['待关闭异常', t.pending_close_issues], ['ETA 逾期采购', t.eta_overdue_po]
+    ].map(([l, v]) => `<div class="kpi"><b>${v == null ? '—' : esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+  } catch (e) { $('kpis').innerHTML = `<div class="kpi"><b>—</b><span>控制塔读取失败</span></div>`; }
+  try {
+    const o = await api('/api/v1/spc/orders?page=1&page_size=10&risk_level=yellow');
+    const rows = rowsOf(o.data);
+    $('orderTag').textContent = '关注 ' + (o.data.total != null ? o.data.total : rows.length) + ' 单';
+    $('orders').innerHTML = rows.length ? rows.map(r => `<div class="item"><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '')}</span>
+      <div class="body"><b>${esc(r.order_no || '')}</b><small>${esc(r.customer || '')} · 交期 ${esc(r.promised_date || '—')}${r.latest_eta ? ' · ETA ' + esc(r.latest_eta) : ''}</small></div></div>`).join('') : '<div class="empty">暂无</div>';
+  } catch (e) { $('orders').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+  try {
+    const x = await api('/api/v1/spc/exceptions?page=1&page_size=10&status=open');
+    const rows = rowsOf(x.data);
+    $('issueTag').textContent = '未关 ' + (x.data.total != null ? x.data.total : rows.length) + ' 条';
+    $('issues').innerHTML = rows.length ? rows.map(r => `<div class="item"><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '')}</span>
+      <div class="body"><b>${esc(r.issue_no || '')}</b><small>${esc(r.issue_type || '')} · ${esc((r.description || '').slice(0, 40))}</small></div></div>`).join('') : '<div class="empty">暂无</div>';
+  } catch (e) { $('issues').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+  try {
+    const s = await api('/api/v1/spc/supplier-risk');
+    const rows = Array.isArray(s.data) ? s.data : rowsOf(s.data);
+    $('supTag').textContent = rows.length + ' 家';
+    $('suppliers').innerHTML = rows.slice(0, 5).map(r => `<div class="item"><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '')}</span>
+      <div class="body"><b>${esc(r.supplier_name || '')}</b><small>订单 ${esc(r.total_orders ?? '')} · 延迟 ${esc(r.delayed_count ?? '')} 次 · 平均 ${esc(r.avg_delay_days ?? '')} 天</small></div></div>`).join('') || '<div class="empty">暂无</div>';
+  } catch (e) { $('suppliers').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+})();
+</script>
+</body>
+</html>
