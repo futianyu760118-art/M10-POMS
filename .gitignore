@@ -9,7 +9,6 @@ __pycache__/
 services/ai-entry/__pycache__/
 database/backups/
 *.dump
-
 # 总任务库本地短期库（运行时缓存，首次访问自动归集）
 configs/tasks-master.json
 configs/meeting-actions.live.json
@@ -18,3 +17,4 @@ configs/mobile-auth.local.json
 configs/spc.local.json
 configs/crm.local.json
 configs/ebms.local.json
+var/
