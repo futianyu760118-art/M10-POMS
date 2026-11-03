@@ -227,6 +227,7 @@ MEETING_API=... MEETING_LOGINID=... MEETING_STATUS=pending,in_progress node scri
 | HLC（18280） | 已连通 | 用 PLM 令牌交换 HLC 身份 |
 | 会议助手（192.168.0.127:18081） | 已连通 | 全量待办 2038 条按人过滤；统一登录按中文姓名验证 |
 | Hub（8787） | 已连通（独立账号） | 登录需 Hub 自己的账号密码；经营事项/收件箱待办已接入总表 |
+| SPC（spc.hengyou-soft.com） | 已连通 | 服务端 OAuth2 登录 + Bearer 只读；控制塔/订单/物料/异常/供应商风险（详见下节） |
 
 - 自查：`node services/tools-node/_selfcheck-mobile.js`（32 项）。
 
@@ -251,7 +252,7 @@ SPC_API=http://<SPC 主机>:8000   SPC_USER=<SPC 账号>   SPC_PASS=<SPC 密码>
 
 **自查**：`node services/tools-node/_selfcheck-spc.js`（13 项：页面与栏目、门户入口、连接状态、五块数据、分页筛选透传、只读校验、SSO 状态如实）。
 
-> 现状说明：本机没有运行 SPC 实例，页面当前显示「未配置 SPC」。配置上面三个环境变量并重启 BFF 后即读取真实数据；链路已用 mock SPC 全量验证。
+> 现状：**已连通生产 SPC** `https://spc.hengyou-soft.com`（账号存 `configs/spc.local.json`，已 gitignore；也可用环境变量覆盖）。实测真实数据：订单 3278 条（关注 283 / 一般 2760 / 正常 235）、待关闭异常 961 条、ETA 逾期采购 10532、供应商风险（含严重）。`/spc` 页面直接显示这些数据，断连时回旧数据并标「旧数据」。
 
 ## 契约 API（对齐恒剑信息包 03 章）
 

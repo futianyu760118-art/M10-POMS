@@ -89,8 +89,8 @@ async function api(p, method, body) {
   if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status, body: j });
   return j;
 }
-const RISK = { high: 'bad', medium: 'warn', low: 'ok' };
-const RISK_TXT = { high: '高', medium: '中', low: '低' };
+const RISK = { red: 'bad', yellow: 'warn', blue: 'blue', green: 'ok', high: 'bad', medium: 'warn', low: 'ok' };
+const RISK_TXT = { red: '严重', yellow: '关注', blue: '一般', green: '正常', high: '高', medium: '中', low: '低' };
 
 async function checkConn() {
   try {
@@ -132,17 +132,21 @@ async function renderTower() {
   const staleTag = d.stale ? '<span class="tag warn">旧数据</span>' : '';
 
   const cards = [
-    ['今日应交付', today.due_order_count != null ? today.due_order_count : sum.due_order_count, '单'],
-    ['高风险订单', sum.high_risk_count != null ? sum.high_risk_count : dist.high, '单'],
-    ['缺料物料', sum.shortage_count != null ? sum.shortage_count : today.shortage_count, '项'],
-    ['异常未关闭', sum.open_exception_count != null ? sum.open_exception_count : today.open_exception_count, '条'],
-    ['关闭完成率', closure.closure_rate != null ? (closure.closure_rate + '%') : (sum.closure_rate != null ? sum.closure_rate + '%' : null), '']
+    ['今日应交付', today.due_today, '单'],
+    ['订单总数', today.total_orders, '单'],
+    ['严重/关注订单', (today.red_orders != null || today.yellow_orders != null) ? ((today.red_orders || 0) + '/' + (today.yellow_orders || 0)) : null, ''],
+    ['缺料订单', today.shortage_orders, '单'],
+    ['待关闭异常', today.pending_close_issues, '条'],
+    ['ETA 逾期采购', today.eta_overdue_po, '单'],
+    ['异常关闭率', closure.closure_rate != null ? (Math.round(closure.closure_rate * 1000) / 10 + '%') : null, '']
   ];
+  const rs = sum.risk_summary || {};
   $('content').innerHTML = `
     <div class="panel"><h2>控制塔 ${staleTag} <span class="tag blue">只读</span> <span class="muted" style="font-size:11px;font-weight:400">数据来自 SPC，改动请到 SPC 系统</span></h2>
       ${kpis(cards)}
-      <div class="muted" style="font-size:11px">风险分布：高 ${esc(dist.high ?? '—')} · 中 ${esc(dist.medium ?? '—')} · 低 ${esc(dist.low ?? '—')}</div>
+      <div class="muted" style="font-size:11px">订单风险：严重 ${esc(rs.red_count ?? '—')} · 关注 ${esc(rs.yellow_count ?? '—')} · 正常 ${esc(rs.green_count ?? '—')} · 合计 ${esc(rs.total_count ?? '—')}</div>
     </div>
+    <div class="panel"><h2>最近异常（SPC）</h2><div id="recentIssues">${recentIssuesHtml(sum.recent_issues || [])}</div></div>
     <div class="panel"><h2>订单风险（前 10）</h2><div id="topOrders"><div class="empty">读取中…</div></div></div>`;
   try {
     const o = await api('/api/v1/spc/orders?page=1&page_size=10');
@@ -150,16 +154,27 @@ async function renderTower() {
   } catch (e) { $('topOrders').innerHTML = `<div class="empty">订单读取失败：${esc(e.message)}</div>`; }
 }
 
+function recentIssuesHtml(list) {
+  if (!list.length) return '<div class="empty">暂无</div>';
+  return `<table><thead><tr><th>编号</th><th>类型</th><th>风险</th><th>说明</th><th>状态</th></tr></thead><tbody>${list.slice(0, 6).map(r => `<tr>
+    <td>${esc(r.issue_no || '')}</td><td>${esc(r.issue_type || '')}</td>
+    <td><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '')}</span></td>
+    <td style="max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.description || '')}">${esc(r.description || '')}</td>
+    <td>${esc(r.status || '')}</td></tr>`).join('')}</tbody></table>`;
+}
+
 function rowsOf(page) { if (!page) return []; if (Array.isArray(page)) return page; return page.items || page.records || page.list || page.rows || []; }
 function ordersTable(o) {
   const rows = rowsOf(o && o.data);
   if (!rows.length) return '<div class="empty">暂无订单数据</div>';
-  return `<table><thead><tr><th>订单号</th><th>客户</th><th>交期</th><th>风险</th><th>负责人</th><th>状态</th></tr></thead><tbody>${rows.map(r => `<tr>
+  return `<table><thead><tr><th>订单号</th><th>行号</th><th>客户</th><th>交期</th><th>风险</th><th>缺料</th><th>最新 ETA</th><th>状态</th></tr></thead><tbody>${rows.map(r => `<tr>
     <td>${esc(r.order_no || r.orderNo || r.order_code || '')}</td>
-    <td>${esc(r.customer_name || r.customer || '')}</td>
-    <td>${esc(r.delivery_date || r.due_date || '')}</td>
+    <td>${esc(r.line_no || '')}</td>
+    <td>${esc(r.customer || r.customer_name || '')}</td>
+    <td>${esc(r.promised_date || r.delivery_date || r.due_date || '')}</td>
     <td><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '—')}</span></td>
-    <td>${esc(r.owner || '')}</td>
+    <td>${r.shortage_count != null ? `<span class="tag ${Number(r.shortage_count) > 0 ? 'bad' : 'ok'}">${esc(r.shortage_count)}</span>` : '—'}</td>
+    <td>${esc(r.latest_eta || '—')}</td>
     <td>${esc(r.status || '')}</td></tr>`).join('')}</tbody></table>`;
 }
 
@@ -168,7 +183,7 @@ async function renderOrders() {
   $('content').innerHTML = `<div class="panel"><h2>订单风险</h2>
     <div class="filters">
       <input id="fKw" placeholder="订单号 / 客户" value="${esc(f.keyword)}" style="min-width:180px">
-      <select id="fRisk"><option value="">全部风险</option><option value="high" ${f.risk === 'high' ? 'selected' : ''}>高</option><option value="medium" ${f.risk === 'medium' ? 'selected' : ''}>中</option><option value="low" ${f.risk === 'low' ? 'selected' : ''}>低</option></select>
+      <select id="fRisk"><option value="">全部风险</option><option value="red" ${f.risk === 'red' ? 'selected' : ''}>严重</option><option value="yellow" ${f.risk === 'yellow' ? 'selected' : ''}>关注</option><option value="blue" ${f.risk === 'blue' ? 'selected' : ''}>一般</option><option value="green" ${f.risk === 'green' ? 'selected' : ''}>正常</option></select>
       <button class="btn small primary" id="btnQuery">查询</button>
     </div><div id="orderBox"><div class="empty">读取中…</div></div></div>`;
   $('btnQuery').onclick = () => { state.filters.keyword = $('fKw').value.trim(); state.filters.risk = $('fRisk').value; renderOrders(); };
@@ -197,13 +212,14 @@ async function renderMaterials() {
     if (f.shortage === '1') q.set('shortage_only', '1');
     const o = await api('/api/v1/spc/materials?' + q.toString());
     const rows = rowsOf(o && o.data);
-    $('matBox').innerHTML = (o && o.stale ? '<div class="notice warn">显示的是上次读取的数据（SPC 暂时连不上）</div>' : '') + (rows.length ? `<table><thead><tr><th>物料号</th><th>名称</th><th>需求</th><th>库存</th><th>缺料</th><th>状态</th></tr></thead><tbody>${rows.map(r => `<tr>
-      <td>${esc(r.material_no || r.materialNo || r.material_code || '')}</td>
+    $('matBox').innerHTML = (o && o.stale ? '<div class="notice warn">显示的是上次读取的数据（SPC 暂时连不上）</div>' : '') + (rows.length ? `<table><thead><tr><th>订单号</th><th>物料号</th><th>名称</th><th>需求</th><th>已分配</th><th>缺料</th><th>需求日期</th></tr></thead><tbody>${rows.map(r => `<tr>
+      <td>${esc(r.order_no || '')}</td>
+      <td>${esc(r.material_code || r.material_no || '')}</td>
       <td>${esc(r.material_name || r.name || '')}</td>
-      <td>${esc(r.demand_qty ?? r.required_qty ?? '')}</td>
-      <td>${esc(r.stock_qty ?? r.available_qty ?? '')}</td>
+      <td>${esc(r.req_qty ?? r.demand_qty ?? '')}</td>
+      <td>${esc(r.allocated_qty ?? r.stock_qty ?? '')}</td>
       <td>${r.shortage_qty != null ? `<span class="tag ${Number(r.shortage_qty) > 0 ? 'bad' : 'ok'}">${esc(r.shortage_qty)}</span>` : '—'}</td>
-      <td>${esc(r.status || '')}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">暂无物料数据</div>');
+      <td>${esc(r.req_date || '')}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">暂无缺料数据（可能当前没有缺料，或未导入需求）</div>');
   } catch (e) { $('matBox').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
 }
 
@@ -237,11 +253,13 @@ async function renderSupplier() {
   try {
     const o = await api('/api/v1/spc/supplier-risk');
     const rows = Array.isArray(o && o.data) ? o.data : rowsOf(o && o.data);
-    $('supBox').innerHTML = (o && o.stale ? '<div class="notice warn">显示的是上次读取的数据（SPC 暂时连不上）</div>' : '') + (rows.length ? `<table><thead><tr><th>供应商</th><th>风险</th><th>准时率</th><th>异常数</th></tr></thead><tbody>${rows.map(r => `<tr>
-      <td>${esc(r.supplier || r.supplier_name || r.name || '')}</td>
+    $('supBox').innerHTML = (o && o.stale ? '<div class="notice warn">显示的是上次读取的数据（SPC 暂时连不上）</div>' : '') + (rows.length ? `<table><thead><tr><th>供应商</th><th>风险</th><th>订单数</th><th>延迟次数</th><th>平均延迟(天)</th><th>异常数</th></tr></thead><tbody>${rows.map(r => `<tr>
+      <td>${esc(r.supplier_name || r.supplier || r.name || '')}</td>
       <td><span class="tag ${RISK[r.risk_level] || 'blue'}">${RISK_TXT[r.risk_level] || esc(r.risk_level || '—')}</span></td>
-      <td>${esc(r.on_time_rate != null ? r.on_time_rate + '%' : (r.ontime_rate != null ? r.ontime_rate + '%' : '—'))}</td>
-      <td>${esc(r.exception_count ?? r.issue_count ?? '')}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">暂无供应商风险数据</div>');
+      <td>${esc(r.total_orders ?? '')}</td>
+      <td>${r.delayed_count != null ? `<span class="tag ${Number(r.delayed_count) > 0 ? 'warn' : 'ok'}">${esc(r.delayed_count)}</span>` : '—'}</td>
+      <td>${esc(r.avg_delay_days ?? '—')}</td>
+      <td>${esc(r.issue_count ?? '')}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">暂无供应商风险数据</div>');
   } catch (e) { $('supBox').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
 }
 

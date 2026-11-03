@@ -2,11 +2,18 @@
 // adapters/spc — 供应链与生产协同中台（SPC）只读接入
 // 连接标准与 PLM 一致：服务端账号登录 → Bearer 令牌 → REST 只读；令牌自动续期，401 自动重登。
 // 不直连数据库、不写业务数据；不可达时明确 503，若有旧缓存则返回并标 stale（不假装最新）。
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const https = require('https');
 
-function apiBase() { return (process.env.SPC_API || '').replace(/\/$/, ''); }
-function creds() { return { user: process.env.SPC_USER || '', pass: process.env.SPC_PASS || '' }; }
+const LOCAL_CONF = path.join(__dirname, '..', '..', 'configs', 'spc.local.json');
+function localConf() {
+  if (process.env.SPC_DISABLED === '1') return {};
+  try { return JSON.parse(fs.readFileSync(LOCAL_CONF, 'utf8')); } catch (e) { return {}; }
+}
+function apiBase() { if (process.env.SPC_DISABLED === '1') return ''; return (process.env.SPC_API || localConf().api || '').replace(/\/$/, ''); }
+function creds() { if (process.env.SPC_DISABLED === '1') return { user: '', pass: '' }; const c = localConf(); return { user: process.env.SPC_USER || c.user || '', pass: process.env.SPC_PASS || c.pass || '' }; }
 
 let token = null, tokenAt = 0;
 const CACHE = new Map(); // key -> {at, data}

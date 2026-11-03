@@ -822,7 +822,8 @@ test('SPC 接入：登录+Bearer 只读、401 自动重登、断连回旧数据�
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
-  const prev = { api: process.env.SPC_API, user: process.env.SPC_USER, pass: process.env.SPC_PASS };
+  const prev = { api: process.env.SPC_API, user: process.env.SPC_USER, pass: process.env.SPC_PASS, disabled: process.env.SPC_DISABLED };
+  delete process.env.SPC_DISABLED;
   process.env.SPC_API = 'http://127.0.0.1:' + port;
   process.env.SPC_USER = 'spc-user';
   process.env.SPC_PASS = 'spc-pass';
@@ -853,6 +854,7 @@ test('SPC 接入：登录+Bearer 只读、401 自动重登、断连回旧数据�
     try { server.close(); } catch (e) { /* ignore */ }
     delete require.cache[require.resolve('../../adapters/spc')];
     delete process.env.SPC_API; delete process.env.SPC_USER; delete process.env.SPC_PASS;
+    process.env.SPC_DISABLED = '1';
     const spc2 = require('../../adapters/spc');
     assert.strictEqual(spc2.configured(), false, '未配置时应明确未配置');
     const st2 = await spc2.status();
@@ -861,6 +863,7 @@ test('SPC 接入：登录+Bearer 只读、401 自动重登、断连回旧数据�
     if (prev.api !== undefined) process.env.SPC_API = prev.api;
     if (prev.user !== undefined) process.env.SPC_USER = prev.user;
     if (prev.pass !== undefined) process.env.SPC_PASS = prev.pass;
+    if (prev.disabled === undefined) delete process.env.SPC_DISABLED; else process.env.SPC_DISABLED = prev.disabled;
     delete require.cache[require.resolve('../../adapters/spc')];
   }
 });
