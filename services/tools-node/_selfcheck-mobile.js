@@ -35,6 +35,9 @@ const PHONE = '13900000001';
   ck('扫码与拍照留证仍在', m.b.includes('BarcodeDetector') && m.b.includes('capture="environment"') && m.b.includes('evidence: state.photo'));
   ck('料号可选 + 模糊查找', m.b.includes('matSugg') && m.b.includes('btnListMat') && m.b.includes('filter(m => matMatch'));
   ck('待办有分类且可直接处理', m.b.includes('TODO_CATS') && m.b.includes('window.todoAct'));
+  ck('默认隐藏已完成/已作废', m.b.includes('chkHideDone') && m.b.includes('hideDone: true'));
+  ck('PLM 节点可编辑（编辑 sheet + 同步 PLM）', m.b.includes('editSheet') && m.b.includes('openEditSheet') && m.b.includes('btnEdSave'));
+  ck('找回 AI 录入工具（8002：OCR 识别料号 + 语音转文字，模拟如实标注）', m.b.includes('btnOcr') && m.b.includes('btnAsr') && m.b.includes(':8002') && m.b.includes('（模拟）'));
 
   /* ---- 未登录 ---- */
   ck('未登录状态可查（loggedIn=false）', j(await req('/api/v1/mobile/me')).loggedIn === false);

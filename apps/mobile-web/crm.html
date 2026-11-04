@@ -54,6 +54,7 @@ body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
 </div>
 <div class="wrap">
   <div class="notice" id="tip">数据来自 CRM；商机阶段、任务与审批可直接在这里处理（会写回 CRM）。</div>
+  <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12px;margin:0 0 10px"><input type="checkbox" id="chkHideClosed" checked onchange="state.hideClosed=this.checked;loadAll()"> 隐藏已结束（赢单/丢单/已关闭）</label>
   <div class="kpis" id="kpis"></div>
   <div class="card"><h2>待审批 <span class="tag" id="apprTag">—</span></h2><div id="apprs"><div class="empty">加载中…</div></div></div>
   <div class="card"><h2>我的任务 <span class="tag" id="taskTag">—</span></h2><div id="tasks"><div class="empty">加载中…</div></div></div>
@@ -86,7 +87,7 @@ async function api(p, method, body) {
 }
 const unwrap = (x) => (x && x.data !== undefined) ? x.data : x;
 const rowsOf = (p) => (!p ? [] : (Array.isArray(p) ? p : (p.items || p.records || [])));
-const state = { opps: [], orders: [], leads: [], tasks: [], apprs: [] };
+const state = { opps: [], orders: [], leads: [], tasks: [], apprs: [], hideClosed: true };
 const STAGES = [['QUALIFIED', '已确认'], ['REQUIREMENT', '需求明确'], ['PROPOSAL', '方案报价'], ['NEGOTIATION', '商务谈判'], ['WON', '赢单'], ['LOST', '丢单']];
 
 function toast(m) { const t = $('toast'); t.textContent = m; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2400); }
@@ -136,7 +137,10 @@ async function loadAll() {
   try {
     const d = unwrap(await api('/api/v1/crm/opportunities?page=1&page_size=20')) || {};
     state.opps = rowsOf(d);
+    const oppShown = state.hideClosed ? state.opps.filter(o => o.stage !== 'WON' && o.stage !== 'LOST') : state.opps;
     $('oppTag').textContent = (d.total != null ? d.total : state.opps.length) + ' 个';
+    const oppList = oppShown;
+    state.opps = oppList;
     $('opps').innerHTML = state.opps.length ? state.opps.map(o => `<div class="item" onclick="oppDetail('${esc(o.id)}')"><span class="tag blue">${esc(o.stage_label || o.stage || '')}</span>
       <div class="body"><b>${esc(o.name || o.opportunity_no || '')}</b><small>${esc(o.company_name || '')} · ${esc(o.estimated_amount != null ? o.estimated_amount + (o.currency || '') : '')} · 把握 ${esc(o.probability != null ? o.probability + '%' : '—')}</small></div></div>`).join('') : '<div class="empty">暂无商机</div>';
   } catch (e) { $('opps').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
@@ -144,7 +148,10 @@ async function loadAll() {
   try {
     const d = unwrap(await api('/api/v1/crm/orders?page=1&page_size=20')) || {};
     state.orders = rowsOf(d);
+    const CLOSED = ['closed', 'done', 'cancelled', 'won', 'lost'];
+    const ordShown = state.hideClosed ? state.orders.filter(o => !CLOSED.includes(String(o.status || '').toLowerCase())) : state.orders;
     $('orderTag').textContent = (d.total != null ? d.total : state.orders.length) + ' 单';
+    state.orders = ordShown;
     $('orders').innerHTML = state.orders.length ? state.orders.map(o => `<div class="item" onclick="orderDetail('${esc(o.id)}')"><span class="tag ${o.risk_level === 'red' ? 'bad' : (o.risk_level === 'yellow' ? 'orange' : 'blue')}">${esc(o.status || '—')}</span>
       <div class="body"><b>${esc(o.order_no || '')}</b><small>${esc(o.customer_name || '')} · 金额 ${esc(o.order_amount != null ? o.order_amount : '—')}</small></div></div>`).join('') : '<div class="empty">暂无订单</div>';
   } catch (e) { $('orders').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }

@@ -93,6 +93,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ck('页面支持状态多选（msStatus + toggleStatus）', pageSrc.includes('msStatusMenu') && pageSrc.includes('window.toggleStatus') && pageSrc.includes('__all__'));
     ck('页面支持驾驶舱逐层下钻（下钻+面包屑+明细）', pageSrc.includes('window.drill') && pageSrc.includes('drillUpTo') && pageSrc.includes('cstep') && pageSrc.includes('openTask') && pageSrc.includes('taskDetail'));
     ck('页面支持三种呈现（列表/看板/表格）', pageSrc.includes('renderListMode') && pageSrc.includes('renderBoardMode') && pageSrc.includes('renderTableMode') && pageSrc.includes("setMode('board')") && pageSrc.includes("setMode('table')"));
+    ck('默认隐藏已完成/已作废', pageSrc.includes('fHideDone') && pageSrc.includes('hideDone: true'));
 
     const t = j(await req('/api/v1/tasks'));
     ck('GET /api/v1/tasks 首次访问自动归集', t.total > 0, 'total=' + t.total);

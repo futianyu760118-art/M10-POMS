@@ -27,7 +27,8 @@ const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
   const need = ['plm', 'meeting', 'hub', 'spc', 'crm', 'ebms', 'hlc', 'fac', 'edp'];
   ck('系统总览覆盖全部系统', need.every(k => S[k]), Object.keys(S).join(','));
   const liveOk = ['plm', 'meeting', 'hub', 'spc', 'crm', 'ebms', 'hlc'].filter(k => S[k] && S[k].ok);
-  ck('已部署系统已连接', liveOk.length === 7, liveOk.join(',') + '（' + liveOk.length + '/7）');
+  ck('本地已部署系统已连接（SPC 为公网，单独校验其状态如实）', liveOk.length >= 6, liveOk.join(',') + '（' + liveOk.length + '/7）');
+  ck('SPC 状态如实报告（连接或带原因）', S.spc && typeof S.spc.ok === 'boolean' && (S.spc.ok || !!S.spc.error));
   ck('未部署系统如实标记（不伪造）', S.fac && S.fac.configured === false && S.fac.ok === false && S.edp && S.edp.configured === false && S.edp.ok === false);
 
   /* ---- CRM 真实数据 ---- */

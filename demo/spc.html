@@ -81,7 +81,7 @@ th{font-size:11px;color:var(--muted);background:#fbfcfe;font-weight:600}
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { view: 'tower', conn: null, filters: { keyword: '', risk: '', status: '', shortage: '0' } };
+const state = { view: 'tower', conn: null, filters: { keyword: '', risk: '', status: 'open', shortage: '0' } };
 function toast(m) { const t = $('toast'); t.textContent = m; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2600); }
 async function api(p, method, body) {
   const r = await fetch(p, { method: method || 'GET', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });

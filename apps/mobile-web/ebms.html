@@ -47,6 +47,7 @@ body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
 </div>
 <div class="wrap">
   <div class="notice" id="tip">数据来自 EBMS（M03）；点条目看明细，处理请到 EBMS（这里只读）。</div>
+  <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12px;margin:0 0 10px"><input type="checkbox" id="chkHideDone" checked onchange="state.hideDone=this.checked;loadAll()"> 隐藏已完成/已关闭</label>
   <div class="card"><h2>我的岗位 <span class="tag" id="wsTag">—</span></h2><div class="dl" id="ws"><div class="empty">加载中…</div></div></div>
   <div class="card"><h2>待办事项 <span class="tag" id="wiTag">—</span></h2><div id="wi"><div class="empty">加载中…</div></div></div>
   <div class="card"><h2>经营结果 <span class="tag" id="resTag">—</span></h2><div id="res"><div class="empty">加载中…</div></div></div>
@@ -74,7 +75,7 @@ async function api(p) {
   return j;
 }
 const unwrap = (x) => (x && x.data !== undefined) ? x.data : x;
-const state = { wi: [], res: [] };
+const state = { wi: [], res: [], hideDone: true };
 
 function openSheet(title, pairs, actionsHtml) {
   $('shTitle').textContent = title;
@@ -121,7 +122,9 @@ window.resDetail = (i) => {
   try {
     const d = unwrap(await api('/api/v1/ebms/work-items?person_id=' + encodeURIComponent(personId))) || {};
     state.wi = d.items || [];
+    const wiShown = state.hideDone ? state.wi.filter(r => r.status !== 'done' && r.status !== 'closed') : state.wi;
     $('wiTag').textContent = (d.summary && d.summary.total != null ? d.summary.total : state.wi.length) + ' 条';
+    state.wi = wiShown;
     $('wi').innerHTML = state.wi.length ? state.wi.map((r, i) => `<div class="item" onclick="wiDetail(${i})"><span class="tag ${r.status === 'done' ? 'ok' : (r.status === 'blocked' || r.status === 'overdue' ? 'bad' : 'blue')}">${esc(r.status || '')}</span>
       <div class="body"><b>${esc(r.title || r.name || r.summary || '')}</b><small>${esc(r.due_date || r.due || '')} ${esc(r.owner || '')}</small></div></div>`).join('') : '<div class="empty">暂无待办事项</div>';
   } catch (e) { $('wi').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }

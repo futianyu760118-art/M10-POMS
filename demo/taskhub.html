@@ -159,6 +159,9 @@ table .cnt{margin-left:4px}
       <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12px;white-space:nowrap">
         <input type="checkbox" id="fGroup" checked> 相同事项合并
       </label>
+      <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12px;white-space:nowrap">
+        <input type="checkbox" id="fHideDone" checked> 隐藏已完成
+      </label>
       <button class="btn small" id="btnClear">清空</button>
     </div>
     <div class="chips" id="chips"></div>
@@ -208,7 +211,7 @@ table .cnt{margin-left:4px}
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { data: null, cands: [], people: [], drill: [], group: true, mode: (localStorage.getItem('taskhub-mode') || 'list'), view: 'hub', person: '', dept: '', deptData: null, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
+const state = { data: null, cands: [], people: [], drill: [], group: true, hideDone: true, mode: (localStorage.getItem('taskhub-mode') || 'list'), view: 'hub', person: '', dept: '', deptData: null, filters: { owner: '', domain: '', source: '', statuses: [], q: '' } };
 const ST_TAG = { overdue: 'red', blocked: 'red', pending: 'blue', in_progress: 'orange', confirmed: 'blue', candidate: 'gray', done: 'green', cancelled: 'gray' };
 const ST_TEXT = { overdue: '已超期', blocked: '有问题', pending: '待办', in_progress: '处理中', confirmed: '已受理', candidate: '待确认', done: '已完成', cancelled: '已作废' };
 const DOM_TAG = { ADMIN: 'blue', RD: 'gray', PRODUCTION: 'orange', PURCHASE: 'orange', ORDER: 'green', OPS: 'blue' };
@@ -234,6 +237,7 @@ function filtered() {
     (!f.domain || x.bizDomain === f.domain) &&
     (!f.source || x.source === f.source) &&
     (!st.length || st.includes(x.status)) &&
+    (!(state.hideDone && (x.status === 'done' || x.status === 'cancelled'))) &&
     (!f.q || (x.title + (x.detail || '') + x.ownerName).toLowerCase().includes(f.q.toLowerCase()))
   );
 }
@@ -796,6 +800,7 @@ $('btnExtractText').onclick = async () => {
   });
 });
 $('fGroup').addEventListener('change', () => { state.group = $('fGroup').checked; renderList(); });
+$('fHideDone').addEventListener('change', () => { state.hideDone = $('fHideDone').checked; renderList(); renderOwners(); });
 $('msStatusBtn').onclick = (e) => { e.stopPropagation(); $('msStatus').classList.toggle('open'); };
 document.addEventListener('click', (e) => {
   if (!$('msStatus').contains(e.target)) $('msStatus').classList.remove('open');
