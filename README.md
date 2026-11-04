@@ -1,12 +1,7 @@
-<<<<<<< HEAD
-# M10
-
-AEOS V7.2.2 对齐的 M10 POMS L0 工作台：按岗位装配的采集/录入/审批/跟踪微系统。经 BFF + adapters 以数据级引用接入真实系统（PLM-2 生产库 166 项目等），并提供报修/请假（M07+M10）、ECN、物料生命周期、22 节点、工序流转、AI 录入与水印等能力。不是第二套专业主数据系统——所有专业事实归 M04~M09，M10 只做工作面、采集与引用。
-=======
 # M10 POMS · 岗位与个人运营微系统（L0 Demo）
 
 > AEOS V7.2.2 对齐 · 结合《AEOS_M07_M10_可开发资料包 V1.0》（恒剑）与仓库 `docs/V2.3_20261023` 构建的可运行 L0 Demo。
-> 全部为**本地模拟数据（mock）**，未接入任何生产接口；状态一律候选/PROPOSED，不得声称已通过 G0/G2/G3。
+> M10 只提供工作面、采集与业务引用，不复制 M04~M09 的专业主数据。当前仍是 L0/过渡适配器，生产启用必须完成 Owner 签批和真实接口验收。
 
 ## 快速开始
 
@@ -18,6 +13,35 @@ start demo/index.html
 npm start      # 启动 BFF 于 http://localhost:4173
 npm test       # 运行 L0 契约测试
 ```
+
+### BFF 鉴权边界
+
+M10 BFF 的生产模式默认拒绝无令牌 API 请求；部署时应显式设置：
+
+```bash
+M10_REQUIRE_AUTH=true npm start
+```
+
+当前过渡适配器使用 M04 PLM 的 `/auth/info` 校验 Bearer Token，后续由 AEOS M01/Keycloak 适配器替换。仅在本地 L0 演示时可不设置该变量；认证请求中的角色、PLM 人员和 M01 操作人由服务端令牌映射，不接受请求体或查询参数覆盖。
+
+### 官网 Public Lead BFF
+
+官网公开表单只调用 `POST /api/v1/public/leads`，不携带内部登录 Token。BFF 强制校验精确 Origin、JSON 请求体、字段长度、同意版本、CAPTCHA 和 IP 限流；线索先写入本地 JSONL Outbox，再投递到配置的 `PUBLIC_BFF_TARGET_URL`。目标不可用时保留重试状态，达到 `PUBLIC_BFF_MAX_ATTEMPTS` 后写入 DLQ。浏览器响应只包含不透明的 `lead_reference`。
+
+生产环境必须配置以下变量，缺少任一关键安全配置时 BFF 启动失败：
+
+```bash
+PUBLIC_BFF_ALLOWED_ORIGINS=https://your-public-site.example
+PUBLIC_BFF_CAPTCHA_MODE=provider
+PUBLIC_BFF_CAPTCHA_VERIFY_URL=https://captcha-provider.example/verify
+PUBLIC_BFF_TARGET_URL=https://edp.internal.example/api/v1/public/lead-intake
+PUBLIC_BFF_TARGET_TOKEN=<edp-service-api-key>
+PUBLIC_BFF_TENANT_ID=<tenant-id>
+PUBLIC_BFF_OUTBOX_FILE=/var/lib/aeos/public-lead-outbox.jsonl
+PUBLIC_BFF_DLQ_FILE=/var/lib/aeos/public-lead-dlq.jsonl
+```
+
+开发环境可显式使用 `PUBLIC_BFF_CAPTCHA_MODE=disabled`，但不得用于生产。M10 到 EDP 使用 `X-API-Key`，EDP 到 CRM 使用独立的 Bearer 服务令牌。`PUBLIC_BFF_OUTBOX_FILE` 和 `PUBLIC_BFF_DLQ_FILE` 必须位于持久卷，并由部署层限制访问权限；应用日志不得打印完整手机号、邮箱、留言或契约正文。
 
 启动 BFF 后：
 
@@ -330,4 +354,3 @@ demo/inspection.html          品质检验 Demo（V2.3）
 - `done != verified`；执行者不可自验；跨租户默认拒绝；非法状态跳转 409。
 - 高风险动作（录用/离职/调薪/权限变更）一律人工确认，Agent 审批建议不得直接执行。
 - Hub 服务端令牌不得放浏览器；所有正式接口待各 Owner 签批后替换 mock adapter。
->>>>>>> 8fa48ed (feat(m10-poms): L0 微系统完整实现——PLM-2 真实数据接入 + M04 统一认证 + 实时同步 + 资料制作审批归档 + 兼岗 + 异常专区 + Agent + 立项五阶段)
