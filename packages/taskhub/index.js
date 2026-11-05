@@ -9,6 +9,7 @@ const path = require('path');
 const plm2 = require('../../adapters/plm2');
 const meeting = require('../../adapters/meeting');
 const hubAdapter = require('../../adapters/hub');
+const spcAdapter = require('../../adapters/spc');
 
 const STORE = process.env.TASKHUB_STORE || path.join(__dirname, '..', '..', 'configs', 'tasks-master.json');
 const TTL_MINUTES = 60;
@@ -201,12 +202,33 @@ async function collectHub(d) {
     meta: { api: t.api, connected: t.connected, unreadInbox: t.unreadInbox, counts: t.counts },
     items: t.items.map(x => makeItem({
       source: 'HUB', sourceId: x.id, sourceLabel: 'Hub',
-      // Hub 条目始终归 Hub 经营中心（业务属性放 refs.hint，避免误标成 PLM 域）
       bizDomain: 'OPS',
       title: x.title, detail: x.detail || '',
       ownerName: x.ownerName || '', due: x.due, priority: x.priority,
       status: x.status,
       refs: Object.assign({ hubKind: x.kind, hint: domainOf(x.title + ' ' + (x.detail || ''), 'OPS') }, x.refs || {})
+    }))
+  };
+}
+
+// SPC 供应链：开放异常台账 → 待办（只读引用，写操作回 SPC）
+async function collectSpc(d) {
+  const r = await spcAdapter.exceptions({ status: 'open', page: 1, page_size: 100 });
+  const data = (r && r.data) || {};
+  const items = data.items || [];
+  return {
+    ok: true,
+    meta: { total: data.total != null ? data.total : items.length, capped: items.length, stale: !!r.stale },
+    items: items.map(x => makeItem({
+      source: 'SPC', sourceId: x.issue_no || x.id, sourceLabel: 'SPC',
+      bizDomain: 'OPS',
+      title: String(x.description || x.issue_no || '').slice(0, 80),
+      detail: [x.issue_type, x.order_no].filter(Boolean).join(' · '),
+      ownerName: (x.owner && x.owner !== 'system') ? x.owner : '',
+      due: x.commit_date || null,
+      priority: x.risk_level === 'red' ? 'high' : (x.risk_level === 'yellow' ? 'medium' : 'low'),
+      status: 'pending',
+      refs: { issueNo: x.issue_no, issueType: x.issue_type, riskLevel: x.risk_level, orderNo: x.order_no, createdAt: x.created_at }
     }))
   };
 }
@@ -219,7 +241,8 @@ async function refresh(opts) {
   const collectors = {
     MEETING: () => collectMeeting(d),
     PLM2: () => ({ ok: true, meta: {}, items: [...collectPlmNodes(d, horizon).items, ...collectPlmApprovals().items] }),
-    HUB: async () => collectHub(d)
+    HUB: async () => collectHub(d),
+    SPC: async () => collectSpc(d)
   };
   const keepLocal = store.items.filter(x => x.origin !== 'sync');
   const prevSync = {};
