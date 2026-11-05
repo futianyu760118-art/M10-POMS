@@ -101,7 +101,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const wx = await req('/wechat');
     ck('微信入口页可访问（同微系统）', wx.s === 200 && wx.b.includes('微信') && wx.b.includes('/m'));
     const mpage = await req('/m');
-    ck('手机端按本人角色隐藏无关内容', mpage.b.includes('function hideTab') && mpage.b.includes('function canApprove') && mpage.b.includes('personnelLink') && !mpage.b.includes('id="spcCard"') && mpage.b.includes("k === 'crm'"));
+    ck('手机端按本人角色显示人事入口与工具', mpage.b.includes('personnelLink') && mpage.b.includes('function isHr') && mpage.b.includes('ROLE_PROFILE') && mpage.b.includes('p.tools.includes'));
 
     const st = j(await req('/api/v1/personnel/status'));
     ck('M07 / M01 均已连接', st.m07 && st.m07.ok === true && st.m01 && st.m01.ok === true);

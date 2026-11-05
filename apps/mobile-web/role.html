@@ -3,339 +3,305 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#2f6fbd">
-<title>AEOS 手机工作台</title>
+<meta name="theme-color" content="#101e34">
+<title>AEOS · POMS 岗位微系统</title>
 <style>
-:root{--bg:#f3f6fb;--panel:#fff;--line:#e2e9f3;--text:#16283f;--muted:#7186a0;--blue:#2f6fbd;--green:#1c8a4e;--red:#c0392b;--orange:#c47a12}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-bottom:76px}
-.top{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#2f6fbd,#4a9be0);color:#fff;padding:13px 16px 12px;border-radius:0 0 16px 16px}
-.top .r{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.top h1{font-size:16px;margin:0;font-weight:600}
-.top .sub{font-size:11px;opacity:.9;margin-top:2px}
-.top .btn{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.4);color:#fff;font-size:12px;padding:6px 11px;border-radius:9px}
-.wrap{padding:12px 14px;max-width:640px;margin:0 auto}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:10px}
-.card h2{font-size:14px;margin:0 0 9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.tag{font-size:11px;padding:2px 9px;border-radius:20px;border:1px solid var(--line);background:#f6f9fd;color:var(--muted);white-space:nowrap}
-.tag.ok{background:#eefaf2;border-color:#bfe6cd;color:var(--green)}
-.tag.bad{background:#fdf1f0;border-color:#f0c9c4;color:var(--red)}
-.tag.warn{background:#fff8ec;border-color:#f1dcb6;color:var(--orange)}
-.tag.blue{background:#eef5fd;border-color:#c9dcf5;color:#24508f}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
-.kpi{background:#fff;border:1px solid var(--line);border-radius:11px;padding:8px;text-align:center}
-.kpi b{display:block;font-size:18px}
-.kpi span{font-size:11px;color:var(--muted)}
-.item{display:flex;gap:9px;align-items:center;padding:9px 2px;border-bottom:1px solid #f1f5fa}
-.item:last-child{border-bottom:0}
-.item .body{flex:1;min-width:0}
-.item b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.item small{color:var(--muted);font-size:11px}
-.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:10px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px}
-.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
-.btn.small{padding:5px 10px;font-size:12px;border-radius:9px}
-.btn[disabled]{opacity:.5}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-label.f{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px}
-input,textarea,select{width:100%;font:inherit;font-size:14px;padding:10px 12px;border:1px solid #d5dfec;border-radius:10px;background:#fff;outline:none}
-input:focus,textarea:focus,select:focus{border-color:#8fb8e8;box-shadow:0 0 0 3px rgba(47,111,189,.12)}
-.empty{color:var(--muted);font-size:12px;padding:8px 2px}
-.nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom);z-index:30}
-.nav button{background:none;border:0;font:inherit;font-size:11px;color:var(--muted);padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px}
-.nav button.on{color:var(--blue);font-weight:600}
-.nav .ico{font-size:17px;line-height:1}
-.notice{font-size:12px;color:#24508f;background:#eef5fd;border:1px solid #c9dcf5;border-radius:10px;padding:9px 11px;margin-bottom:10px;line-height:1.65}
-.muted{color:var(--muted)}
-.sec-title{font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 4px}
-.chipbtn{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 11px;font:inherit;font-size:12px;color:var(--muted)}
-.chipbtn.on{background:#eef5fd;border-color:#9cc2ea;color:#1d4ed8;font-weight:600}
-.suggwrap{position:relative}
-.sugg{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 20px rgba(15,39,68,.12);z-index:25;max-height:220px;overflow:auto;display:none}
-.sugg.on{display:block}
-.sugg div{padding:9px 11px;font-size:13px;border-bottom:1px solid #f2f6fb;display:flex;justify-content:space-between;gap:8px}
-.sugg div:last-child{border-bottom:0}
-.sugg div:hover{background:#f5f9ff}
-.sugg small{color:var(--muted);font-size:11px;max-width:52%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.photoPrev{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--muted)}
-.photoPrev img{width:50px;height:50px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
-.scan{position:fixed;inset:0;background:rgba(10,20,35,.8);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px}
-.scan .box{background:#0f1c2e;border-radius:16px;padding:12px;width:100%;max-width:420px;color:#fff}
-.scan video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:cover}
-.scan .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
-.scan .tip{font-size:12px;opacity:.85;margin-top:8px;line-height:1.5}
-.scan .btn{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:#fff}
-.toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%) translateY(10px);background:#16283f;color:#fff;font-size:13px;padding:9px 15px;border-radius:22px;opacity:0;pointer-events:none;transition:.25s;z-index:40;max-width:88vw;text-align:center}
-.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
-.dl>div{display:flex;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid #f1f5fa}
-.dl span{width:82px;color:var(--muted);flex:none}
+:root{--bg:#f4f7fb;--ink:#17283f;--mut:#75849a;--line:#e4ebf3;--blue:#2563eb;--soft:#eef4ff;--green:#0d956b;--orange:#da8b24;--red:#d64545;--nav:#101e34}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Inter,"Microsoft YaHei","PingFang SC",sans-serif;color:var(--ink);font-size:14px}
+button{font:inherit;cursor:pointer;border:0}
+nav{background:var(--nav);color:#c9d4e8;width:222px;position:fixed;inset:0 auto 0 0;padding:25px 16px;display:flex;flex-direction:column;gap:18px;z-index:20}
+nav .brand{color:#fff;font-size:21px;font-weight:800;letter-spacing:1px;margin:4px 7px}
+nav .brand small{display:block;color:#8aa2c6;font-size:11px;font-weight:400;margin-top:5px}
+nav .navitem{display:block;text-align:left;width:100%;padding:13px 14px;border-radius:11px;color:#b9c8dd;background:transparent;margin:3px 0}
+nav .navitem.active,nav .navitem:hover{background:#243c60;color:#fff}
+nav .foot{margin-top:auto;font-size:11px;line-height:1.8;color:#90a6c5;padding:8px}
+.main{margin-left:222px;padding:22px 30px;max-width:1500px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.company{font-size:12px;color:var(--mut)}
+.top h1{font-size:24px;margin:6px 0 0;letter-spacing:-.4px}
+.pill{padding:7px 10px;border-radius:40px;background:#e9f7f2;color:var(--green);font-size:12px}
+.toptools{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+select,.outline{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 11px;color:var(--ink)}
+.btn{background:var(--blue);color:#fff;border-radius:9px;padding:10px 14px}
+.ghost{background:var(--soft);color:#1e5cd7;border-radius:9px;padding:9px 12px}
+.grid{display:grid;grid-template-columns:1.45fr .9fr;gap:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:19px;box-shadow:0 2px 15px #12284b08;margin-bottom:16px}
+.card.full{grid-column:1/-1}
+.title{font-size:17px;font-weight:700;margin:0 0 6px}
+.sub{color:var(--mut);font-size:12px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.metric{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.metric b{display:block;font-size:26px;line-height:1.2}
+.metric .mini{color:var(--mut);font-size:11px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.tabs{display:flex;gap:8px;margin:12px 0}
+.tabs button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 13px;font-size:12px;color:var(--mut)}
+.tabs button.chosen{background:var(--soft);border-color:#bfd3f5;color:#1d4ed8;font-weight:600}
+.task{display:flex;gap:11px;align-items:center;padding:11px 2px;border-bottom:1px solid #f0f4f9}
+.task:last-child{border-bottom:0}
+.task .dot{width:9px;height:9px;border-radius:50%;background:var(--blue);flex:none;margin-top:4px}
+.task .grow{flex:1;min-width:0}
+.task h3{margin:0;font-size:14px;font-weight:600}
+.task p{margin:2px 0 0;color:var(--mut);font-size:12px}
+.tag{font-size:11px;padding:2px 9px;border-radius:20px;background:#eef1f5;color:var(--mut);white-space:nowrap}
+.tag.green{background:#e9f7f2;color:var(--green)}
+.tag.orange{background:#fff4e6;color:var(--orange)}
+.tag.red{background:#fdeeee;color:var(--red)}
+.shortcuts{display:flex;gap:9px;flex-wrap:wrap;margin:10px 0 14px}
+.shortcut{background:var(--soft);border:1px solid #d7e3fb;border-radius:11px;padding:11px 13px;color:#1e5cd7;display:inline-flex;align-items:center;gap:7px;font-size:13px}
+.shortcut .ico{opacity:.75}
+.insight{background:#f7f9fc;border:1px solid var(--line);border-radius:11px;padding:11px 13px;font-size:12px;color:#4b5a72;line-height:1.7}
+.chatline{background:#f5f8fd;border-radius:11px;padding:11px 13px;font-size:12px;color:#33475f;margin:10px 0}
+.chatbar{display:flex;gap:8px}
+.chatbar input{flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.report{border-bottom:1px solid #f0f4f9;padding:10px 2px}
+.report b{font-size:13px}
+.report p{margin:3px 0 0;color:var(--mut);font-size:12px}
+.source{border-bottom:1px solid #f0f4f9;padding:10px 2px;font-size:13px}
+.source strong{display:block}
+.source small{color:var(--mut)}
+.empty{color:var(--mut);font-size:12px;padding:10px 2px}
+.screen{display:none}
+.screen.on{display:block}
+.mobile-bar{display:none;position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);z-index:30;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}
+.mobile-bar button{background:none;font-size:11px;color:var(--mut);padding:9px 0 7px;display:flex;flex-direction:column;gap:2px}
+.mobile-bar button.active{color:var(--blue);font-weight:600}
+.toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:#17283f;color:#fff;font-size:13px;padding:9px 15px;border-radius:20px;opacity:0;transition:.25s;pointer-events:none;z-index:60;max-width:86vw}
+.toast.on{opacity:1}
 .sheet{position:fixed;inset:0;background:rgba(10,20,35,.5);display:none;z-index:70;align-items:flex-end;justify-content:center}
 .sheet.on{display:flex}
-.sheet-box{background:#fff;width:100%;max-width:640px;max-height:82vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px}
-.sheet h3{margin:0 0 10px;font-size:15px}
+.sheet-box{background:#fff;width:100%;max-width:640px;max-height:82vh;overflow:auto;border-radius:16px 16px 0 0;padding:15px}
+.sheet h3{margin:0 0 10px;font-size:16px}
+.dl>div{display:flex;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid #f0f4f9}
+.dl span{width:88px;color:var(--mut);flex:none}
+label.f{display:block;font-size:12px;color:var(--mut);margin:10px 0 5px}
+input,textarea,select{width:100%;font:inherit;font-size:14px;padding:9px 11px;border:1px solid #d5dfec;border-radius:10px;background:#fff;outline:none}
+@media(max-width:900px){nav{display:none}.main{margin-left:0;padding:14px 12px 80px}.mobile-bar{display:grid}.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
-<div class="top">
-  <div class="r">
+<nav>
+  <div class="brand">AEOS <span style="font-weight:400;color:#83adff">/ POMS</span><small>岗位微操作系统 · M10</small></div>
+  <div>
+    <button class="navitem active" data-page="work">▦　我的工作台</button>
+    <button class="navitem" data-page="history">◷　过去的报告</button>
+    <button class="navitem" data-page="agent">✧　我的智能体</button>
+    <button class="navitem" data-page="sources">▤　资料与依据</button>
+  </div>
+  <div class="foot" id="navFoot">宁波恒剑光电科技有限公司<br>AEOS V7.2 / M10 POMS</div>
+</nav>
+
+<main class="main">
+  <div class="top">
     <div>
-      <h1 id="who">加载中…</h1>
-      <div class="sub" id="whoSub"></div>
+      <div class="company" id="company">宁波恒剑光电科技有限公司　/　个人工作空间</div>
+      <h1 id="heading">加载中…</h1>
     </div>
-    <button class="btn" onclick="switchAccount()">切换</button>
+    <div class="toptools">
+      <span class="pill" id="rolePill">● 岗位</span>
+      <button class="outline" id="btnSwitch" onclick="switchAccount()">切换账号</button>
+    </div>
+  </div>
+
+  <!-- 工作台 -->
+  <section id="work" class="screen on">
+    <div class="metrics">
+      <div class="metric"><span class="mini">待处理任务</span><b id="m0">—</b><span class="mini">来自各自治中心的岗位派工</span></div>
+      <div class="metric"><span class="mini">临近截止</span><b id="m1">—</b><span class="mini">需要优先行动</span></div>
+      <div class="metric"><span class="mini">本周期已完成</span><b id="m2">—</b><span class="mini">任务结果与证据</span></div>
+      <div class="metric"><span class="mini">需核验</span><b id="m3">—</b><span class="mini">待审批 / 待验收</span></div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="row"><div><h2 class="title">未来的待办</h2><div class="sub">来自业务自治中心 · 点击进入最小执行表单</div></div><span class="pill">按优先级排列</span></div>
+        <div class="tabs">
+          <button class="chosen" data-filter="all" onclick="setFilter('all')">全部</button>
+          <button data-filter="urgent" onclick="setFilter('urgent')">优先</button>
+          <button data-filter="done" onclick="setFilter('done')">已完成</button>
+        </div>
+        <div id="tasks"><div class="empty">加载中…</div></div>
+      </div>
+      <div class="card">
+        <h2 class="title">快速执行入口</h2><div class="sub">终端只保留岗位需要的能力</div>
+        <div class="shortcuts">
+          <button class="shortcut" id="sc_scan" onclick="toolScan()"><span class="ico">▦</span>扫码记录</button>
+          <button class="shortcut" id="sc_photo" onclick="toolPhoto()"><span class="ico">▣</span>拍照取证</button>
+          <button class="shortcut" id="sc_voice" onclick="toolVoice()"><span class="ico">◉</span>语音记录</button>
+        </div>
+        <div class="insight" id="boundary"></div>
+        <h2 class="title" style="margin-top:20px">个人智能体</h2><div class="sub">Hub 能力入口 · 规则模拟</div>
+        <div class="chatline" id="agentPreview"></div>
+        <div class="chatbar"><input id="quickAsk" placeholder="例如：今天先处理什么？"><button class="btn" onclick="askAgent('quickAsk')">询问</button></div>
+      </div>
+      <div class="card full">
+        <div class="row"><div><h2 class="title">过去的报告</h2><div class="sub">只显示岗位相关结果 · 支持追溯证据</div></div><button class="ghost" onclick="setPage('history')">查看全部 →</button></div>
+        <div id="recent"><div class="empty">暂无演示记录</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 报告 -->
+  <section id="history" class="screen">
+    <div class="card"><h2 class="title">过去的报告 / 证据台账</h2><div class="sub">按岗位汇总已完成任务与采集证据。</div><div id="reports"><div class="empty">暂无报告</div></div></div>
+  </section>
+
+  <!-- 智能体 -->
+  <section id="agent" class="screen">
+    <div class="grid">
+      <div class="card">
+        <h2 class="title">我的岗位智能体</h2><div class="sub" id="agentSub">一个个人助手，可调度多个受权的专业智能体。</div>
+        <div class="insight" id="agentRoster"></div>
+        <div class="chatline" id="agentReply">请选择建议问题，或者输入你的岗位问题。</div>
+        <div class="shortcuts">
+          <button class="shortcut" onclick="preset('梳理今天待办')">今日优先级</button>
+          <button class="shortcut" onclick="preset('提交时需要什么证据')">检查证据</button>
+          <button class="shortcut" onclick="preset('我的岗位边界')">岗位边界</button>
+        </div>
+        <div class="chatbar"><input id="agentQuestion" placeholder="向我的智能体提出问题"><button class="btn" onclick="askAgent('agentQuestion')">发送</button></div>
+      </div>
+      <div class="card">
+        <h2 class="title">工作权限与智能体边界</h2>
+        <div class="source"><strong>读取</strong><small>本岗位任务、授权知识、相关产品和客户数据</small></div>
+        <div class="source"><strong>执行</strong><small>起草记录、检查完整性、调用专用 Skills</small></div>
+        <div class="source"><strong>禁止自动执行</strong><small>越权查询薪酬、直接审批、私自改动受控版本、向外发送敏感数据</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 资料 -->
+  <section id="sources" class="screen">
+    <div class="grid">
+      <div class="card">
+        <h2 class="title">账号与岗位</h2>
+        <div class="dl" id="acctInfo"></div>
+        <div class="shortcuts" style="margin-top:12px">
+          <a class="shortcut" href="/plm2" style="text-decoration:none">PLM 研发</a>
+          <a class="shortcut" href="/spc" style="text-decoration:none">SPC 供应链</a>
+          <a class="shortcut" href="/m/crm" style="text-decoration:none">CRM 销售</a>
+          <a class="shortcut" href="/m/ebms" style="text-decoration:none">EBMS 经营</a>
+          <a class="shortcut" href="/taskhub" style="text-decoration:none">待办总表</a>
+          <a class="shortcut" href="/hlc" style="text-decoration:none">报修/请假</a>
+          <a class="shortcut" id="personnelLink" href="/personnel" style="text-decoration:none;display:none">人事变动</a>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="ghost" onclick="switchAccount()">切换账号</button>
+          <button class="outline" onclick="logout()">退出登录</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2 class="title">岗位资料映射</h2>
+        <div id="sourceMap"><div class="empty">加载中…</div></div>
+      </div>
+      <div class="card full">
+        <h2 class="title">最近登录记录 <span class="pill" id="logCount">0</span></h2>
+        <div id="loginList"><div class="empty">加载中…</div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="mobile-bar">
+  <button class="active" data-page="work">⌂<br>工作台</button>
+  <button data-page="history">▤<br>报告</button>
+  <button data-page="agent">✧<br>智能体</button>
+  <button data-page="sources">▦<br>资料</button>
+</div>
+
+<div class="sheet" id="todoSheet"><div class="sheet-box"><h3 id="tsTitle">执行任务</h3><div class="dl" id="tsBody"></div><div class="row" id="tsActions" style="margin-top:12px"></div></div></div>
+
+<div id="scanModal" style="position:fixed;inset:0;background:rgba(10,20,35,.8);z-index:80;display:none;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#0f1c2e;border-radius:16px;padding:12px;width:100%;max-width:420px;color:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px"><span>扫料号条码</span><button class="outline" onclick="closeScan()" style="color:#fff;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3)">关闭</button></div>
+    <video id="scanVideo" playsinline muted style="width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:cover"></video>
+    <div style="font-size:12px;opacity:.85;margin-top:8px" id="scanTip">正在启动摄像头…</div>
   </div>
 </div>
 
-<div class="wrap">
-  <!-- 待办 -->
-  <div id="tab-todos">
-    <div class="card">
-      <h2>我的待办 <span class="tag" id="todoTag">—</span></h2>
-      <div class="kpis" id="todoKpis"></div>
-      <div class="row" id="todoCats" style="margin-bottom:6px"></div>
-      <div id="todoList"><div class="empty">加载中…</div></div>
-    </div>
-  </div>
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
 
-  <!-- 采集 -->
-  <div id="tab-capture" style="display:none">
-    <div class="card">
-      <h2>品质检验 / 采集 <span class="tag" id="capRoleTag">—</span></h2>
-      <div class="notice">扫码或输入料号（支持模糊查），按岗位允许的类型填写；提交后进入待审核，不能自己验收。</div>
-      <label class="f">料号</label>
-      <div class="suggwrap">
-        <input id="partNo" placeholder="输入料号或名称的一部分" autocomplete="off">
-        <div class="sugg" id="matSugg"></div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn small" id="btnScan">扫一扫</button>
-        <button class="btn small" id="btnFindMat">查料号</button>
-        <button class="btn small" id="btnListMat">从列表选</button>
-        <span class="muted" id="matInfo" style="font-size:12px"></span>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn small" id="btnOcr">📷 拍照识别料号</button>
-        <button class="btn small" id="btnAsr">🎤 语音转文字</button>
-        <input type="file" id="ocrInput" accept="image/*" capture="environment" style="display:none">
-      </div>
-      <label class="f">采集类型</label>
-      <select id="capType"></select>
-      <div id="capFields"></div>
-      <label class="f">现场照片（可选）</label>
-      <div class="row">
-        <button class="btn small" id="btnPhoto">拍照留证</button>
-        <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
-        <span class="muted" id="photoState" style="font-size:12px">未拍照</span>
-      </div>
-      <div class="photoPrev" id="photoPrev" style="display:none"><img id="photoThumb" alt="现场照片"><span id="photoMeta"></span><button class="btn small" id="btnPhotoDel">删除</button></div>
-      <label class="f">备注 / 现场情况</label>
-      <textarea id="capNote" rows="2" placeholder="可填写不良描述、批次等"></textarea>
-      <div class="row" style="margin-top:12px"><button class="btn primary" id="btnSubmitCap">提交</button></div>
-    </div>
-    <div class="card">
-      <h2>我提交的 <span class="tag" id="capCount">0</span></h2>
-      <div id="capList"><div class="empty">暂无</div></div>
-    </div>
-  </div>
-
-  <!-- 审批 -->
-  <div id="tab-approval" style="display:none">
-    <div class="card">
-      <h2>待我审批 <span class="tag" id="apprTag">—</span></h2>
-      <div id="apprList"><div class="empty">加载中…</div></div>
-    </div>
-  </div>
-
-  <!-- 系统 -->
-  <div id="tab-systems" style="display:none">
-    <div class="card">
-      <h2>各系统 <span class="tag" id="sysTag">—</span></h2>
-      <div id="sysList"><div class="empty">检查连接…</div></div>
-      <div class="muted" style="font-size:11px;margin-top:6px">状态由服务端实时检查；未接入的系统不会显示假数据。</div>
-    </div>
-    <div class="card">
-      <h2>常用</h2>
-      <div class="row">
-        <a class="btn small" id="personnelLink" href="/personnel" style="display:none">人事变动</a>
-        <a class="btn small" href="/taskhub">待办总表</a>
-        <a class="btn small" href="/portal">门户</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 我的 -->
-  <div id="tab-mine" style="display:none">
-    <div class="card">
-      <h2>账号</h2>
-      <div class="dl" id="acctInfo"></div>
-      <div class="row" style="margin-top:12px">
-        <button class="btn small" onclick="switchAccount()">切换账号</button>
-        <button class="btn small" onclick="logout()">退出登录</button>
-      </div>
-    </div>
-    <div class="card">
-      <h2>最近登录记录 <span class="tag" id="logCount">0</span></h2>
-      <div id="loginList"><div class="empty">加载中…</div></div>
-      <div class="muted" style="font-size:11px;margin-top:6px">每次绑定/切换/退出都会记录在本机绑定的手机号下。</div>
-    </div>
-  </div>
-</div>
-
-<div class="nav">
-  <button data-tab="todos" class="on"><span class="ico">☑</span>待办</button>
-  <button data-tab="capture"><span class="ico">📷</span>采集</button>
-  <button data-tab="approval"><span class="ico">✔</span>审批</button>
-  <button data-tab="systems"><span class="ico">▦</span>系统</button>
-  <button data-tab="mine"><span class="ico">👤</span>我的</button>
-</div>
-
-<div class="scan" id="scanModal" style="display:none">
-  <div class="box">
-    <div class="hd"><span>扫料号条码</span><button class="btn small" id="scanClose">关闭</button></div>
-    <video id="scanVideo" playsinline muted></video>
-    <div class="tip" id="scanTip">正在启动摄像头…</div>
-  </div>
-</div>
-<div class="sheet" id="editSheet">
-  <div class="sheet-box">
-    <h3 id="edTitle">编辑 PLM 节点</h3>
-    <label class="f">计划日期</label><input type="date" id="edPlan">
-    <label class="f">负责人</label><input id="edOwner" placeholder="负责人姓名">
-    <label class="f">状态</label>
-    <select id="edStatus">
-      <option value="PLANNED">已排期</option><option value="IN_PROGRESS">进行中</option><option value="DONE">已完成</option><option value="PENDING">待办</option><option value="FAILED">异常</option>
-    </select>
-    <div class="row" style="margin-top:12px"><button class="btn primary" id="btnEdSave">保存（同步 PLM）</button><button class="btn" onclick="closeEditSheet()">取消</button></div>
-  </div>
-</div>
-<div class="sheet" id="todoSheet">
-  <div class="sheet-box">
-    <h3 id="tsTitle">待办明细</h3>
-    <div class="dl" id="tsBody"></div>
-    <div class="row" id="tsActions" style="margin-top:12px"></div>
-  </div>
-</div>
 <div class="toast" id="toast"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const ROLE_CAP = { ADMIN: 'ADMIN', GM: 'GM', RD_LEAD: 'RD_LEAD', ENGINEER: 'ENGINEER', PROJECT_MANAGER: 'PROJECT_MANAGER', SALES_MANAGER: 'SALES_MANAGER', SALES: 'SALES', PURCHASE: 'PURCHASE', FINANCE: 'FINANCE', QUALITY: 'QUALITY', HR_MANAGER: 'VIEWER' };
-const state = { me: null, demoRole: 'VIEWER', tab: 'todos', todos: null, todoRows: [], todoCat: 'all', hideDone: true, plmMap: {}, caps: [], capTypes: [], capFields: [], materials: [], photo: null, approvals: [] };
-const TODO_CATS = [['all', '全部'], ['overdue', '已超期'], ['open', '待处理'], ['meeting', '会议'], ['hub', '总表'], ['done', '已完成']];
-
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => { t.className = 'toast'; }, 2400); }
 async function api(path, method, body) {
   const r = await fetch(path, { method: method || 'GET', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
   let j = null; try { j = await r.json(); } catch (e) { j = { error: 'HTTP ' + r.status }; }
-  if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status, body: j });
+  if (!r.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { status: r.status });
   return j;
 }
+function toast(m) { const t = $('toast'); t.textContent = m; t.className = 'toast on'; clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2400); }
 
+/* 岗位画像：登录角色 → 名称/自治中心/边界/工具权限 */
+const ROLE_CAP = { ADMIN: 'ADMIN', GM: 'GM', RD_LEAD: 'RD_LEAD', ENGINEER: 'ENGINEER', PROJECT_MANAGER: 'PROJECT_MANAGER', SALES_MANAGER: 'SALES_MANAGER', SALES: 'SALES', PURCHASE: 'PURCHASE', FINANCE: 'FINANCE', QUALITY: 'QUALITY', HR_MANAGER: 'VIEWER' };
+const ROLE_PROFILE = {
+  ADMIN: { name: '系统管理员', center: '研发/经营中心', boundary: '全局管理；审批、版本发布与资源决策回到各自治中心，微系统只做执行与证据提交。', agents: '管理助手 → 异常归因 / 决策选项 / 证据追溯（模拟）', tools: ['scan', 'photo', 'voice'] },
+  GM: { name: '总经理', center: 'EBMS 管理者视图', boundary: '只看跨自治中心异常、结果、证据及待决事项；不代替授权决策。', agents: '总经理助手 → 经营摘要 / 风险归因 / 决策选项（模拟）', tools: ['photo', 'voice'] },
+  RD_LEAD: { name: '研发经理', center: '研发自治中心', boundary: '负责技术标准、评审与版本发布；微系统只处理分配给岗位的动作及证据提交。', agents: '研发助手 → BOM 检查 / 图纸要点 / 试验记录（模拟）', tools: ['scan', 'photo', 'voice'] },
+  ENGINEER: { name: '研发工程师', center: '研发自治中心', boundary: '立项、技术标准、评审、版本发布回研发自治中心；微系统只做分配给工程师的动作及证据提交。', agents: '研发助手 → 产品知识检索 / BOM 检查 / 图纸要点（模拟）', tools: ['scan', 'photo', 'voice'] },
+  PROJECT_MANAGER: { name: '项目经理', center: '研发自治中心', boundary: '项目进度与资源协调；审批回研发自治中心。', agents: '项目助手 → 节点跟踪 / 风险提示（模拟）', tools: ['photo', 'voice'] },
+  QUALITY: { name: '质检员', center: '品质中心', boundary: '检验标准与判定由品质中心维护；微系统只做来料检验、证据采集与提交，不能自验。', agents: '品质助手 → 检验模板 / 记录汇总（模拟）', tools: ['scan', 'photo', 'voice'] },
+  SALES_MANAGER: { name: '销售经理', center: '销售自治中心', boundary: '客户分级、报价审批、订单策略由销售中心制定；微系统执行客户开发、报价资料、跟单与售后反馈。', agents: '销售助手 → RFQ 整理 / 报价草拟 / 交期跟进（模拟）', tools: ['photo', 'voice'] },
+  SALES: { name: '销售', center: '销售自治中心', boundary: '客户分级、报价审批、订单策略由销售中心制定；微系统执行客户开发、报价资料、跟单与售后反馈。', agents: '销售助手 → 公开线索研究 / RFQ 整理 / 售后（模拟）', tools: ['photo', 'voice'] },
+  PURCHASE: { name: '采购', center: '供应链中心', boundary: '采购策略与供应商决策回供应链中心；微系统执行到货检验登记、交期跟进与证据提交。', agents: '采购助手 → 到货核验 / 交期跟进（模拟）', tools: ['scan', 'photo', 'voice'] },
+  FINANCE: { name: '财务', center: '财经中心', boundary: '核算与资金决策回财经中心；微系统执行记账凭证整理、报表复核与证据提交。', agents: '财务助手 → 对账核对 / 报表整理（模拟）', tools: ['photo', 'voice'] },
+  VIEWER: { name: '人事行政专员', center: '后勤管理中心 / 恒聘通', boundary: '制度、用工流程与权限由后勤中心维护；微系统仅执行授权的招聘、培训、报修、会议任务，薪酬与敏感信息默认不可见。', agents: '行政助手 → 招聘 SOP / 培训清单 / 通知起草（模拟）', tools: ['photo', 'voice'] }
+};
+const ROLE_SOURCES = {
+  RD_LEAD: ['岗位职责 · 研发中心-岗位工作分析表', '制度 · 立项/评审/版本发布流程', '经营项目 · 技术改善复盘'],
+  ENGINEER: ['岗位职责 · 研发中心-岗位工作分析表', '制度 · BOM/ECN/图纸规范', '培训 · 研发培训记录'],
+  QUALITY: ['岗位职责 · 品质中心-岗位工作分析表', '制度 · 检验标准与判定', '表单 · 来料检验/巡检记录'],
+  SALES: ['岗位职责 · 销售中心-岗位工作分析表', '制度 · 报价/订单/售后流程', '表单 · 客户与 RFQ 台账'],
+  SALES_MANAGER: ['岗位职责 · 销售中心-岗位工作分析表', '制度 · 报价审批/订单策略', '表单 · 客户与商机台账'],
+  PURCHASE: ['岗位职责 · 供应链中心-岗位工作分析表', '制度 · 采购/到货流程', '表单 · 采购订单台账'],
+  FINANCE: ['岗位职责 · 财经中心-岗位工作分析表', '制度 · 核算/资金流程', '表单 · 会计凭证台账'],
+  VIEWER: ['岗位职责 · 人事行政部-岗位工作分析', '制度 · 招聘/会议/考勤/出差', '表单 · 人事行政数据库'],
+  GM: ['经营分析 · 月度经营报告及复盘', '运营台账 · 任务达成/问题记录', '组织岗位 · 各中心职责'],
+  ADMIN: ['组织岗位 · 各中心职责', '运营台账 · 任务达成/问题记录', '接口契约 · POMS/Hub/EDP']
+};
+const SRC_NAMES = ['岗位职责 · 各中心岗位工作分析表', '制度与流程 · 订单/采购/品质/人事', '运营台账 · 任务达成与问题记录'];
+
+const state = { me: null, profile: null, demoRole: 'VIEWER', page: 'work', filter: 'all', todoRows: [], plmMap: {}, hideDone: true, caps: [], materials: [], photo: null };
+
+function profile() { return ROLE_PROFILE[state.me && state.me.role] || ROLE_PROFILE.VIEWER; }
+function demoRole() { return ROLE_CAP[state.me && state.me.role] || 'VIEWER'; }
+function isHr() { const r = state.me && state.me.role; return ['ADMIN', 'GM', 'HR_MANAGER', 'hr_manager'].includes(r) || /人事|行政/.test((state.me && state.me.dept) || ''); }
+
+/* ---------- 导航 ---------- */
+function setPage(p) {
+  state.page = p;
+  document.querySelectorAll('.screen').forEach(x => x.classList.toggle('on', x.id === p));
+  document.querySelectorAll('nav .navitem').forEach(x => x.classList.toggle('active', x.getAttribute('data-page') === p));
+  document.querySelectorAll('.mobile-bar button').forEach(x => x.classList.toggle('active', x.getAttribute('data-page') === p));
+  if (p === 'sources') loadSources(); if (p === 'agent') renderAgent();
+  window.scrollTo(0, 0);
+}
+window.setPage = setPage;
+document.querySelectorAll('nav .navitem').forEach(b => b.onclick = () => setPage(b.getAttribute('data-page')));
+document.querySelectorAll('.mobile-bar button').forEach(b => b.onclick = () => setPage(b.getAttribute('data-page')));
+
+/* ---------- 登录 ---------- */
 async function boot() {
-  let me;
-  try { me = await api('/api/v1/mobile/me'); } catch (e) { location.replace('/m/login'); return; }
+  let me; try { me = await api('/api/v1/mobile/me'); } catch (e) { location.replace('/m/login'); return; }
   if (!me.loggedIn) { location.replace('/m/login'); return; }
   state.me = me.user;
-  state.demoRole = ROLE_CAP[me.user.role] || 'VIEWER';
-  $('who').textContent = me.user.name || me.user.username;
-  $('whoSub').textContent = [me.user.position, me.user.dept].filter(Boolean).join(' · ');
-  $('acctInfo').innerHTML = [
-    ['姓名', me.user.name], ['岗位', me.user.position], ['部门', me.user.dept || '未设置'],
-    ['账号', me.user.username], ['手机号', me.user.phone]
-  ].map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('');
-  $('capRoleTag').textContent = '岗位权限：' + state.demoRole;
-  loadTodos(); loadCapTypes(); loadCaps(); loadLogins();
-  if (canApprove()) loadApprovals(); else hideTab('approval');
-  if (isHr()) { const pl = $('personnelLink'); if (pl) pl.style.display = ''; }
-}
-
-// 只呈现与本人相关：无审批权限就不显示审批页签
-function canApprove() { return ['RD_LEAD', 'ADMIN'].includes(state.me && state.me.role); }
-function isHr() {
-  const r = state.me && state.me.role;
-  return ['ADMIN', 'GM', 'HR_MANAGER', 'hr_manager'].includes(r) || /人事|行政/.test((state.me && state.me.dept) || '');
-}
-function hideTab(k) {
-  const b = document.querySelector('.nav button[data-tab="' + k + '"]');
-  if (b) b.style.display = 'none';
-  const t = $('tab-' + k);
-  if (t) { t.style.display = 'none'; t.dataset.hidden = '1'; }
-  if (state.tab === k) switchTab('todos');
-}
-
-// 系统总览：各系统连接状态 + 入口（只读；未接入不显示假数据）
-const SYSTEMS_META = {
-  plm: { label: 'PLM 研发', desc: '项目 / 节点 / 采集 / 审批', href: '/plm2' },
-  spc: { label: 'SPC 供应链', desc: '控制塔 / 订单 / 异常 / 供应商', href: '/m/spc' },
-  crm: { label: 'CRM 销售', desc: '客户 / 线索 / 商机 / 订单', href: '/m/crm' },
-  ebms: { label: 'EBMS 经营', desc: '岗位事项 / 经营结果', href: '/m/ebms' },
-  meeting: { label: '会议助手', desc: '会议待办（已并入待办）', href: '/taskhub' },
-  hub: { label: 'Hub 智能体', desc: '经营事项 / 收件箱', href: '#' },
-  hlc: { label: 'HLC 人事后勤', desc: '报修 / 请假', href: '/hlc' },
-  fac: { label: 'FAC 财经', desc: '规划中，未接入', href: '' },
-  edp: { label: 'EDP 数据证据', desc: '规划中，未接入', href: '' }
-};
-async function loadSystems() {
-  const box = $('sysList');
-  box.innerHTML = '<div class="empty">检查连接…</div>';
-  try {
-    const d = await api('/api/v1/systems');
-    const systems = d.systems || {};
-    const role = state.me && state.me.role;
-    const SPC_ROLES = ['ADMIN', 'GM', 'PURCHASE', 'SALES_MANAGER', 'SALES', 'PROJECT_MANAGER'];
-    const CRM_ROLES = ['ADMIN', 'GM', 'SALES_MANAGER', 'SALES'];
-    const HUB_ROLES = ['ADMIN', 'GM'];
-    // 只呈现与本人岗位相关、且确实部署了的系统
-    const keys = Object.keys(SYSTEMS_META).filter(k => {
-      if (k === 'fac' || k === 'edp') return false;
-      if (k === 'spc') return SPC_ROLES.includes(role);
-      if (k === 'crm') return CRM_ROLES.includes(role);
-      if (k === 'hub') return HUB_ROLES.includes(role);
-      return true;
-    });
-    const list = keys.map(k => Object.assign({ key: k }, SYSTEMS_META[k], systems[k] || {}));
-    const okCount = list.filter(x => x.ok).length;
-    $('sysTag').textContent = okCount + ' / ' + list.length + ' 已连接';
-    box.innerHTML = list.map(x => {
-      const meta = SYSTEMS_META[x.key];
-      const link = meta.href === '#' ? ('http://' + location.hostname + ':8787') : meta.href;
-      const chip = x.ok ? '<span class="tag ok">已连接</span>'
-        : (x.configured === false ? '<span class="tag">未接入</span>' : '<span class="tag bad">连接失败</span>');
-      const detail = x.ok ? '' : `<div class="muted" style="font-size:11px">${esc(x.error || '')}</div>`;
-      const btn = (meta.href && x.ok)
-        ? `<a class="btn small" href="${link}" ${meta.href === '#' ? 'target="_blank" rel="noopener"' : ''}>打开</a>` : '';
-      return `<div class="item"><div class="body"><b>${esc(meta.label)}</b><small>${esc(meta.desc)}</small>${detail}</div>${chip}${btn}</div>`;
-    }).join('');
-  } catch (e) {
-    box.innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`;
-  }
-}
-
-// 供应链相关岗位在待办页看到一张 SPC 小卡（只读）
-const SPC_ROLES = ['ADMIN', 'GM', 'PURCHASE', 'SALES_MANAGER', 'SALES', 'PROJECT_MANAGER'];
-async function loadSpcCard() {
-  const box = $('spcCard');
-  if (!box) return;
-  if (!SPC_ROLES.includes(state.me.role)) { box.style.display = 'none'; return; }
-  box.style.display = 'block';
-  box.innerHTML = `<div class="card"><h2>供应链 SPC <span class="tag blue">只读</span></h2>
-    <div class="kpis"><div class="kpi"><b>…</b><span>读取中</span></div></div>
-    <a class="btn small" href="/m/spc">查看订单 / 异常 / 供应商</a></div>`;
-  try {
-    const d = await api('/api/v1/spc/dashboard');
-    const t = (d.parts && d.parts.today && d.parts.today.data) || {};
-    box.innerHTML = `<div class="card"><h2>供应链 SPC <span class="tag blue">只读</span></h2>
-      <div class="kpis">
-        <div class="kpi"><b>${t.yellow_orders == null ? '—' : t.yellow_orders}</b><span>关注订单</span></div>
-        <div class="kpi"><b>${t.pending_close_issues == null ? '—' : t.pending_close_issues}</b><span>待关闭异常</span></div>
-        <div class="kpi"><b>${t.eta_overdue_po == null ? '—' : t.eta_overdue_po}</b><span>ETA 逾期采购</span></div>
-      </div>
-      <a class="btn small primary" href="/m/spc">查看明细</a></div>`;
-  } catch (e) {
-    box.innerHTML = `<div class="card"><h2>供应链 SPC <span class="tag">未连接</span></h2>
-      <div class="muted" style="font-size:12px">暂时读不到 SPC 数据（${esc(e.message)}）</div>
-      <a class="btn small" href="/m/spc">打开 SPC</a></div>`;
-  }
+  const p = profile();
+  $('heading').textContent = me.user.role === 'GM' ? '需要你决策的事项' : '早上好，今天先处理这些事';
+  $('rolePill').textContent = p.name;
+  $('company').textContent = '宁波恒剑光电科技有限公司　/　' + p.center;
+  $('boundary').textContent = p.boundary;
+  $('agentRoster').textContent = p.agents;
+  $('agentPreview').textContent = p.agents + '。最终决定由有权限的人员完成。';
+  // 工具权限：只显示岗位允许的快捷入口
+  ['scan', 'photo', 'voice'].forEach(k => { const el = $('sc_' + k); if (el) el.style.display = p.tools.includes(k) ? '' : 'none'; });
+  const pl = $('personnelLink'); if (pl) pl.style.display = isHr() ? '' : 'none';
+  renderAgent();
+  loadTodos();
+  loadReports();
+  loadCaptures();
+  loadApprovals();
+  loadSources();
 }
 
 /* ---------- 待办 ---------- */
@@ -343,380 +309,161 @@ async function loadTodos() {
   const u = state.me; if (!u) return;
   try {
     const t = await api('/api/v1/plm2/me/todos?user=' + (u.personId || 0));
-    state.todos = t;
     const m = t.meeting || { items: [] };
     const th = (t.taskhub && t.taskhub.items) || [];
     const plmMap = {};
-    try {
-      const q = await api('/api/v1/tasks?owner=' + encodeURIComponent(u.name) + '&source=PLM2');
-      (q.items || []).forEach(x => { const r = x.refs || {}; if (r.projectNo && r.nodeCode) plmMap[r.projectNo + '|' + r.nodeCode] = x; });
-    } catch (e) { /* 总表不可用时只看待办 */ }
+    try { const q = await api('/api/v1/tasks?owner=' + encodeURIComponent(u.name) + '&source=PLM2'); (q.items || []).forEach(x => { const r = x.refs || {}; if (r.projectNo && r.nodeCode) plmMap[r.projectNo + '|' + r.nodeCode] = x; }); } catch (e) {}
     state.plmMap = plmMap;
-
     const rows = [];
-    (t.overdue || []).forEach(r => rows.push({ kind: 'plm', cat: 'overdue', r }));
-    (t.todo || []).forEach(r => rows.push({ kind: 'plm', cat: 'open', r }));
+    (t.overdue || []).forEach(r => rows.push({ kind: 'plm', cat: 'urgent', r }));
+    (t.todo || []).forEach(r => rows.push({ kind: 'plm', cat: 'normal', r }));
     (t.done || []).slice(0, 20).forEach(r => rows.push({ kind: 'plm', cat: 'done', r }));
-    (m.items || []).forEach(x => rows.push({ kind: 'meeting', cat: x.category === '已完成' ? 'done' : 'meeting', x }));
-    th.forEach(x => rows.push({ kind: 'hub', cat: (x.status === 'done' || x.status === 'cancelled') ? 'done' : 'hub', x }));
+    (m.items || []).forEach(x => rows.push({ kind: 'meeting', cat: x.category === '已完成' ? 'done' : (x.category === '逾期' || x.category === '异常' ? 'urgent' : 'normal'), x }));
+    th.forEach(x => rows.push({ kind: 'hub', cat: (x.status === 'done' || x.status === 'cancelled') ? 'done' : (x.status === 'overdue' ? 'urgent' : 'normal'), x }));
     state.todoRows = rows;
-
-    $('todoTag').textContent = u.name;
-    $('todoKpis').innerHTML = [
-      ['待处理', rows.filter(r => r.cat === 'overdue' || r.cat === 'open').length],
-      ['会议', (m.items || []).length],
-      ['总表', th.filter(x => x.status !== 'done').length]
-    ].map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
-    renderCats(); renderTodoList();
-  } catch (e) { $('todoList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+    renderTodos();
+  } catch (e) { $('tasks').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
 }
-function renderCats() {
-  const rows = state.todoRows || []; const cur = state.todoCat || 'all';
-  $('todoCats').innerHTML = TODO_CATS.map(([k, l]) => {
-    const n = k === 'all' ? rows.length : rows.filter(r => r.cat === k).length;
-    return `<button class="chipbtn ${cur === k ? 'on' : ''}" onclick="setCat('${k}')">${l}${n ? ' ' + n : ''}</button>`;
-  }).join('') + `<label class="muted" style="display:inline-flex;gap:5px;align-items:center;font-size:12px;margin-left:auto"><input type="checkbox" id="chkHideDone" ${state.hideDone ? 'checked' : ''} onchange="setHideDone(this.checked)">隐藏已完成</label>`;
-}
-window.setHideDone = (v) => { state.hideDone = v; renderTodoList(); };
-window.setCat = (k) => { state.todoCat = k; renderCats(); renderTodoList(); };
-function actions(r) {
-  if (r.kind === 'plm') {
-    const item = (state.plmMap || {})[r.r.projectNo + '|' + r.r.nodeCode];
-    if (!item) return '<span class="muted" style="font-size:11px">去 PLM</span>';
-    if (item.status === 'done') return '<span class="tag ok">已完成</span>';
-    return `<button class="btn small" onclick="todoAct('${item.id}','in_progress')">开始</button><button class="btn small primary" onclick="todoAct('${item.id}','done')">完成</button>`;
-  }
-  if (r.kind === 'hub') return r.x.status === 'done' ? '<span class="tag ok">已完成</span>' : `<button class="btn small primary" onclick="todoAct('${r.x.id}','done')">完成</button>`;
-  return '<span class="tag">会议助手</span>';
-}
-function renderTodoList() {
-  const rows = state.todoRows || []; const cat = state.todoCat || 'all';
-  let list = rows.filter(r => cat === 'all' ? true : r.cat === cat);
-  if (state.hideDone && cat !== 'done') list = list.filter(r => r.cat !== 'done');
-  if (!list.length) { $('todoList').innerHTML = '<div class="empty">这个分类下暂时没有待办</div>'; return; }
-  $('todoList').innerHTML = list.slice(0, 60).map((r, i) => {
+function isDone(r) { return r.cat === 'done'; }
+function renderTodos() {
+  const rows = state.todoRows || []; const f = state.filter;
+  let arr = rows.filter(r => f === 'done' ? isDone(r) : f === 'urgent' ? (!isDone(r) && r.cat === 'urgent') : !isDone(r));
+  if (state.hideDone && f === 'all') arr = arr.filter(r => !isDone(r));
+  $('m0').textContent = rows.filter(r => !isDone(r)).length;
+  $('m1').textContent = rows.filter(r => !isDone(r) && r.cat === 'urgent').length;
+  $('m2').textContent = rows.filter(r => isDone(r)).length;
+  $('tasks').innerHTML = arr.length ? arr.slice(0, 60).map((r, i) => {
     const idx = state.todoRows.indexOf(r);
-    if (r.kind === 'plm') {
-      return `<div class="item" onclick="openTodoDetail(${idx})"><span class="tag ${r.cat === 'overdue' ? 'bad' : (r.cat === 'done' ? 'ok' : 'blue')}">${r.cat === 'overdue' ? '已超期' : (r.cat === 'done' ? '已完成' : '待处理')}</span>
-        <div class="body"><b>${esc(r.r.nodeName)}</b><small>${esc(r.r.projectNo)} · 计划 ${esc(r.r.planDate || '未排期')}</small></div><span onclick="event.stopPropagation()">${actions(r)}</span></div>`;
-    }
-    if (r.kind === 'meeting') {
-      return `<div class="item" onclick="openTodoDetail(${idx})"><span class="tag ${xchk(r.x.category)}">${esc(r.x.category)}</span>
-        <div class="body"><b>${esc(r.x.title)}</b><small>${esc(r.x.due || '无截止')} · 会议助手</small></div><span onclick="event.stopPropagation()">${actions(r)}</span></div>`;
-    }
-    const x = r.x;
-    return `<div class="item" onclick="openTodoDetail(${idx})"><span class="tag ${x.status === 'done' ? 'ok' : (x.status === 'overdue' ? 'bad' : 'blue')}">${esc(x.statusText || x.status)}</span>
-      <div class="body"><b>${esc(x.title)}</b><small>${esc(x.due || '无截止')} · 待办总表</small></div><span onclick="event.stopPropagation()">${actions(r)}</span></div>`;
-  }).join('') + (list.length > 60 ? '<div class="empty">已显示前 60 条，可用分类缩小范围</div>' : '');
+    const title = r.kind === 'plm' ? r.r.nodeName : r.kind === 'meeting' ? r.x.title : r.x.title;
+    const desc = r.kind === 'plm' ? (r.r.projectNo + ' · 计划 ' + (r.r.planDate || '未排期')) : r.kind === 'meeting' ? (r.x.due || '无截止') : (r.x.due || '无截止');
+    const tag = isDone(r) ? '<span class="tag green">已提交</span>' : (r.cat === 'urgent' ? '<span class="tag orange">优先</span>' : '<span class="tag">常规</span>');
+    const btn = isDone(r) ? '' : `<button class="ghost" onclick="openTodoDetail(${idx})">执行 →</button>`;
+    return `<div class="task"><div class="dot" style="background:${isDone(r) ? '#0d956b' : (r.cat === 'urgent' ? '#da8b24' : '#2563eb')}"></div><div class="grow"><h3>${esc(title)}</h3><p>${esc(desc)}</p></div>${tag}${btn}</div>`;
+  }).join('') : '<div class="insight">当前筛选下暂无任务。</div>';
 }
-function xchk(c) { return c === '已完成' ? 'ok' : (c === '逾期' || c === '异常' ? 'bad' : 'blue'); }
-window.todoAct = async (id, status) => {
-  try { await api('/api/v1/tasks/' + encodeURIComponent(id) + '/progress', 'POST', { status, actor: state.me.name }); toast(status === 'done' ? '已完成' : '已开始'); loadTodos(); }
-  catch (e) { toast('操作失败：' + e.message); }
-};
+window.setFilter = (f) => { state.filter = f; document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('chosen', b.getAttribute('data-filter') === f)); renderTodos(); };
 
-/* 点击查看明细，并可直接处理 */
+function actions(r) {
+  if (r.kind === 'plm') { const item = (state.plmMap || {})[r.r.projectNo + '|' + r.r.nodeCode]; if (!item) return '<span class="tag">去 PLM</span>'; if (item.status === 'done') return '<span class="tag green">已完成</span>'; return `<button class="ghost" onclick="closeSheet();todoAct('${item.id}','in_progress')">开始</button><button class="btn" onclick="closeSheet();todoAct('${item.id}','done')">完成</button>`; }
+  if (r.kind === 'hub') return r.x.status === 'done' ? '<span class="tag green">已完成</span>' : `<button class="btn" onclick="closeSheet();todoAct('${r.x.id}','done')">完成</button>`;
+  return '<span class="tag">会议助手处理</span>';
+}
 window.openTodoDetail = (i) => {
-  const r = (state.todoRows || [])[i];
-  if (!r) return;
-  let title = '待办明细', rows = [], acts = '';
-  if (r.kind === 'plm') {
-    const r0 = r.r;
-    state.edCur = { projectNo: r0.projectNo, nodeCode: r0.nodeCode, planDate: r0.planDate, owner: r0.owner, status: r0.status };
-    const item = (state.plmMap || {})[r0.projectNo + '|' + r0.nodeCode];
-    title = r0.nodeName;
-    rows = [
-      ['项目', r0.projectNo + (r0.projectName ? ' · ' + r0.projectName : '')],
-      ['节点', r0.nodeName],
-      ['状态', r0.status],
-      ['计划日期', r0.planDate || '未排期'],
-      ['实际日期', r0.actualDate || '—'],
-      ['负责人', r0.owner || '—']
-    ];
-    acts = item
-      ? `<button class="btn small" onclick="closeTodoSheet();todoAct('${item.id}','in_progress')">开始</button>
-         <button class="btn small primary" onclick="closeTodoSheet();todoAct('${item.id}','done')">完成</button>
-         <button class="btn small" onclick="openEditSheet()">编辑</button>
-         <a class="btn small" href="/plm2">在 PLM 打开</a>`
-      : '<a class="btn small" href="/plm2">去 PLM 处理</a>';
-  } else if (r.kind === 'meeting') {
-    const x = r.x;
-    title = x.title;
-    rows = [
-      ['状态', x.category], ['会议', x.meetingTitle || '—'], ['会议日期', x.meetingDate || '—'],
-      ['交办人', x.proposer || '—'], ['截止', x.due || '无'], ['优先级', x.priority || '—'],
-      ['阻塞', x.blockedReason || '—']
-    ];
-    acts = '<span class="muted" style="font-size:12px">会议任务请到会议助手处理</span>';
-  } else {
-    const x = r.x;
-    title = x.title;
-    rows = [
-      ['状态', x.statusText || x.status], ['所属业务', x.bizDomainLabel || '—'],
-      ['截止', x.due || '无'], ['来源', x.sourceLabel || '—'], ['负责人', x.ownerName || '—']
-    ];
-    acts = x.status !== 'done'
-      ? `<button class="btn small primary" onclick="closeTodoSheet();todoAct('${x.id}','done')">完成</button>
-         <a class="btn small" href="/taskhub">在待办总表打开</a>`
-      : '<span class="tag ok">已完成</span>';
-  }
+  const r = (state.todoRows || [])[i]; if (!r) return;
+  let title = '执行任务', rows = [];
+  if (r.kind === 'plm') { state.edCur = { projectNo: r.r.projectNo, nodeCode: r.r.nodeCode, planDate: r.r.planDate, owner: r.r.owner, status: r.r.status }; title = r.r.nodeName; rows = [['项目', r.r.projectNo + (r.r.projectName ? ' · ' + r.r.projectName : '')], ['状态', r.r.status], ['计划日期', r.r.planDate || '未排期'], ['负责人', r.r.owner || '—']]; }
+  else if (r.kind === 'meeting') { title = r.x.title; rows = [['状态', r.x.category], ['会议', r.x.meetingTitle || '—'], ['交办人', r.x.proposer || '—'], ['截止', r.x.due || '无']]; }
+  else { title = r.x.title; rows = [['状态', r.x.statusText || r.x.status], ['所属业务', r.x.bizDomainLabel || '—'], ['截止', r.x.due || '无']]; }
   $('tsTitle').textContent = title;
   $('tsBody').innerHTML = rows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
-  $('tsActions').innerHTML = acts;
+  $('tsActions').innerHTML = actions(r);
   $('todoSheet').classList.add('on');
 };
-window.closeTodoSheet = () => $('todoSheet').classList.remove('on');
-$('todoSheet').addEventListener('click', (e) => { if (e.target === $('todoSheet')) closeTodoSheet(); });
+window.closeSheet = () => $('todoSheet').classList.remove('on');
+$('todoSheet').addEventListener('click', (e) => { if (e.target === $('todoSheet')) closeSheet(); });
+window.todoAct = async (id, status) => { try { await api('/api/v1/tasks/' + encodeURIComponent(id) + '/progress', 'POST', { status, actor: state.me.name }); toast(status === 'done' ? '已提交复核' : '已开始'); loadTodos(); loadReports(); } catch (e) { toast('操作失败：' + e.message); } };
 
-window.openEditSheet = () => {
-  const cur = state.edCur; if (!cur) return;
-  $('edPlan').value = cur.planDate || ''; $('edOwner').value = cur.owner || ''; $('edStatus').value = cur.status || 'PLANNED';
-  closeTodoSheet(); $('editSheet').classList.add('on');
-};
-window.closeEditSheet = () => $('editSheet').classList.remove('on');
-$('editSheet').addEventListener('click', (e) => { if (e.target === $('editSheet')) closeEditSheet(); });
-$('btnEdSave').onclick = async () => {
-  const cur = state.edCur; if (!cur) return;
+/* ---------- 报告 ---------- */
+let reports = [];
+function reportHtml(x) { return `<div class="report"><div><b>${esc(x.title)}</b><p>${esc(x.time)} · ${esc(x.status)} · 证据：${esc(x.evidence || '未提供')}</p></div></div>`; }
+async function loadReports() {
   try {
-    await api('/api/v1/plm2/projects/' + encodeURIComponent(cur.projectNo) + '/nodes/' + encodeURIComponent(cur.nodeCode), 'POST', {
-      status: $('edStatus').value, planDate: $('edPlan').value || null, owner: $('edOwner').value.trim(), role: state.demoRole
-    });
-    toast('已保存并同步 PLM'); closeEditSheet(); loadTodos();
-  } catch (e) { toast('保存失败：' + e.message); }
+    const cap = await api('/api/v1/plm2/captures?operator=' + encodeURIComponent(state.me.name));
+    const caps = cap.captures || [];
+    reports = caps.map(c => ({ title: c.captureTypeName + ' · ' + c.partNo, time: (c.createdAt || '').slice(0, 16).replace('T', ' '), status: c.status === 'pending-review' ? '待复核' : '已验收', evidence: c.evidence && c.evidence.length ? '照片' : '' }));
+    const doneRows = (state.todoRows || []).filter(r => r.cat === 'done');
+    doneRows.slice(0, 30).forEach(r => reports.push({ title: r.kind === 'plm' ? r.r.nodeName : r.kind === 'meeting' ? r.x.title : r.x.title, time: '', status: '已完成', evidence: '' }));
+    $('recent').innerHTML = reports.slice(-3).reverse().map(reportHtml).join('') || '<div class="empty">暂无演示记录</div>';
+    $('reports').innerHTML = reports.slice().reverse().map(reportHtml).join('') || '<div class="empty">暂无报告</div>';
+  } catch (e) { /* ignore */ }
+}
+
+/* ---------- 智能体 ---------- */
+function renderAgent() {
+  const p = profile();
+  $('agentRoster').textContent = p.agents;
+  $('agentPreview').textContent = p.agents + '。最终决定由有权限的人员完成。';
+  $('agentSub').textContent = '一个个人助手，可调度多个受权的专业智能体（当前规则模拟，未接真实 Hub）。';
+}
+window.preset = (q) => { $('agentQuestion').value = q; askAgent('agentQuestion'); };
+window.askAgent = (inputId) => {
+  const q = ($(inputId).value || '').trim(); if (!q) return;
+  const p = profile();
+  let a;
+  if (/今天|优先/.test(q)) a = '建议先处理「优先」标签的任务（临近截止），再处理常规项；完成后记得补充证据再提交复核。';
+  else if (/证据/.test(q)) a = '提交前请检查：结果描述、证据编号（照片/表单），不能自验（done ≠ verified）。';
+  else if (/边界|权限/.test(q)) a = p.boundary;
+  else a = '我是你的岗位助手（规则模拟）。可以帮你梳理待办、检查缺失证据、说明岗位边界。';
+  $('agentReply').textContent = a;
 };
 
-// AI 录入工具（找回 8002 端口：OCR 识别料号 / 语音转文字；引擎未装权重时为模拟并如实标注）
+/* ---------- 工具（扫码/拍照/语音） ---------- */
 const AI_HOST = 'http://' + location.hostname + ':8002';
-$('btnOcr').onclick = () => $('ocrInput').click();
-$('ocrInput').onchange = async () => {
-  const f = $('ocrInput').files && $('ocrInput').files[0]; if (!f) return;
+window.toolScan = () => { setPage('work'); openScan(); };
+window.toolPhoto = () => { document.getElementById('photoInput').click(); };
+document.getElementById('photoInput').onchange = () => {
+  const f = document.getElementById('photoInput').files && document.getElementById('photoInput').files[0];
+  if (!f) return;
+  toast('已拍照取证：' + (f.name || '现场照片'));
   const fd = new FormData(); fd.append('file', f);
-  try {
-    const r = await fetch(AI_HOST + '/ocr', { method: 'POST', body: fd });
-    const j = await r.json();
-    const txt = String(j.text || j.result || '').trim();
-    if (txt) {
-      const m = txt.match(/HJ[A-Z0-9]{6,}/i);
-      $('partNo').value = m ? m[0] : txt.split(/\s+/)[0];
-      toast('OCR 识别：' + txt.slice(0, 30) + (j.engine === 'mock' ? '（模拟）' : ''));
-      $('btnFindMat').click();
-    } else toast('未识别到文字');
-  } catch (e) { toast('OCR 服务不可用（:8002）：' + e.message); }
+  fetch(AI_HOST + '/ocr', { method: 'POST', body: fd }).then(r => r.json()).then(j => {
+    const t = String(j.text || j.result || '').trim();
+    if (t) toast('OCR：' + t.slice(0, 40) + (j.engine === 'mock' ? '（模拟）' : ''));
+  }).catch(() => {});
 };
-let rec = null, chunks = [];
-$('btnAsr').onclick = async () => {
+window.toolVoice = () => startAsr();
+
+/* ---------- 采集/审批/登录记录/资料 ---------- */
+let scanStream = null, scanTimer = null, rec = null, chunks = [];
+function openScan() {
+  $('scanModal').style.display = 'flex'; $('scanTip').textContent = '正在启动摄像头…';
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+    .then(st => { scanStream = st; $('scanVideo').srcObject = st; return $('scanVideo').play(); })
+    .then(() => {
+      if (!('BarcodeDetector' in window)) { $('scanTip').textContent = '本浏览器不支持自动识别，可手输料号（建议 Chrome/Edge 手机版）'; return; }
+      let d; try { d = new window.BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'itf', 'qr_code'] }); } catch (e) { d = new window.BarcodeDetector(); }
+      $('scanTip').textContent = '把料号条码对准取景框…';
+      scanTimer = setInterval(async () => { try { const codes = await d.detect($('scanVideo')); if (codes && codes.length && codes[0].rawValue) { toast('已识别：' + codes[0].rawValue); closeScan(); } } catch (e) {} }, 350);
+    })
+    .catch(e => { $('scanTip').textContent = '打不开摄像头：可手动输入。'; });
+}
+function closeScan() { if (scanTimer) clearInterval(scanTimer); if (scanStream) scanStream.getTracks().forEach(t => t.stop()); scanStream = null; scanTimer = null; $('scanVideo').srcObject = null; $('scanModal').style.display = 'none'; }
+function startAsr() {
   if (rec) { rec.stop(); return; }
-  try {
-    const st = await navigator.mediaDevices.getUserMedia({ audio: true });
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(st => {
     rec = new MediaRecorder(st); chunks = [];
-    rec.ondataavailable = (e) => chunks.push(e.data);
+    rec.ondataavailable = e => chunks.push(e.data);
     rec.onstop = async () => {
-      $('btnAsr').textContent = '🎤 语音转文字';
-      const blob = new Blob(chunks, { type: 'audio/webm' });
-      const fd = new FormData(); fd.append('file', blob, 'voice.webm');
-      try {
-        const r = await fetch(AI_HOST + '/asr', { method: 'POST', body: fd });
-        const j = await r.json();
-        const txt = String(j.text || j.result || '').trim();
-        if (txt) { $('capNote').value = ($('capNote').value ? $('capNote').value + ' ' : '') + txt; toast('语音已转文字' + (j.engine === 'mock' ? '（模拟）' : '')); }
-        else toast('未识别到语音');
-      } catch (e) { toast('ASR 服务不可用（:8002）：' + e.message); }
+      const blob = new Blob(chunks, { type: 'audio/webm' }); const fd = new FormData(); fd.append('file', blob, 'voice.webm');
+      try { const r = await fetch(AI_HOST + '/asr', { method: 'POST', body: fd }); const j = await r.json(); const txt = String(j.text || j.result || '').trim(); toast(txt ? ('语音：' + txt.slice(0, 40) + (j.engine === 'mock' ? '（模拟）' : '')) : '未识别到语音'); }
+      catch (e) { toast('语音服务不可用（:8002）'); }
       st.getTracks().forEach(t => t.stop()); rec = null;
     };
-    rec.start(); $('btnAsr').textContent = '⏹ 停止录音';
-  } catch (e) { toast('麦克风不可用：' + e.message); }
-};
+    rec.start(); toast('正在录音，再次点击停止');
+  }).catch(e => toast('麦克风不可用'));
+}
 
-/* ---------- 采集 ---------- */
-async function loadCapTypes() {
-  try {
-    const d = await api('/api/v1/plm2/capture-types?role=' + encodeURIComponent(state.demoRole));
-    state.capTypes = d.captureTypes || [];
-    $('capType').innerHTML = state.capTypes.map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('') || '<option value="">无可用类型</option>';
-    renderCapFields();
-  } catch (e) { $('capType').innerHTML = '<option value="">读取失败</option>'; }
+async function loadCaptures() {
+  try { const d = await api('/api/v1/plm2/capture-types?role=' + demoRole()); state.caps = d.captureTypes || []; } catch (e) {}
 }
-function renderCapFields() {
-  const t = state.capTypes.find(x => x.code === $('capType').value) || { fields: [] };
-  state.capFields = t.fields || [];
-  $('capFields').innerHTML = state.capFields.map(f => f.type === 'enum'
-    ? `<label class="f">${esc(f.label)}</label><select data-k="${esc(f.k)}">${(f.options || []).map(o => `<option>${esc(o)}</option>`).join('')}</select>`
-    : `<label class="f">${esc(f.label)}</label><input data-k="${esc(f.k)}" type="${f.type === 'number' ? 'number' : 'text'}" placeholder="请输入${esc(f.label)}">`).join('');
-}
-async function loadCaps() {
-  if (!state.me) return;
-  try {
-    const d = await api('/api/v1/plm2/captures?operator=' + encodeURIComponent(state.me.name));
-    state.caps = d.captures || [];
-    $('capCount').textContent = state.caps.length;
-    $('capList').innerHTML = state.caps.slice(0, 15).map(c => `<div class="item"><span class="tag ${c.status === 'pending-review' ? 'warn' : 'ok'}">${c.status === 'pending-review' ? '待审核' : '已验收'}</span>
-      <div class="body"><b>${esc(c.captureTypeName || c.captureType)}</b><small>${esc(c.partNo)} · ${esc(c.materialName || '')}</small></div></div>`).join('') || '<div class="empty">暂无</div>';
-  } catch (e) { $('capList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
-}
-function matMatch(m, k) { return (String(m.partNo || '') + ' ' + String(m.name || '')).toLowerCase().includes(k); }
-async function ensureMaterials() {
-  if (state.materials.length) return state.materials;
-  const d = await api('/api/v1/plm2/materials?role=' + encodeURIComponent(state.demoRole));
-  state.materials = d.materials || [];
-  return state.materials;
-}
-function renderSugg(list, tip) {
-  const box = $('matSugg');
-  box.innerHTML = list.length
-    ? list.slice(0, 8).map(m => `<div onclick="pickMat('${esc(m.partNo)}')"><span>${esc(m.partNo)}</span><small>${esc(m.name || '')}</small></div>`).join('')
-    : `<div class="muted">${esc(tip || '没找到匹配的料号')}</div>`;
-  box.classList.add('on');
-}
-window.pickMat = (partNo) => { $('partNo').value = partNo; $('matSugg').classList.remove('on'); $('btnFindMat').click(); };
-$('btnFindMat').onclick = async () => {
-  const k = $('partNo').value.trim().toLowerCase(); if (!k) return toast('请先输入料号或关键字');
-  try {
-    const list = await ensureMaterials();
-    const hits = list.filter(m => matMatch(m, k));
-    if (!hits.length) { $('matInfo').textContent = '没找到匹配的料号'; renderSugg([], '没找到匹配的料号'); return; }
-    $('matInfo').textContent = hits[0].name + ' · ' + (hits[0].statusLabel || hits[0].status || '');
-    if (hits.length > 1) renderSugg(hits);
-    else $('matSugg').classList.remove('on');
-  } catch (e) { toast('查料号失败：' + e.message); }
-};
-$('btnListMat').onclick = async () => { try { renderSugg((await ensureMaterials()).slice(0, 30), '暂无物料'); } catch (e) { toast('读取物料失败：' + e.message); } };
-$('partNo').addEventListener('input', async () => {
-  const k = $('partNo').value.trim().toLowerCase(); if (!k) { $('matSugg').classList.remove('on'); return; }
-  try { const list = await ensureMaterials(); renderSugg(list.filter(m => matMatch(m, k))); } catch (e) { /* ignore */ }
-});
-$('partNo').addEventListener('focus', async () => {
-  if ($('partNo').value.trim()) return;
-  try { renderSugg((await ensureMaterials()).slice(0, 8)); } catch (e) { /* ignore */ }
-});
-document.addEventListener('click', (e) => {
-  if (!$('matSugg').contains(e.target) && e.target.id !== 'partNo' && e.target.id !== 'btnListMat' && e.target.id !== 'btnFindMat') $('matSugg').classList.remove('on');
-});
-$('capType').onchange = renderCapFields;
-
-/* ---------- 扫码 / 拍照 ---------- */
-let scanStream = null, scanTimer = null;
-async function openScan() {
-  $('scanModal').style.display = 'flex';
-  $('scanTip').textContent = '正在启动摄像头…';
-  try {
-    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-    $('scanVideo').srcObject = scanStream; await $('scanVideo').play();
-  } catch (e) { $('scanTip').textContent = '打不开摄像头：可以手动输入料号'; return; }
-  if (!('BarcodeDetector' in window)) { $('scanTip').textContent = '本浏览器不支持自动识别，请手动输入料号（建议用 Chrome/Edge 手机版）'; return; }
-  let detector; try { detector = new window.BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'itf', 'qr_code'] }); } catch (e) { detector = new window.BarcodeDetector(); }
-  $('scanTip').textContent = '把料号条码对准取景框…';
-  scanTimer = setInterval(async () => {
-    try {
-      const codes = await detector.detect($('scanVideo'));
-      if (codes && codes.length && codes[0].rawValue) {
-        $('partNo').value = codes[0].rawValue.trim(); closeScan(); toast('已识别'); $('btnFindMat').click();
-      }
-    } catch (e) { /* ignore */ }
-  }, 350);
-}
-function closeScan() {
-  if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
-  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
-  $('scanVideo').srcObject = null; $('scanModal').style.display = 'none';
-}
-$('btnScan').onclick = openScan;
-$('scanClose').onclick = closeScan;
-$('scanModal').addEventListener('click', (e) => { if (e.target === $('scanModal')) closeScan(); });
-
-$('btnPhoto').onclick = () => $('photoInput').click();
-$('photoInput').onchange = () => {
-  const file = $('photoInput').files && $('photoInput').files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, 900 / Math.max(img.width, img.height));
-      const cv = document.createElement('canvas');
-      cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      state.photo = { kind: 'photo', name: file.name || '现场照片', takenAt: new Date().toISOString(), dataUrl: cv.toDataURL('image/jpeg', 0.7) };
-      $('photoThumb').src = state.photo.dataUrl;
-      $('photoMeta').textContent = state.photo.takenAt.slice(11, 16) + ' 已拍 1 张';
-      $('photoPrev').style.display = 'flex'; $('photoState').textContent = '已附 1 张照片';
-    };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
-};
-$('btnPhotoDel').onclick = () => { state.photo = null; $('photoPrev').style.display = 'none'; $('photoState').textContent = '未拍照'; $('photoInput').value = ''; };
-
-$('btnSubmitCap').onclick = async () => {
-  const partNo = $('partNo').value.trim(); if (!partNo) return toast('请先输入料号');
-  const values = {};
-  [...document.querySelectorAll('#capFields [data-k]')].forEach(el => { values[el.getAttribute('data-k')] = el.value; });
-  if ($('capNote').value.trim()) values.note = $('capNote').value.trim();
-  const btn = $('btnSubmitCap'); btn.disabled = true;
-  try {
-    await api('/api/v1/plm2/captures', 'POST', {
-      partNo, captureType: $('capType').value, values, operator: state.me.name, role: state.demoRole,
-      evidence: state.photo ? [state.photo] : [], idempotency_key: 'm-' + Date.now()
-    });
-    toast('已提交，等待审核');
-    state.photo = null; $('photoPrev').style.display = 'none'; $('photoState').textContent = '未拍照'; $('photoInput').value = '';
-    loadCaps();
-  } catch (e) {
-    const map = { 403: '当前岗位没有这个采集权限', 404: '料号不存在', 400: '提交信息不完整' };
-    toast(map[e.status] || ('提交失败：' + e.message));
-  } finally { btn.disabled = false; }
-};
-
-/* ---------- 审批 ---------- */
 async function loadApprovals() {
-  const can = ['RD_LEAD', 'ADMIN'].includes(state.demoRole);
-  $('apprTag').textContent = can ? '可审批' : '当前岗位无权限';
-  if (!can) { $('apprList').innerHTML = '<div class="empty">审批只对研发主管/管理员开放</div>'; return; }
+  const can = ['RD_LEAD', 'ADMIN', 'GM'].includes(state.me.role);
   try {
-    const d = await api('/api/v1/plm2/ws-v2?approvals=1');
-    const items = d.items || [];
-    state.approvals = items;
-    $('apprList').innerHTML = items.length ? items.map(w => `<div class="item"><span class="tag warn">待审批</span>
-      <div class="body"><b>${esc(w.title || w.id)}</b><small>${esc(w.projectNo || '')} · ${esc(w.nodeCode || '')} · ${esc(w.createdBy || '')}</small></div>
-      <button class="btn small primary" onclick="appr('${esc(w.id)}','approve')">批准</button>
-      <button class="btn small" onclick="appr('${esc(w.id)}','reject')">退回</button></div>`).join('') : '<div class="empty">暂无待审批</div>';
-  } catch (e) { $('apprList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+    if (!can) { $('m3').textContent = (state.caps || []).filter(c => c.status === 'pending-review').length || 0; return; }
+    const d = await api('/api/v1/plm2/ws-v2?approvals=1'); $('m3').textContent = (d.items || []).length;
+  } catch (e) { $('m3').textContent = 0; }
 }
-window.appr = async (id, action) => {
-  try {
-    await api('/api/v1/plm2/ws-v2/' + encodeURIComponent(id) + '/' + action, 'POST', { approver: state.me.name, role: state.demoRole, reason: action === 'reject' ? '请补充资料' : undefined });
-    toast(action === 'approve' ? '已批准' : '已退回'); loadApprovals();
-  } catch (e) { toast('操作失败：' + e.message); }
-};
 
-/* ---------- 登录记录 / 账号 ---------- */
-async function loadLogins() {
-  try {
-    const d = await api('/api/v1/mobile/logins');
-    const list = d.logins || [];
-    $('logCount').textContent = list.length;
-    $('loginList').innerHTML = list.map(x => `<div class="item">
-      <span class="tag ${x.ok ? 'ok' : 'bad'}">${x.kind === 'bind' ? '绑定' : x.kind === 'switch' ? '换号' : x.kind === 'logout' ? '退出' : '登录'}</span>
-      <div class="body"><b>${esc(x.name || x.username || '')}</b><small>${esc((x.at || '').slice(0, 16).replace('T', ' '))}${x.ok ? '' : ' · ' + esc(x.error || '未通过')}</small></div></div>`).join('') || '<div class="empty">暂无记录</div>';
-  } catch (e) { $('loginList').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
+async function loadSources() {
+  const p = profile();
+  $('acctInfo').innerHTML = [['姓名', state.me.name], ['岗位', p.name], ['部门', state.me.dept || '—'], ['账号', state.me.username], ['手机号', state.me.phone]].map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('');
+  const srcs = ROLE_SOURCES[state.me.role] || SRC_NAMES;
+  $('sourceMap').innerHTML = srcs.map(x => `<div class="source"><strong>${esc(x)}</strong><small>目录已识别 · 原件待本轮核验</small></div>`).join('');
+  try { const d = await api('/api/v1/mobile/logins'); const list = d.logins || []; $('logCount').textContent = list.length; $('loginList').innerHTML = list.map(x => `<div class="report"><div><b>${esc(x.name || x.username || '')}</b><p>${esc((x.at || '').slice(0, 16).replace('T', ' '))} · ${x.ok ? '成功' : '失败'} · ${esc(x.kind || '')}</p></div></div>`).join('') || '<div class="empty">暂无记录</div>'; } catch (e) {}
 }
-window.logout = async () => {
-  try { await api('/api/v1/mobile/logout', 'POST', {}); } catch (e) { /* ignore */ }
-  location.replace('/m/login');
-};
-window.switchAccount = () => { window.logout(); };
 
-/* ---------- 导航 ---------- */
-function switchTab(k) {
-  state.tab = k;
-  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('on', b.getAttribute('data-tab') === k));
-  ['todos', 'capture', 'approval', 'systems', 'mine'].forEach(t => { $('tab-' + t).style.display = t === k ? 'block' : 'none'; });
-  if (k === 'todos') loadTodos();
-  if (k === 'capture') { ensureMaterials().catch(() => {}); loadCaps(); }
-  if (k === 'approval') loadApprovals();
-  if (k === 'systems') loadSystems();
-  if (k === 'mine') loadLogins();
-  window.scrollTo({ top: 0 });
-}
-document.querySelectorAll('.nav button').forEach(b => { b.onclick = () => switchTab(b.getAttribute('data-tab')); });
+window.switchAccount = async () => { try { await api('/api/v1/mobile/logout', 'POST', {}); } catch (e) {} location.replace('/m/login'); };
+window.logout = async () => { try { await api('/api/v1/mobile/logout', 'POST', {}); } catch (e) {} location.replace('/m/login'); };
 
 boot();
 </script>

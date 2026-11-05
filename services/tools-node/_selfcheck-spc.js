@@ -83,7 +83,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const mPage = await req('/m/spc');
     ck('手机内 SPC 页可访问（订单/异常/供应商）', mPage.s === 200 && mPage.b.includes('订单风险') && mPage.b.includes('异常台账') && mPage.b.includes('供应商风险'));
     const mobile = await req('/m');
-    ck('手机工作台含 SPC 入口与岗位卡片', mobile.b.includes('/m/spc') && mobile.b.includes('loadSpcCard') && mobile.b.includes('SPC_ROLES'));
+    ck('手机工作台含 SPC 入口（资料页常用系统）', mobile.b.includes('/m/spc') && mobile.b.includes('SPC 供应链'));
     const portal = await req('/portal');
     ck('门户含 SPC 入口', portal.b.includes('href="/spc"') && portal.b.includes('SPC 供应链与生产协同'));
 

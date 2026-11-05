@@ -55,8 +55,8 @@ const j = (r) => { try { return JSON.parse(r.b); } catch (e) { return {}; } };
 
   /* ---- 手机端入口 ---- */
   const m = await req('/m');
-  ck('手机端 5 个页签（含系统）', ['todos', 'capture', 'approval', 'systems', 'mine'].every(k => m.b.includes('data-tab="' + k + '"')));
-  ck('手机端系统页含全部系统入口', ['/plm2', '/m/spc', '/m/crm', '/m/ebms', '/hlc'].every(h => m.b.includes(h)));
+  ck('手机端为岗位微系统（工作台/报告/智能体/资料）', ['work', 'history', 'agent', 'sources'].every(k => m.b.includes('data-page="' + k + '"')));
+  ck('手机端资料页含全部系统入口', ['/plm2', '/m/spc', '/m/crm', '/m/ebms', '/taskhub', '/hlc'].every(h => m.b.includes(h)));
   const crmPage = await req('/m/crm');
   ck('CRM 手机页可访问（商机/订单/线索）', crmPage.s === 200 && ['商机', '订单', '线索'].every(k => crmPage.b.includes(k)));
   const ebmsPage = await req('/m/ebms');

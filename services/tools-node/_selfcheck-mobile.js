@@ -28,16 +28,14 @@ const PHONE = '13900000001';
   const loginPage = await req('/m/login');
   ck('手机登录页可访问且简洁（手机号+账号+密码）', loginPage.s === 200 && loginPage.b.includes('手机绑定登录') && loginPage.b.includes('phone') && !loginPage.b.includes('选择岗位'));
   const m = await req('/m');
-  ck('手机工作台可访问', m.s === 200 && m.b.includes('AEOS 手机工作台'));
-  ck('界面不再有岗位选择等多余内容', !/selCompany|selDept|selPos|quickCardsFor|岗位职责/.test(m.b));
-  ck('保留核心页签（待办/采集/审批/我的）', ['tab-todos', 'tab-capture', 'tab-approval', 'tab-mine'].every(k => m.b.includes(k)));
-  ck('我的页含手机号与最近登录记录', m.b.includes('手机号') && m.b.includes('最近登录记录'));
-  ck('扫码与拍照留证仍在', m.b.includes('BarcodeDetector') && m.b.includes('capture="environment"') && m.b.includes('evidence: state.photo'));
-  ck('料号可选 + 模糊查找', m.b.includes('matSugg') && m.b.includes('btnListMat') && m.b.includes('filter(m => matMatch'));
-  ck('待办有分类且可直接处理', m.b.includes('TODO_CATS') && m.b.includes('window.todoAct'));
-  ck('默认隐藏已完成/已作废', m.b.includes('chkHideDone') && m.b.includes('hideDone: true'));
-  ck('PLM 节点可编辑（编辑 sheet + 同步 PLM）', m.b.includes('editSheet') && m.b.includes('openEditSheet') && m.b.includes('btnEdSave'));
-  ck('找回 AI 录入工具（8002：OCR 识别料号 + 语音转文字，模拟如实标注）', m.b.includes('btnOcr') && m.b.includes('btnAsr') && m.b.includes(':8002') && m.b.includes('（模拟）'));
+  ck('手机工作台可访问（AEOS / POMS 岗位微系统）', m.s === 200 && m.b.includes('岗位微系统'));
+  ck('四个页签：工作台/报告/智能体/资料', ['work', 'history', 'agent', 'sources'].every(k => m.b.includes('data-page="' + k + '"')));
+  ck('工作台含指标 + 未来的待办 + 快速执行入口', m.b.includes('待处理任务') && m.b.includes('未来的待办') && m.b.includes('快速执行入口'));
+  ck('三个工具：扫码记录/拍照取证/语音记录', ['sc_scan', 'sc_photo', 'sc_voice'].every(k => m.b.includes(k)));
+  ck('按岗位权限：边界/智能体/资料映射', m.b.includes('ROLE_PROFILE') && m.b.includes('boundary') && m.b.includes('ROLE_SOURCES'));
+  ck('待办可点开明细并执行（开始/完成）', m.b.includes('openTodoDetail') && m.b.includes('todoSheet') && m.b.includes('window.todoAct'));
+  ck('找回 AI 录入工具（8002：OCR/语音，模拟如实标注）', m.b.includes(':8002') && m.b.includes('BarcodeDetector') && m.b.includes('（模拟）'));
+  ck('含账号/手机号/登录记录与常用系统入口', m.b.includes('手机号') && m.b.includes('最近登录记录') && ['/plm2', '/spc', '/m/crm', '/m/ebms', '/taskhub', '/hlc'].every(h => m.b.includes(h)));
 
   /* ---- 未登录 ---- */
   ck('未登录状态可查（loggedIn=false）', j(await req('/api/v1/mobile/me')).loggedIn === false);
