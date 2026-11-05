@@ -31,26 +31,43 @@ function isProduction(env) {
   return String(env.NODE_ENV || '').toLowerCase() === 'production';
 }
 
-function createPublicLeadConfig(env = process.env) {
+function createPublicLeadConfig(env = process.env, opts) {
+  const allowMissing = !!(opts && opts.allowMissing);
   const production = isProduction(env);
   const allowedOrigins = splitList(env.PUBLIC_BFF_ALLOWED_ORIGINS || env.AEOS_PUBLIC_ORIGIN);
   const captchaMode = String(env.PUBLIC_BFF_CAPTCHA_MODE || (production ? 'provider' : 'disabled')).toLowerCase();
   const targetUrl = String(env.PUBLIC_BFF_TARGET_URL || '').trim();
 
   if (production) {
-    if (!allowedOrigins.length || allowedOrigins.includes('*')) {
-      throw fail('生产环境必须配置 PUBLIC_BFF_ALLOWED_ORIGINS，且不得使用通配符', 500);
-    }
-    if (captchaMode !== 'provider' || !String(env.PUBLIC_BFF_CAPTCHA_VERIFY_URL || '').trim()) {
-      throw fail('生产环境必须配置 CAPTCHA provider', 500);
-    }
-    if (!targetUrl || !/^https:\/\//i.test(targetUrl)) {
-      throw fail('生产环境必须配置 HTTPS 的 PUBLIC_BFF_TARGET_URL', 500);
-    }
-    if (!String(env.PUBLIC_BFF_TARGET_TOKEN || '').trim()) {
-      throw fail('生产环境必须配置 Public BFF 到目标系统的服务令牌', 500);
-    }
-    if (!String(env.PUBLIC_BFF_TENANT_ID || '').trim()) {
+    const missing = [];
+    if (!allowedOrigins.length || allowedOrigins.includes('*')) missing.push('PUBLIC_BFF_ALLOWED_ORIGINS');
+    if (captchaMode !== 'provider' || !String(env.PUBLIC_BFF_CAPTCHA_VERIFY_URL || '').trim()) missing.push('PUBLIC_BFF_CAPTCHA_VERIFY_URL');
+    if (!targetUrl || !/^https:\/\//i.test(targetUrl)) missing.push('PUBLIC_BFF_TARGET_URL');
+    if (!String(env.PUBLIC_BFF_TARGET_TOKEN || '').trim()) missing.push('PUBLIC_BFF_TARGET_TOKEN');
+    if (!String(env.PUBLIC_BFF_TENANT_ID || '').trim()) missing.push('PUBLIC_BFF_TENANT_ID');
+    if (missing.length) {
+      if (allowMissing) {
+        // 生产未配置官网公开线索时：降级为「禁用」，不阻塞整个 BFF 启动，接口返回 503。
+        return {
+          disabled: true,
+          reason: '生产环境未配置官网公开线索（' + missing.join(' / ') + '），该入口已禁用',
+          production,
+          allowedOrigins: [],
+          captchaMode: 'disabled',
+          captchaVerifyUrl: '',
+          targetUrl: '',
+          targetToken: '',
+          tenantId: undefined,
+          retentionDays: 730,
+          rateLimitWindowMs: 60000,
+          rateLimitMax: 10,
+          maxAttempts: 5
+        };
+      }
+      if (!allowedOrigins.length || allowedOrigins.includes('*')) throw fail('生产环境必须配置 PUBLIC_BFF_ALLOWED_ORIGINS，且不得使用通配符', 500);
+      if (captchaMode !== 'provider' || !String(env.PUBLIC_BFF_CAPTCHA_VERIFY_URL || '').trim()) throw fail('生产环境必须配置 CAPTCHA provider', 500);
+      if (!targetUrl || !/^https:\/\//i.test(targetUrl)) throw fail('生产环境必须配置 HTTPS 的 PUBLIC_BFF_TARGET_URL', 500);
+      if (!String(env.PUBLIC_BFF_TARGET_TOKEN || '').trim()) throw fail('生产环境必须配置 Public BFF 到目标系统的服务令牌', 500);
       throw fail('生产环境必须配置 PUBLIC_BFF_TENANT_ID', 500);
     }
   }

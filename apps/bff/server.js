@@ -36,7 +36,7 @@ const {
   allowedOrigin
 } = require('./public-leads');
 
-const publicLeadConfig = createPublicLeadConfig();
+const publicLeadConfig = createPublicLeadConfig(process.env, { allowMissing: true });
 const publicLeadOutbox = new JsonlLeadOutbox(publicLeadConfig);
 const publicLeadService = createPublicLeadService({
   config: publicLeadConfig,
@@ -728,6 +728,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 204, '', publicLeadCorsHeaders(origin));
     }
     if (pathname === PUBLIC_LEAD_PATH && req.method === 'POST') {
+      if (publicLeadConfig.disabled) return send(res, 503, { error: publicLeadConfig.reason || '官网公开线索入口未配置' });
       const origin = String(req.headers.origin || '');
       if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type'] || ''))) {
         throw Object.assign(new Error('仅支持 application/json'), { status: 415 });
