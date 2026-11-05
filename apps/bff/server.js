@@ -52,8 +52,9 @@ publicLeadFlushTimer.unref();
 const ROLE_PRIORITY = ['ADMIN', 'admin', 'gm', 'rd_manager', 'engineer', 'project_manager', 'sales_director', 'sales_manager', 'purchase', 'finance', 'cw1', 'sales', 'sales_user', 'viewer', 'QUALITY', 'hr_manager'];
 const ROLE_MAP = { ADMIN: 'ADMIN', admin: 'ADMIN', gm: 'GM', rd_manager: 'RD_LEAD', engineer: 'ENGINEER', project_manager: 'PROJECT_MANAGER', sales_director: 'SALES_MANAGER', sales_manager: 'SALES_MANAGER', purchase: 'PURCHASE', finance: 'FINANCE', cw1: 'FINANCE', sales: 'SALES', sales_user: 'SALES', viewer: 'VIEWER', hr_manager: 'VIEWER', QUALITY: 'QUALITY', ENGINEER: 'ENGINEER', SALES: 'SALES' };
 const authCache = new Map(); // token -> { exp, session, vo }
-const REQUIRE_AUTH = ['1', 'true', 'yes', 'on'].includes(String(process.env.M10_REQUIRE_AUTH || '').toLowerCase())
-  || String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+const REQUIRE_AUTH = process.env.M10_REQUIRE_AUTH !== undefined
+  ? ['1', 'true', 'yes', 'on'].includes(String(process.env.M10_REQUIRE_AUTH).toLowerCase())
+  : String(process.env.NODE_ENV || '').toLowerCase() === 'production';
 
 function deriveRole(roleCodeStr) {
   const rs = String(roleCodeStr || '').split(',').map(s => s.trim()).filter(Boolean);
