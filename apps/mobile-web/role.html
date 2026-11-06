@@ -16,7 +16,7 @@ nav .brand small{display:block;color:#8aa2c6;font-size:11px;font-weight:400;marg
 nav .navitem{display:block;text-align:left;width:100%;padding:13px 14px;border-radius:11px;color:#b9c8dd;background:transparent;margin:3px 0}
 nav .navitem.active,nav .navitem:hover{background:#243c60;color:#fff}
 nav .foot{margin-top:auto;font-size:11px;line-height:1.8;color:#90a6c5;padding:8px}
-.main{margin-left:222px;padding:22px 30px;max-width:1500px}
+.main{margin-left:222px;padding:22px clamp(16px,2.5vw,36px);max-width:none}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .company{font-size:12px;color:var(--mut)}
 .top h1{font-size:24px;margin:6px 0 0;letter-spacing:-.4px}
@@ -25,7 +25,7 @@ nav .foot{margin-top:auto;font-size:11px;line-height:1.8;color:#90a6c5;padding:8
 select,.outline{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 11px;color:var(--ink)}
 .btn{background:var(--blue);color:#fff;border-radius:9px;padding:10px 14px}
 .ghost{background:var(--soft);color:#1e5cd7;border-radius:9px;padding:9px 12px}
-.grid{display:grid;grid-template-columns:1.45fr .9fr;gap:16px}
+.grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.9fr);gap:16px}
 .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:19px;box-shadow:0 2px 15px #12284b08;margin-bottom:16px}
 .card.full{grid-column:1/-1}
 .title{font-size:17px;font-weight:700;margin:0 0 6px}
@@ -320,6 +320,7 @@ async function loadTodos() {
     (t.done || []).slice(0, 20).forEach(r => rows.push({ kind: 'plm', cat: 'done', r }));
     (m.items || []).forEach(x => rows.push({ kind: 'meeting', cat: x.category === '已完成' ? 'done' : (x.category === '逾期' || x.category === '异常' ? 'urgent' : 'normal'), x }));
     th.forEach(x => rows.push({ kind: 'hub', cat: (x.status === 'done' || x.status === 'cancelled') ? 'done' : (x.status === 'overdue' ? 'urgent' : 'normal'), x }));
+    try { const sq = await api('/api/v1/tasks?source=SPC&owner=' + encodeURIComponent(u.name)); (sq.items || []).forEach(x => rows.push({ kind: 'hub', cat: (x.status === 'done' || x.status === 'cancelled') ? 'done' : (x.status === 'overdue' ? 'urgent' : 'normal'), x })); } catch (e) {}
     state.todoRows = rows;
     renderTodos();
   } catch (e) { $('tasks').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
@@ -345,7 +346,17 @@ window.setFilter = (f) => { state.filter = f; document.querySelectorAll('.tabs b
 
 function actions(r) {
   if (r.kind === 'plm') { const item = (state.plmMap || {})[r.r.projectNo + '|' + r.r.nodeCode]; if (!item) return '<span class="tag">去 PLM</span>'; if (item.status === 'done') return '<span class="tag green">已完成</span>'; return `<button class="ghost" onclick="closeSheet();todoAct('${item.id}','in_progress')">开始</button><button class="btn" onclick="closeSheet();todoAct('${item.id}','done')">完成</button>`; }
-  if (r.kind === 'hub') return r.x.status === 'done' ? '<span class="tag green">已完成</span>' : `<button class="btn" onclick="closeSheet();todoAct('${r.x.id}','done')">完成</button>`;
+  if (r.kind === 'hub') {
+    const x = r.x;
+    if (x.status === 'done' || x.status === 'cancelled') return '<span class="tag green">已完成</span>';
+    if (x.source === 'SPC') {
+      const k = (x.refs || {}).kind;
+      if (k === 'exception' || k === 'quality') return `<button class="ghost" onclick="closeSheet();todoAct('${x.id}','in_progress')">开始</button><button class="btn" onclick="closeSheet();todoAct('${x.id}','done')">完成</button><a class="ghost" href="${esc(x.link || 'https://spc.hengyou-soft.com')}" target="_blank" rel="noopener">在 SPC 打开</a>`;
+      return '<a class="btn" href="' + esc(x.link || 'https://spc.hengyou-soft.com') + '" target="_blank" rel="noopener">去 SPC 处理</a>';
+    }
+    if (x.link) return `<a class="btn" href="${esc(x.link)}" target="_blank" rel="noopener">在源系统打开</a>`;
+    return `<button class="btn" onclick="closeSheet();todoAct('${x.id}','done')">完成</button>`;
+  }
   return '<span class="tag">会议助手处理</span>';
 }
 window.openTodoDetail = (i) => {

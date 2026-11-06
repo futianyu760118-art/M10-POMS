@@ -112,8 +112,14 @@ function normalize(x, today, opts) {
     completedAt: x.completedAt || null,
     category: classify(x, today),
     action: 'openMeeting',
-    link: (opts && opts.meetingBase || '')
+    link: buildLink(x, opts)
   };
+}
+
+function buildLink(x, opts) {
+  const base = (opts && opts.meetingBase || process.env.MEETING_WEB || '').replace(/\/$/, '');
+  if (!base) return '';
+  return base + (x.meetingId ? '/meeting/' + encodeURIComponent(x.meetingId) : '');
 }
 
 /**

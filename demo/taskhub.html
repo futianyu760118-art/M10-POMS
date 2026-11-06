@@ -8,7 +8,7 @@
 :root{--bg:#f5f7fa;--panel:#fff;--line:#e3e8ef;--text:#1f2937;--muted:#6b7280;--blue:#2563eb;--red:#d64545;--green:#15803d;--orange:#b45309}
 *{box-sizing:border-box}
 body{margin:0;font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text)}
-.head{background:#fff;border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+.head{background:#fff;border-bottom:1px solid var(--line);padding:14px clamp(14px,2.5vw,32px);display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
 .head h1{font-size:17px;margin:0}
 .head .sub{font-size:11px;color:var(--muted)}
 .spacer{flex:1}
@@ -17,7 +17,7 @@ body{margin:0;font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
 .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
 .btn.small{padding:3px 8px;font-size:12px;border-radius:6px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-.wrap{max-width:1320px;margin:0 auto;padding:16px 20px 40px}
+.wrap{max-width:none;padding:16px clamp(14px,2.5vw,32px) 40px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
 .panel h2{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px}
@@ -38,7 +38,7 @@ body{margin:0;font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-seri
 .it-body{flex:1;min-width:0}
 .it-body b{font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .it-body small{color:var(--muted);font-size:11px}
-.cols{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;align-items:start}
+.cols{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,0.9fr);gap:14px;align-items:start}
 @media(max-width:1080px){.cols{grid-template-columns:1fr}}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:7px 8px;border-bottom:1px solid #f1f4f8}
@@ -116,6 +116,34 @@ table .cnt{margin-left:4px}
 .dl b{font-weight:600;word-break:break-all}
 .dsec{font-size:12px;color:var(--muted);font-weight:600;margin:12px 0 6px}
 .drefs{background:#0f2744;color:#d7e6f5;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.7;word-break:break-all}
+.due{font-size:12px;width:84px;text-align:right;flex:none;color:var(--muted)}
+/* 小屏自适应 */
+@media(max-width:640px){
+  .wrap{padding:10px 10px 36px}
+  .head{padding:10px 12px;gap:8px}
+  .head h1{font-size:15px}
+  .head .sub{font-size:10px}
+  .head .spacer{display:none}
+  .head .btn{flex:1 1 auto;padding:5px 9px;font-size:12px;text-align:center}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:6px}
+  .kpi{padding:8px 10px}
+  .kpi b{font-size:18px}
+  .filters{gap:6px}
+  .filters select,.filters input{font-size:12px;padding:5px 7px}
+  .filters #fQ{flex:1 1 100%;min-width:0}
+  .item{flex-wrap:wrap;row-gap:6px}
+  .item>.tag{order:1}
+  .it-body{order:2;flex:1 1 100%;min-width:100%}
+  .it-body b{white-space:normal;overflow:visible;text-overflow:clip}
+  .due{order:3;width:auto;text-align:left;flex:none}
+  .item>.btn,.item>a.btn{order:4}
+  #list{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #list table{min-width:640px}
+  .board{grid-auto-columns:minmax(210px,1fr)}
+  .td-box{max-height:90vh}
+  .dl>div{flex-direction:column;gap:2px;align-items:flex-start}
+  .dl span{width:auto}
+}
 </style>
 </head>
 <body>
@@ -332,6 +360,14 @@ function actionCell(x) {
   if (x.source === 'PLM2') {
     return `<button class="btn small" onclick="postProgress('${x.id}','in_progress')" title="点一下直接更新到 PLM（处理中）">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')" title="点一下直接更新到 PLM（已完成）">完成</button>`;
   }
+  if (x.source === 'SPC') {
+    const k = (x.refs || {}).kind;
+    if (k === 'exception' || k === 'quality') {
+      return `<button class="btn small" onclick="postProgress('${x.id}','in_progress')" title="写回 SPC：处理中">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')" title="写回 SPC：关闭">完成</button>`;
+    }
+    const href = x.link || 'https://spc.hengyou-soft.com';
+    return `<a class="btn small" href="${esc(href)}" target="_blank" rel="noopener" title="订单/采购由 ERP 管理，去 SPC 处理">去 SPC 处理</a>`;
+  }
   if (x.origin === 'sync') return `<button class="btn small" onclick="assignTask('${x.id}')">分配</button>`;
   return `<button class="btn small" onclick="postProgress('${x.id}','in_progress')">开始</button><button class="btn small primary" onclick="postProgress('${x.id}','done')">完成</button>`;
 }
@@ -343,10 +379,10 @@ function taskRowHtml(x) {
       <span class="tag ${DOM_TAG[x.bizDomain] || 'gray'}" title="所属业务和来源系统">${esc(x.bizDomainLabel)}</span>
       <div class="it-body">
         <b style="cursor:pointer" title="点开看明细" onclick="event.stopPropagation();openTask('${x.id}')">${esc(x.title)}</b>
-        <small>${esc(x.ownerName || '未分配')} · ${esc(x.sourceLabel)}${x.refs && x.refs.projectName ? ' · ' + esc(x.refs.projectName) : ''}${x.origin === 'extract' ? ' · 自动拆分加入' : ''}</small>
+        <small>${esc(x.ownerName || '未分配')} · ${esc(x.sourceLabel)}${x.link ? ' · <a href="' + esc(x.link) + '" target="_blank" rel="noopener" title="在源系统打开对应记录">在源系统打开 ↗</a>' : ''}${x.refs && x.refs.projectName ? ' · ' + esc(x.refs.projectName) : ''}${x.origin === 'extract' ? ' · 自动拆分加入' : ''}</small>
       </div>
       ${x.stale ? '<span class="tag orange" title="原来的系统暂时连不上，这里显示的是上次保存的数据">旧数据</span>' : ''}
-      <span class="muted" style="font-size:12px;width:84px;text-align:right">${esc(x.due || '—')}</span>
+      <span class="due">${esc(x.due || '—')}</span>
       ${actionCell(x)}
     </div>`;
 }
@@ -664,9 +700,13 @@ window.openTask = (id) => {
       ${x.source === 'PLM2' ? `<button class="btn small" onclick="closeTask();postProgress('${x.id}','in_progress')">开始（同步到 PLM）</button>
         <button class="btn small primary" onclick="closeTask();postProgress('${x.id}','done')">完成（同步到 PLM）</button>
         <a class="btn small" href="/plm2" target="_blank" rel="noopener">在 PLM 打开</a>` : ''}
+      ${x.source === 'SPC' && ['exception', 'quality'].includes(refs.kind) ? `<button class="btn small" onclick="closeTask();postProgress('${x.id}','in_progress')">开始（写回 SPC）</button>
+        <button class="btn small primary" onclick="closeTask();postProgress('${x.id}','done')">完成（写回 SPC）</button>
+        <a class="btn small" href="${esc(x.link || 'https://spc.hengyou-soft.com')}" target="_blank" rel="noopener">在 SPC 打开</a>` : ''}
+      ${x.source === 'SPC' && !['exception', 'quality'].includes(refs.kind) ? `<a class="btn small" href="${esc(x.link || 'https://spc.hengyou-soft.com')}" target="_blank" rel="noopener">在 SPC 打开</a><span class="muted" style="font-size:12px">订单/采购由 ERP 管理，请到 SPC 处理</span>` : ''}
       ${x.origin !== 'sync' ? `<button class="btn small" onclick="closeTask();postProgress('${x.id}','in_progress')">开始</button>
         <button class="btn small primary" onclick="closeTask();postProgress('${x.id}','done')">完成</button>` : ''}
-      ${x.source === 'MEETING' ? '<span class="muted" style="font-size:12px">会议任务请到会议助手处理</span>' : ''}
+      ${x.source === 'MEETING' ? (x.link ? `<a class="btn small" href="${esc(x.link)}" target="_blank" rel="noopener">在会议助手打开</a>` : '<span class="muted" style="font-size:12px">会议任务请到会议助手处理</span>') : ''}
       ${x.source === 'HUB' ? '<span class="muted" style="font-size:12px">Hub 任务请到 Hub 处理</span>' : ''}
     </div>`;
   $('taskDetail').classList.add('open');

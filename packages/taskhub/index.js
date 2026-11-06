@@ -117,7 +117,7 @@ function makeItem(o) {
 
 // ── 归集器 ────────────────────────────────────────────────
 function collectMeeting(d) {
-  const all = meeting.listAll({ today: d });
+  const all = meeting.listAll({ today: d, meetingBase: process.env.MEETING_WEB || '' });
   const people = plm2.getPeople();
   return {
     ok: true,
@@ -213,22 +213,23 @@ async function collectHub(d) {
 
 // SPC 供应链：开放异常台账 → 待办（只读引用，写操作回 SPC）
 async function collectSpc(d) {
-  const r = await spcAdapter.exceptions({ status: 'open', page: 1, page_size: 100 });
-  const data = (r && r.data) || {};
-  const items = data.items || [];
+  const r = await spcAdapter.listTodos({ today: d });
+  const items = r.items || [];
+  const labelOf = { order: '订单交付', purchase: '采购到料', quality: '品质处理', exception: '异常台账' };
   return {
     ok: true,
-    meta: { total: data.total != null ? data.total : items.length, capped: items.length, stale: !!r.stale },
+    meta: { counts: r.counts || {}, total: items.length, capped: items.length, stale: false },
     items: items.map(x => makeItem({
-      source: 'SPC', sourceId: x.issue_no || x.id, sourceLabel: 'SPC',
-      bizDomain: 'OPS',
-      title: String(x.description || x.issue_no || '').slice(0, 80),
-      detail: [x.issue_type, x.order_no].filter(Boolean).join(' · '),
-      ownerName: (x.owner && x.owner !== 'system') ? x.owner : '',
-      due: x.commit_date || null,
-      priority: x.risk_level === 'red' ? 'high' : (x.risk_level === 'yellow' ? 'medium' : 'low'),
-      status: 'pending',
-      refs: { issueNo: x.issue_no, issueType: x.issue_type, riskLevel: x.risk_level, orderNo: x.order_no, createdAt: x.created_at }
+      source: 'SPC', sourceId: x.id, sourceLabel: 'SPC·' + (labelOf[x.kind] || x.kind),
+      bizDomain: x.domain || 'OPS',
+      title: x.title,
+      detail: [labelOf[x.kind], x.kind].filter(Boolean).join(' · '),
+      ownerName: x.owner || '',
+      due: x.due || null,
+      priority: x.priority || 'medium',
+      status: x.status || 'pending',
+      link: x.link || '',
+      refs: Object.assign({ kind: x.kind, id: x.id }, x.refs || {}, x.spcId != null ? { spcId: x.spcId } : {})
     }))
   };
 }
@@ -602,6 +603,24 @@ async function updateProgress(id, opts) {
     if (!refs.projectNo || !refs.nodeCode) return { status: 422, body: { error: '这条 PLM 待办缺少项目或节点信息，无法更新' } };
     plmSync = await plm2.syncNodeStatus(refs.projectNo, refs.nodeCode, o.status, { planDate: it.due, actor: o.actor });
     if (!plmSync.ok) return { status: plmSync.status || 502, body: { error: plmSync.msg || 'PLM 写入失败', source: 'PLM2', sourceId: it.sourceId } };
+  } else if (it.source === 'SPC') {
+    const refs = it.refs || {};
+    const kind = refs.kind;
+    if (kind === 'order' || kind === 'purchase') {
+      return { status: 409, body: { error: '这条 SPC 待办（订单/采购）由 ERP 管理，请回 SPC 处理（M10 不写回）', source: 'SPC', sourceId: it.sourceId } };
+    }
+    if (kind !== 'exception' && kind !== 'quality') {
+      return { status: 422, body: { error: '这条 SPC 待办类型不支持写回', source: 'SPC', sourceId: it.sourceId } };
+    }
+    if (refs.spcId == null) return { status: 422, body: { error: '这条 SPC 待办缺少源系统编号，无法更新', source: 'SPC' } };
+    if (!['in_progress', 'done'].includes(o.status)) {
+      return { status: 422, body: { error: 'SPC 待办只能改成处理中或已完成', source: 'SPC' } };
+    }
+    try {
+      await spcAdapter.updateStatus(kind, refs.spcId, o.status);
+    } catch (e) {
+      return { status: e.status || 502, body: { error: e.message || 'SPC 写入失败', source: 'SPC', sourceId: it.sourceId } };
+    }
   } else if (it.origin === 'sync') {
     return { status: 409, body: { error: '该任务状态由源系统持有，请回 ' + it.bizSysLabel + ' 更新（M10 不双写）', source: it.source, sourceId: it.sourceId } };
   }
