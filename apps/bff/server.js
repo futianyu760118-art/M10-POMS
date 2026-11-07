@@ -663,6 +663,42 @@ const server = http.createServer(async (req, res) => {
         return send(res, 401, { error: 'PLM 账号或密码不正确（手机号已记录本次尝试）' });
       }
     }
+    if (pathname === '/api/v1/mobile/login' && req.method === 'POST') {
+      const body = await readBody(req);
+      const account = String(body.account || '').trim();
+      const password = String(body.password || '');
+      const ip = clientIp(req);
+      const ua = String(req.headers['user-agent'] || '').slice(0, 120);
+      if (!account || !password) return send(res, 400, { error: '请输入账号/手机号和密码' });
+      const isPhone = /^1[3-9]\d{9}$/.test(account.replace(/\s/g, ''));
+      const db = mobileAuthLoad();
+      let phone = isPhone ? account.replace(/\s/g, '') : '';
+      let username = isPhone ? '' : account;
+      if (isPhone) {
+        const b = db.bindings[phone];
+        if (!b) return send(res, 404, { error: '该手机号尚未绑定账号，请先绑定', needBind: true, phone });
+        username = b.username;
+      } else {
+        const bound = Object.keys(db.bindings).find(k => db.bindings[k].username === account);
+        if (bound) phone = bound;
+      }
+      try {
+        const x = await plmSync.loginWith(username, password);
+        const vo = x.vo || {};
+        const role = vo.roleCode || (vo.roles && vo.roles[0]) || '';
+        const profile = mobileProfile(username, vo.realName, role);
+        const token = crypto.randomBytes(24).toString('hex');
+        db.devices[token] = Object.assign({ phone, at: new Date().toISOString(), ua }, profile);
+        logMobile(db, { kind: 'login', ok: true, phone, username, name: profile.name, ip, ua });
+        mobileAuthSave(db);
+        res.setHeader('Set-Cookie', 'mdev=' + token + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=15552000');
+        return send(res, 200, { ok: true, user: Object.assign({ phone }, profile) });
+      } catch (e) {
+        logMobile(db, { kind: 'login', ok: false, phone, username, error: e.message, ip, ua });
+        mobileAuthSave(db);
+        return send(res, 401, { error: '账号或密码不正确' });
+      }
+    }
     if (pathname === '/api/v1/mobile/me' && req.method === 'GET') {
       const d = mobileDevice(req);
       if (!d) return send(res, 200, { loggedIn: false });
