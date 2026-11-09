@@ -77,7 +77,8 @@ select,.outline{border:1px solid var(--line);background:#fff;border-radius:10px;
 .dl span{width:88px;color:var(--mut);flex:none}
 label.f{display:block;font-size:12px;color:var(--mut);margin:10px 0 5px}
 input,textarea,select{width:100%;font:inherit;font-size:14px;padding:9px 11px;border:1px solid #d5dfec;border-radius:10px;background:#fff;outline:none}
-@media(max-width:900px){nav{display:none}.main{margin-left:0;padding:14px 12px 80px}.mobile-bar{display:grid}.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){nav{display:none}.main{margin-left:0;padding:14px 12px 80px}.mobile-bar{display:grid}.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.top{flex-direction:column;align-items:flex-start;gap:10px}.top h1{font-size:20px}.toptools{width:100%;justify-content:flex-start}.metric{padding:11px 12px}.metric b{font-size:21px}.tabs{flex-wrap:wrap}.shortcuts{gap:7px}.shortcut{padding:9px 11px;font-size:12px}}
+@media(max-width:420px){.kpis,.metrics{grid-template-columns:repeat(2,1fr)}.company{font-size:11px}.chatbar{flex-direction:column}.chatbar input{flex:1;width:100%}.chatbar .btn{width:100%}}
 </style>
 </head>
 <body>
@@ -339,13 +340,13 @@ function renderTodos() {
     const desc = r.kind === 'plm' ? (r.r.projectNo + ' · 计划 ' + (r.r.planDate || '未排期')) : r.kind === 'meeting' ? (r.x.due || '无截止') : (r.x.due || '无截止');
     const tag = isDone(r) ? '<span class="tag green">已提交</span>' : (r.cat === 'urgent' ? '<span class="tag orange">优先</span>' : '<span class="tag">常规</span>');
     const btn = isDone(r) ? '' : `<button class="ghost" onclick="openTodoDetail(${idx})">执行 →</button>`;
-    return `<div class="task"><div class="dot" style="background:${isDone(r) ? '#0d956b' : (r.cat === 'urgent' ? '#da8b24' : '#2563eb')}"></div><div class="grow"><h3>${esc(title)}</h3><p>${esc(desc)}</p></div>${tag}${btn}</div>`;
+    return `<div class="task"><div class="dot" style="background:${isDone(r) ? '#0d956b' : (r.cat === 'urgent' ? '#da8b24' : '#2563eb')}"></div><div class="grow"><h3 style="cursor:pointer" onclick="openTodoDetail(${idx})">${esc(title)}</h3><p>${esc(desc)}</p></div>${tag}${btn}</div>`;
   }).join('') : '<div class="insight">当前筛选下暂无任务。</div>';
 }
 window.setFilter = (f) => { state.filter = f; document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('chosen', b.getAttribute('data-filter') === f)); renderTodos(); };
 
 function actions(r) {
-  if (r.kind === 'plm') { const item = (state.plmMap || {})[r.r.projectNo + '|' + r.r.nodeCode]; if (!item) return '<span class="tag">去 PLM</span>'; if (item.status === 'done') return '<span class="tag green">已完成</span>'; return `<button class="ghost" onclick="closeSheet();todoAct('${item.id}','in_progress')">开始</button><button class="btn" onclick="closeSheet();todoAct('${item.id}','done')">完成</button>`; }
+  if (r.kind === 'plm') { const item = (state.plmMap || {})[r.r.projectNo + '|' + r.r.nodeCode]; if (!item) return '<a class="ghost" href="/plm2" target="_blank" rel="noopener">在 PLM 打开</a>'; if (item.status === 'done') return '<span class="tag green">已完成</span>'; return `<button class="ghost" onclick="closeSheet();todoAct('${item.id}','in_progress')">开始</button><button class="btn" onclick="closeSheet();todoAct('${item.id}','done')">完成</button><a class="ghost" href="/plm2" target="_blank" rel="noopener">在 PLM 打开</a>`; }
   if (r.kind === 'hub') {
     const x = r.x;
     if (x.status === 'done' || x.status === 'cancelled') return '<span class="tag green">已完成</span>';
@@ -357,7 +358,12 @@ function actions(r) {
     if (x.link) return `<a class="btn" href="${esc(x.link)}" target="_blank" rel="noopener">在源系统打开</a>`;
     return `<button class="btn" onclick="closeSheet();todoAct('${x.id}','done')">完成</button>`;
   }
-  return '<span class="tag">会议助手处理</span>';
+  if (r.kind === 'meeting') {
+    const l = (r.x && r.x.link) || '';
+    if (l) return `<a class="btn" href="${esc(l)}" target="_blank" rel="noopener">在会议助手打开</a>`;
+    return '<span class="tag">请在会议助手处理</span>';
+  }
+  return '<span class="tag">去源系统处理</span>';
 }
 window.openTodoDetail = (i) => {
   const r = (state.todoRows || [])[i]; if (!r) return;
