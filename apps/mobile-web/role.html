@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -263,7 +263,7 @@ const ROLE_SOURCES = {
 };
 const SRC_NAMES = ['岗位职责 · 各中心岗位工作分析表', '制度与流程 · 订单/采购/品质/人事', '运营台账 · 任务达成与问题记录'];
 
-const state = { me: null, profile: null, demoRole: 'VIEWER', page: 'work', filter: 'all', todoRows: [], plmMap: {}, hideDone: true, caps: [], materials: [], photo: null };
+const state = { me: null, profile: null, demoRole: 'VIEWER', page: 'work', filter: 'all', todoRows: [], plmMap: {}, hideDone: true, caps: [], materials: [], photo: null, hubConnected: false };
 
 function profile() { return ROLE_PROFILE[state.me && state.me.role] || ROLE_PROFILE.VIEWER; }
 function demoRole() { return ROLE_CAP[state.me && state.me.role] || 'VIEWER'; }
@@ -310,7 +310,6 @@ async function loadTodos() {
   const u = state.me; if (!u) return;
   try {
     const t = await api('/api/v1/plm2/me/todos?user=' + (u.personId || 0));
-    const m = t.meeting || { items: [] };
     const th = (t.taskhub && t.taskhub.items) || [];
     const plmMap = {};
     try { const q = await api('/api/v1/tasks?owner=' + encodeURIComponent(u.name) + '&source=PLM2'); (q.items || []).forEach(x => { const r = x.refs || {}; if (r.projectNo && r.nodeCode) plmMap[r.projectNo + '|' + r.nodeCode] = x; }); } catch (e) {}
@@ -319,9 +318,8 @@ async function loadTodos() {
     (t.overdue || []).forEach(r => rows.push({ kind: 'plm', cat: 'urgent', r }));
     (t.todo || []).forEach(r => rows.push({ kind: 'plm', cat: 'normal', r }));
     (t.done || []).slice(0, 20).forEach(r => rows.push({ kind: 'plm', cat: 'done', r }));
-    (m.items || []).forEach(x => rows.push({ kind: 'meeting', cat: x.category === '已完成' ? 'done' : (x.category === '逾期' || x.category === '异常' ? 'urgent' : 'normal'), x }));
-    th.forEach(x => rows.push({ kind: 'hub', cat: (x.status === 'done' || x.status === 'cancelled') ? 'done' : (x.status === 'overdue' ? 'urgent' : 'normal'), x }));
-    try { const sq = await api('/api/v1/tasks?source=SPC&owner=' + encodeURIComponent(u.name)); (sq.items || []).forEach(x => rows.push({ kind: 'hub', cat: (x.status === 'done' || x.status === 'cancelled') ? 'done' : (x.status === 'overdue' ? 'urgent' : 'normal'), x })); } catch (e) {}
+    // 总库按人下发的其余待办（会议/SPC/HLC/EBMS/自有）；PLM 节点已单独展示，排除避免重复
+    th.filter(x => x.source !== 'PLM2').forEach(x => rows.push({ kind: 'hub', cat: (x.status === 'done' || x.status === 'cancelled') ? 'done' : (x.status === 'overdue' ? 'urgent' : 'normal'), x }));
     state.todoRows = rows;
     renderTodos();
   } catch (e) { $('tasks').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`; }
@@ -355,13 +353,13 @@ function actions(r) {
       if (k === 'exception' || k === 'quality') return `<button class="ghost" onclick="closeSheet();todoAct('${x.id}','in_progress')">开始</button><button class="btn" onclick="closeSheet();todoAct('${x.id}','done')">完成</button><a class="ghost" href="${esc(x.link || 'https://spc.hengyou-soft.com')}" target="_blank" rel="noopener">在 SPC 打开</a>`;
       return '<a class="btn" href="' + esc(x.link || 'https://spc.hengyou-soft.com') + '" target="_blank" rel="noopener">去 SPC 处理</a>';
     }
+    if (x.source === 'MEETING') {
+      return x.link ? `<a class="btn" href="${esc(x.link)}" target="_blank" rel="noopener">在会议助手打开</a>` : '<span class="tag">请在会议助手处理</span>';
+    }
+    if (x.source === 'HLC') return '<span class="tag">请在恒聘通处理</span>';
+    if (x.source === 'EBMS') return '<span class="tag">请在 EBMS 处理</span>';
     if (x.link) return `<a class="btn" href="${esc(x.link)}" target="_blank" rel="noopener">在源系统打开</a>`;
     return `<button class="btn" onclick="closeSheet();todoAct('${x.id}','done')">完成</button>`;
-  }
-  if (r.kind === 'meeting') {
-    const l = (r.x && r.x.link) || '';
-    if (l) return `<a class="btn" href="${esc(l)}" target="_blank" rel="noopener">在会议助手打开</a>`;
-    return '<span class="tag">请在会议助手处理</span>';
   }
   return '<span class="tag">去源系统处理</span>';
 }
@@ -396,22 +394,48 @@ async function loadReports() {
 }
 
 /* ---------- 智能体 ---------- */
-function renderAgent() {
+async function renderAgent() {
   const p = profile();
   $('agentRoster').textContent = p.agents;
   $('agentPreview').textContent = p.agents + '。最终决定由有权限的人员完成。';
-  $('agentSub').textContent = '一个个人助手，可调度多个受权的专业智能体（当前规则模拟，未接真实 Hub）。';
+  let sub = '一个个人助手，可调度多个受权的专业智能体。';
+  try {
+    const s = await api('/api/v1/agents/status');
+    state.hubConnected = !!(s.status && s.status.connected);
+    sub += state.hubConnected ? '（已连接 M13 中枢）' : '（M13 中枢未连接，降级为规则模拟）';
+  } catch (e) { state.hubConnected = false; sub += '（M13 中枢未连接）'; }
+  $('agentSub').textContent = sub;
 }
 window.preset = (q) => { $('agentQuestion').value = q; askAgent('agentQuestion'); };
-window.askAgent = (inputId) => {
+window.askAgent = async (inputId) => {
   const q = ($(inputId).value || '').trim(); if (!q) return;
   const p = profile();
-  let a;
-  if (/今天|优先/.test(q)) a = '建议先处理「优先」标签的任务（临近截止），再处理常规项；完成后记得补充证据再提交复核。';
-  else if (/证据/.test(q)) a = '提交前请检查：结果描述、证据编号（照片/表单），不能自验（done ≠ verified）。';
-  else if (/边界|权限/.test(q)) a = p.boundary;
-  else a = '我是你的岗位助手（规则模拟）。可以帮你梳理待办、检查缺失证据、说明岗位边界。';
-  $('agentReply').textContent = a;
+  const reply = $('agentReply');
+  if (/今天|优先/.test(q)) {
+    reply.textContent = '正在咨询 M13 中枢智能体…';
+    try {
+      const r = await api('/api/v1/agents/daily-questions', 'POST', { role: (state.me && state.me.role) || 'personal' });
+      const qs = (r.data && r.data.config && r.data.config.questions) || [];
+      reply.textContent = qs.length ? 'M13 中枢 · 今日优先级：\n' + qs.map((x, i) => (i + 1) + '. ' + (x.title || x.id)).join('\n') : (r.data ? JSON.stringify(r.data).slice(0, 300) : '暂无');
+    } catch (e) {
+      reply.textContent = 'M13 智能体调用失败：' + e.message + '。\n（规则兜底）建议先处理「优先」标签任务，再处理常规项，完成后补证据提交复核。';
+    }
+    return;
+  }
+  if (/证据/.test(q)) { reply.textContent = '提交前请检查：结果描述、证据编号（照片/表单），不能自验（done ≠ verified）。'; return; }
+  if (/边界|权限/.test(q)) { reply.textContent = p.boundary; return; }
+  // 自由文本 → M13 中枢核查中台实时检索
+  reply.textContent = '正在向 M13 中枢核查…';
+  try {
+    const r = await api('/api/v1/agents/search', 'POST', { query: q });
+    const live = (r.data && r.data.live) || {};
+    const items = live.items || [];
+    reply.textContent = items.length
+      ? 'M13 中枢核查（' + (live.status || 'complete') + '）：\n' + items.slice(0, 8).map((x, i) => (i + 1) + '. ' + (x.summary || x.title || x.issueNo || x.orderNo || '')).join('\n')
+      : 'M13 中枢：未检索到相关实时数据。';
+  } catch (e) {
+    reply.textContent = 'M13 检索失败：' + e.message + '。\n（规则兜底）我可以梳理待办、检查证据、说明岗位边界。';
+  }
 };
 
 /* ---------- 工具（扫码/拍照/语音） ---------- */
@@ -484,5 +508,6 @@ window.logout = async () => { try { await api('/api/v1/mobile/logout', 'POST', {
 
 boot();
 </script>
+<script src="/demo/feedback-fab.js"></script>
 </body>
 </html>

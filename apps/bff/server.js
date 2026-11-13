@@ -22,6 +22,7 @@ const spc = require('../../adapters/spc');
 const crm = require('../../adapters/crm');
 const ebms = require('../../adapters/ebms');
 const personnel = require('../../adapters/personnel');
+const henpintong = require('../../adapters/henpintong');
 const taskhub = require('../../packages/taskhub');
 const TOOLS = require('../../configs/tools.json');
 const SKILLS = require('../../configs/skills.json');
@@ -85,14 +86,16 @@ function clientIp(req) {
 function mobileProfile(username, realName, role) {
   const people = plm2.getPeople();
   const p = people.find(x => x.name === realName) || people.find(x => x.username === username);
+  // 以 PLM 人员主数据里的规范岗位为准（如 rd_manager → RD_LEAD），避免落到「人事行政」兜底
+  const canonical = p && p.role ? p.role : (role || '');
   let dept = (p && p.dept) || '';
   try {
     const dp = plm2.getDepartments().find(d => d.code === dept || d.name === dept);
     if (dp) dept = dp.name;
   } catch (e) { /* 组织不可用则保留原值 */ }
   return {
-    username, name: realName || username, role: role || '',
-    position: ROLE_POSITION[role] || '员工',
+    username, name: (p && p.name) || realName || username, role: canonical,
+    position: ROLE_POSITION[canonical] || (p && p.position) || '员工',
     dept,
     personId: p ? p.id : null
   };
@@ -751,6 +754,25 @@ const server = http.createServer(async (req, res) => {
       res.setHeader('Set-Cookie', 'm10sess=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
       return send(res, 200, { ok: true });
     }
+    /* ---- PLM 中台免密 SSO：/sso/plm?token=<PLM token>&next=<path> ---- */
+    if (pathname === '/sso/plm' && req.method === 'GET') {
+      const tok = String(q.token || '');
+      const next = String(q.next || '/');
+      const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+      if (!tok) return send(res, 400, { error: '缺少 token' });
+      try {
+        const vo = await plmSync.infoWith(tok);
+        const role = vo.roleCode || (vo.roles && vo.roles[0]) || '';
+        const profile = mobileProfile(vo.username, vo.realName, role);
+        const sid = crypto.randomBytes(16).toString('hex');
+        SSO_SESSIONS.set(sid, { at: Date.now(), user: profile, systems: { plm: { ok: true, name: profile.name, role: profile.role } } });
+        res.setHeader('Set-Cookie', 'm10sess=' + sid + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800');
+        res.writeHead(302, { Location: safeNext });
+        return res.end();
+      } catch (e) {
+        return send(res, 401, { error: 'PLM 令牌无效' });
+      }
+    }
     if (pathname.startsWith('/demo/') || pathname.startsWith('/apps/') || pathname.startsWith('/vendor/')) return serveStatic(pathname, res);
     if (pathname.startsWith('/favicon')) return send(res, 204, '');
     if (pathname === '/health' && req.method === 'GET') {
@@ -848,6 +870,46 @@ const server = http.createServer(async (req, res) => {
       await getRequestSession(req, { required: REQUIRE_AUTH, fresh: true });
       const session = hub.openSession(sessionMatch[1]);
       return send(res, 201, session);
+    }
+
+    /* ---- M13 中枢智能体：真实 Hub Agent Runtime ---- */
+    if (pathname === '/api/v1/agents/status' && req.method === 'GET') {
+      const st = await hub.status().catch(e => ({ connected: false, error: e.message }));
+      return send(res, 200, { agents: hub.listAgents(), status: st });
+    }
+    if (pathname === '/api/v1/agents/daily-questions' && req.method === 'POST') {
+      const body = await readBody(req);
+      const role = String(body.role || body.roleCode || 'personal');
+      try {
+        const r = await hub.dailyQuestions({ role });
+        return send(res, 200, r);
+      } catch (e) {
+        return send(res, e.status || 502, { error: e.message || 'Hub 智能体调用失败' });
+      }
+    }
+    if (pathname === '/api/v1/agents/search' && req.method === 'POST') {
+      const body = await readBody(req);
+      try {
+        const r = await hub.search({ query: body.query, source: body.source });
+        return send(res, 200, r);
+      } catch (e) {
+        return send(res, e.status || 502, { error: e.message || 'Hub 检索失败' });
+      }
+    }
+
+    /* ---- 页面反馈：每个页面右上角「反馈」→ 写回 PLM 反馈中心 ---- */
+    if (pathname === '/api/v1/feedback' && req.method === 'POST') {
+      const body = await readBody(req);
+      const type = ['issue', 'suggestion', 'inquiry'].includes(body.type) ? body.type : 'suggestion';
+      const severity = ['low', 'medium', 'high'].includes(body.severity) ? body.severity : 'medium';
+      const title = String(body.title || '').trim().slice(0, 256);
+      const description = String(body.description || '').trim().slice(0, 2000);
+      const pagePath = String(body.pagePath || '').trim().slice(0, 512);
+      if (!title && !description) return send(res, 400, { error: '请填写反馈标题或描述' });
+      const actor = (body.actor && String(body.actor).trim()) || '系统管理员';
+      const r = await plmSync.createFeedback({ type, severity, title, description, pagePath, submitterName: actor });
+      if (!r.ok) return send(res, r.status || 502, { error: r.msg || '反馈提交失败' });
+      return send(res, 200, { ok: true, feedback: r.data });
     }
 
     // ---- PLM-2 研发中心（真实数据接入，来自 PLM2 仓库） ----
@@ -1422,14 +1484,52 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await hlc.status());
     }
 
+    /* ---- HLC 人力后勤数据（恒聘通只读接口） ---- */
+    if (pathname === '/api/v1/hlc/hr/status' && req.method === 'GET') {
+      return send(res, 200, await henpintong.status());
+    }
+    if (pathname === '/api/v1/hlc/hr/employees' && req.method === 'GET') {
+      return send(res, 200, await henpintong.listEmployees(q));
+    }
+    if (pathname === '/api/v1/hlc/hr/departments' && req.method === 'GET') {
+      return send(res, 200, await henpintong.listDepartments(q));
+    }
+    if (pathname === '/api/v1/hlc/hr/positions' && req.method === 'GET') {
+      return send(res, 200, await henpintong.listPositions(q));
+    }
+    if (pathname === '/api/v1/hlc/hr/organizations' && req.method === 'GET') {
+      return send(res, 200, await henpintong.organizationsTree(q));
+    }
+    if (pathname === '/api/v1/hlc/hr/employee-requests' && req.method === 'GET') {
+      return send(res, 200, await henpintong.listEmployeeRequests(q));
+    }
+    if (pathname === '/api/v1/hlc/hr/contracts' && req.method === 'GET') {
+      return send(res, 200, await henpintong.listContracts(q));
+    }
+    if (pathname === '/api/v1/hlc/hr/attendance/summaries' && req.method === 'GET') {
+      return send(res, 200, await henpintong.listAttendanceSummaries(q));
+    }
+    if (pathname === '/api/v1/hlc/hr/payroll' && req.method === 'GET') {
+      return send(res, 200, await henpintong.listPayrollRecords(q));
+    }
+
     if (pathname === '/api/v1/hlc/people' && req.method === 'GET') {
-      const people = m07.getPeople();
       const st = await hlc.status();
-      // 标注哪些演示演员已映射真实 HLC 账号（未映射的写操作走服务账号）
-      people.forEach(p => { p.hlc_real = !!hlc.ACTORS[p.person_id]; });
-      // 合并已登录的真实 PLM 身份（令牌交换后的 M04 账号）
       const extra = hlc.plmPeople();
-      return send(res, 200, { people: [...people, ...extra], source: st.connected ? 'hlc-rest' : 'm07-mock', hlc: st });
+      // 真实 M07 员工（恒聘通只读接口）；不可达时回退演示样本
+      let real = [];
+      let source = st.connected ? 'hlc-rest' : 'm07-mock';
+      try {
+        const r = await henpintong.listEmployees({ page: 1, page_size: 200 });
+        const items = (r.data && (r.data.items || r.data.list)) || [];
+        real = items.map(x => ({
+          person_id: x.id, name: x.name, dept: x.departmentName || x.dept || '',
+          position: x.positionTitle || x.jobTitle || '', roles: []
+        }));
+        if (real.length) source = 'henpintong';
+      } catch (e) { /* 恒聘通不可达则回退 mock */ }
+      const mock = real.length ? [] : m07.getPeople().map(p => { p.hlc_real = !!hlc.ACTORS[p.person_id]; return p; });
+      return send(res, 200, { people: [...real, ...mock, ...extra], source, hlc: st, total: real.length + mock.length + extra.length });
     }
 
     // M04 PLM 统一认证登录 → HLC 令牌（真实业务身份入口）

@@ -10,12 +10,15 @@ const plm2 = require('../../adapters/plm2');
 const meeting = require('../../adapters/meeting');
 const hubAdapter = require('../../adapters/hub');
 const spcAdapter = require('../../adapters/spc');
+const hlcAdapter = require('../../adapters/henpintong');
+const ebmsAdapter = require('../../adapters/ebms');
 
 const STORE = process.env.TASKHUB_STORE || path.join(__dirname, '..', '..', 'configs', 'tasks-master.json');
 const TTL_MINUTES = 60;
 const MAX_EXTRACT_PER_RUN = 200;
 const TASKHUB_PROGRESS_ROLES = ['ADMIN', 'admin', 'gm', 'rd_manager', 'project_manager', 'hr_manager', 'cw1', 'sales_director', 'sales_manager'];
-const HORIZON_DAYS = 30;
+// 数据留存标准：微系统(M10)只存 1 周；各中心系统自存 3 个月；EDP 长期存储。
+const HORIZON_DAYS = 7;
 
 const DOMAINS = {
   ADMIN: { label: '行政', bizSys: 'meeting', bizLabel: '会议中心' },
@@ -234,6 +237,46 @@ async function collectSpc(d) {
   };
 }
 
+// HLC（恒聘通）人力后勤：员工申请（请假/加班/出差/补卡）→ 待办（只读引用）
+async function collectHlc(d) {
+  const r = await hlcAdapter.listTodos({ today: d });
+  return {
+    ok: true,
+    meta: { counts: r.counts || {}, total: r.items.length, stale: false },
+    items: r.items.map(x => makeItem({
+      source: 'HLC', sourceId: x.id, sourceLabel: 'HLC·人力后勤',
+      bizDomain: 'ADMIN',
+      title: x.title,
+      detail: '恒聘通 · ' + (x.refs && x.refs.requestType ? x.refs.requestType : ''),
+      ownerName: x.owner || '',
+      due: x.due || null,
+      priority: x.priority || 'medium',
+      status: x.status || 'pending',
+      refs: Object.assign({ kind: x.kind }, x.refs || {})
+    }))
+  };
+}
+
+// EBMS 企业经营管理（M03）：待办工作项 + 待验收结果 → 待办（只读引用）
+async function collectEbms(d) {
+  const r = await ebmsAdapter.listTodos({ today: d });
+  return {
+    ok: true,
+    meta: { counts: r.counts || {}, total: r.items.length, stale: false },
+    items: r.items.map(x => makeItem({
+      source: 'EBMS', sourceId: x.id, sourceLabel: 'EBMS·经营',
+      bizDomain: 'OPS',
+      title: x.title,
+      detail: x.kind === 'result' ? '待验收结果' : '工作项',
+      ownerName: x.owner || '',
+      due: x.due || null,
+      priority: x.priority || 'medium',
+      status: x.status || 'pending',
+      refs: Object.assign({ kind: x.kind }, x.refs || {})
+    }))
+  };
+}
+
 // ── 总库刷新（本地短期库：源故障时保留旧快照并标 stale）────
 async function refresh(opts) {
   const d = (opts && opts.today) || today();
@@ -243,7 +286,9 @@ async function refresh(opts) {
     MEETING: () => collectMeeting(d),
     PLM2: () => ({ ok: true, meta: {}, items: [...collectPlmNodes(d, horizon).items, ...collectPlmApprovals().items] }),
     HUB: async () => collectHub(d),
-    SPC: async () => collectSpc(d)
+    SPC: async () => collectSpc(d),
+    HLC: async () => collectHlc(d),
+    EBMS: async () => collectEbms(d)
   };
   const keepLocal = store.items.filter(x => x.origin !== 'sync');
   const prevSync = {};
@@ -539,10 +584,10 @@ function deptOf(personName) {
   return p ? (p.dept || '') : '';
 }
 
-/** 个人待办：总库自有条目按责任人 */
+/** 个人待办：按责任人下发（含 sync 引用条目 + 总库自有条目） */
 function forPerson(name, opts) {
   const d = (opts && opts.today) || today();
-  const items = ownItems(d).filter(x => x.ownerName === name);
+  const items = list({ today: d }).items.filter(x => x.ownerName === name);
   const counts = { total: items.length };
   items.forEach(i => { counts[i.status] = (counts[i.status] || 0) + 1; });
   return { owner: name, dept: deptOf(name), items, counts, updatedAt: load().updatedAt };

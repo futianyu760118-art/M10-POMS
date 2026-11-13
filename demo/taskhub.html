@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -849,5 +849,6 @@ $('btnClear').onclick = () => resetFilters();
 loadPeople();
 load().then(() => { connectStream(); }).catch(e => { toast('加载失败：' + e.message); });
 </script>
+<script src="/demo/feedback-fab.js"></script>
 </body>
 </html>

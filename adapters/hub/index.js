@@ -33,7 +33,6 @@ const AGENTS = [
 
 function listAgents() {
   // Agent 运行态以 Hub Runtime 为准：仅 HUB_CONNECTED=1 时视为已连接，其余标注 simulated
-  // （Hub 数据可用性通过 status()/listTodos() 单独体现，避免把「能读数据」误报成「Agent 已连接」）
   return AGENTS.map(a => ({ ...a }));
 }
 
@@ -152,6 +151,45 @@ async function status() {
   }
 }
 
+async function postJson(pathname, body, retry) {
+  const c = conf();
+  const cookie = SESSION.cookie && (Date.now() - SESSION.at < 20 * 60 * 1000) ? SESSION.cookie : await login();
+  const r = await request(c.api + pathname, { method: 'POST', body, headers: { Cookie: cookie } });
+  if (r.status === 401 && !retry) { SESSION = { cookie: '', at: 0 }; return postJson(pathname, body, true); }
+  if (r.status !== 200) {
+    const err = new Error('Hub ' + pathname + ' HTTP ' + r.status + '：' + r.text.slice(0, 160));
+    err.status = r.status;
+    throw err;
+  }
+  try { return JSON.parse(r.text); } catch (e) {
+    const err = new Error('Hub ' + pathname + ' 非 JSON 响应'); err.status = 502; throw err;
+  }
+}
+
+/**
+ * M13 中枢智能体：调用 Hub 的真实 Agent Runtime 生成每日优先级问题（Codex 驱动）。
+ * @param {{role?:string, today?:string}} opts
+ */
+async function dailyQuestions(opts) {
+  const o = opts || {};
+  const today = o.today || new Date().toISOString().slice(0, 10);
+  const role = o.role || 'personal';
+  const data = await postJson('/api/daily-questions/generate', { dateKey: today, role });
+  return { connected: true, today, role, data };
+}
+
+/**
+ * M13 中枢智能体：核查中台实时检索（基于 Hub 实时经营快照回答自由文本问题）。
+ * @param {{query:string, source?:string}} opts
+ */
+async function search(opts) {
+  const o = opts || {};
+  const query = String(o.query || '').trim().slice(0, 160);
+  if (!query) { const e = new Error('请输入问题'); e.status = 400; throw e; }
+  const data = await postJson('/api/attention/search', { query, live: true });
+  return { connected: true, query, source: 'all', data };
+}
+
 function openSession(agentId) {
   if (!HUB_CONNECTED) {
     const err = new Error('Hub unavailable');
@@ -176,4 +214,4 @@ async function loginWith(account, password) {
   } catch (e) { return { ok: false, error: 'Hub 连接失败：' + e.message }; }
 }
 
-module.exports = { listAgents, openSession, listTodos, status, configured, loginWith, HUB_CONNECTED, conf };
+module.exports = { listAgents, openSession, listTodos, status, configured, loginWith, dailyQuestions, search, HUB_CONNECTED, conf };

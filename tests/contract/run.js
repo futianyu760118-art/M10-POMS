@@ -671,10 +671,11 @@ test('总库输出与回写：个人/部门视图 + 进度回写（引用条目 
     const okC = taskhub.confirmCandidate(ex.candidates[0].id, { reviewer: '系统管理员', ownerName: '包跃' });
     assert.strictEqual(okC.status, 200, '确认入总库');
 
-    // 个人视图：只含总库自有条目且归属正确
+    // 个人视图：含总库自有条目 + 引用（sync）条目，且归属正确（最终规则：待办按责任人下发到每个人）
     const per = taskhub.forPerson('包跃', { today: '2026-11-02' });
-    assert.strictEqual(per.counts.total, 1, '个人待办应收到该任务');
-    assert(per.items.every(x => x.ownerName === '包跃' && x.origin !== 'sync'), '个人视图只含自有条目');
+    assert(per.items.length >= 1, '个人待办应有条目');
+    assert(per.items.every(x => x.ownerName === '包跃'), '个人视图所有条目归属正确');
+    assert(per.items.some(x => x.id === okC.body.item.id && x.origin !== 'sync'), '个人视图包含总库自有条目');
     // 部门视图：按部门聚合，带按人汇总
     const dep = taskhub.forDept(per.dept || '研发中心', { today: '2026-11-02' });
     assert(dep.counts.total >= 1, '部门待办应聚合到该部门');
@@ -683,7 +684,7 @@ test('总库输出与回写：个人/部门视图 + 进度回写（引用条目 
     // 回写：责任人本人可改；引用条目 409；无关员工 403
     const id = okC.body.item.id;
     assert.strictEqual((await taskhub.updateProgress(id, { status: 'done', actor: '包跃' })).status, 200, '本人可完成');
-    assert.strictEqual(taskhub.forPerson('包跃', { today: '2026-11-02' }).items[0].status, 'done', '回写即时可见');
+    assert.strictEqual(taskhub.forPerson('包跃', { today: '2026-11-02' }).items.find(x => x.id === id).status, 'done', '回写即时可见');
     const syncItem = taskhub.load().items.find(x => x.origin === 'sync');
     assert.strictEqual((await taskhub.updateProgress(syncItem.id, { status: 'done', actor: '包跃' })).status, 409, '引用条目回源系统');
     assert.strictEqual((await taskhub.updateProgress(id, { status: 'in_progress', actor: '沈建凯' })).status, 403, '非责任人被拒');

@@ -18,3 +18,4 @@ configs/spc.local.json
 configs/crm.local.json
 configs/ebms.local.json
 var/
+configs/henpintong.local.json

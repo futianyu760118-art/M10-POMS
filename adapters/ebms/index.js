@@ -110,4 +110,51 @@ const workspace = (personId) => cached('ws:' + personId, () => getData('/api/m10
 const workItems = (personId) => cached('wi:' + personId, () => getData('/api/m10/me/work-items', { person_id: personId }));
 const results = (personId) => cached('res:' + personId, () => getData('/api/m10/me/results', { person_id: personId }));
 
-module.exports = { configured, status, login, systemStatus, workspace, workItems, results };
+// EBMS 待办（M10 契约：/api/m10/me/work-items 待办 + /api/m10/me/results 待验收）→ 总表统一归集
+async function listTodos(opts) {
+  const o = opts || {};
+  const out = [];
+  const counts = { work_item: 0, result: 0 };
+  const push = (o2) => { if (o2.id) out.push(o2); };
+
+  // 待办工作项
+  try {
+    const wi = await getData('/api/m10/me/work-items', {});
+    const items = (wi && wi.items) || [];
+    counts.work_item = items.length;
+    items.forEach(x => push({
+      id: 'ebms:wi:' + (x.id || x.code || x.work_item_id || ''),
+      kind: 'work_item',
+      title: x.title || x.name || x.summary || 'EBMS 待办',
+      owner: x.owner || x.assignee || '',
+      due: x.due_at ? String(x.due_at).slice(0, 10) : (x.dueAt ? String(x.dueAt).slice(0, 10) : null),
+      priority: 'medium',
+      status: x.status === 'in_progress' ? 'in_progress' : 'pending',
+      domain: 'OPS',
+      refs: { kind: 'work_item', status: x.status }
+    }));
+  } catch (e) { /* 待办不可达不阻断其它 */ }
+
+  // 待验收结果
+  try {
+    const res = await getData('/api/m10/me/results', {});
+    const list = (res && res.results) || [];
+    const pending = list.filter(r => !r.verification || r.verification === 'pending');
+    counts.result = pending.length;
+    pending.forEach(x => push({
+      id: 'ebms:res:' + (x.result_id || x.source_object_id || ''),
+      kind: 'result',
+      title: '待验收：' + (x.title || '结果'),
+      owner: x.verified_by || '',
+      due: x.occurred_at ? String(x.occurred_at).slice(0, 10) : null,
+      priority: 'medium',
+      status: 'pending',
+      domain: 'OPS',
+      refs: { kind: 'result', resultId: x.result_id, sourceObjectId: x.source_object_id, verification: x.verification }
+    }));
+  } catch (e) { /* 结果不可达不阻断其它 */ }
+
+  return { source: 'ebms', today: o.today || new Date().toISOString().slice(0, 10), items: out, counts };
+}
+
+module.exports = { configured, status, login, systemStatus, workspace, workItems, results, listTodos };

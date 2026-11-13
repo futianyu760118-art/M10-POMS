@@ -113,4 +113,13 @@ async function listSheets(type, projectNo) {
   throw Object.assign(new Error('历史模板拉取失败(' + r.status + ')'), { status: 502 });
 }
 
-module.exports = { putNode, getNodeMatrix, putProject, login, loginWith, infoWith, createSheet, listSheets, apiBase };
+/** 反馈提交：POST /v1/feedback（type/severity/pagePath/title/description） */
+async function createFeedback(payload) {
+  try {
+    const r = await authed('POST', '/v1/feedback', payload);
+    const ok = r.status === 200 && (!r.body || r.body.code === undefined || r.body.code === 200);
+    return { ok, status: r.status, data: (r.body && r.body.data) || null, msg: ok ? '' : (r.body && r.body.message) || String(r.status) };
+  } catch (e) { return { ok: false, status: 0, msg: e.message }; }
+}
+
+module.exports = { putNode, getNodeMatrix, putProject, login, loginWith, infoWith, createSheet, listSheets, createFeedback, apiBase };
