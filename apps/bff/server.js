@@ -862,7 +862,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/poms/v1/agents' && req.method === 'GET') {
-      return send(res, 200, { agents: hub.listAgents(), hub_connected: hub.HUB_CONNECTED });
+      const r = await hub.listHarborAgents();
+      return send(res, 200, { agents: r.agents, source: r.source, hub_connected: hub.HUB_CONNECTED });
     }
 
     const sessionMatch = pathname.match(/^\/poms\/v1\/agents\/([^/]+)\/sessions$/);
@@ -875,7 +876,8 @@ const server = http.createServer(async (req, res) => {
     /* ---- M13 中枢智能体：真实 Hub Agent Runtime ---- */
     if (pathname === '/api/v1/agents/status' && req.method === 'GET') {
       const st = await hub.status().catch(e => ({ connected: false, error: e.message }));
-      return send(res, 200, { agents: hub.listAgents(), status: st });
+      const ar = await hub.listHarborAgents();
+      return send(res, 200, { agents: ar.agents, source: ar.source, status: st });
     }
     if (pathname === '/api/v1/agents/daily-questions' && req.method === 'POST') {
       const body = await readBody(req);

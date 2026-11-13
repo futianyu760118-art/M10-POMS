@@ -36,6 +36,28 @@ function listAgents() {
   return AGENTS.map(a => ({ ...a }));
 }
 
+/**
+ * 从 M13 Hub 拉取真实「AI 港湾」Agent（已向 M01 注册），映射为 M10 智能体格式；
+ * 未连接/失败时回退静态列表（标 simulated）。
+ */
+async function listHarborAgents() {
+  if (configured() || HUB_CONNECTED) {
+    try {
+      const data = await getJson('/api/harbor');
+      const agents = (Array.isArray(data.agents) ? data.agents : []).map(a => ({
+        agent_id: a.id, hub_agent_id: a.id, name: a.name || a.id,
+        role: (a.hierarchyLevel === 'L2' || /中枢|经营|编/.test(a.role || '')) ? 'personal' : 'pro',
+        skills: Array.isArray(a.skills) ? a.skills : [],
+        autonomy_level: a.autonomyLevel || 'assist',
+        guard_policy: (a.instructions || '').slice(0, 80) || '高风险动作需人工审批',
+        description: a.description || '', status: 'connected', provider: a.provider || ''
+      }));
+      if (agents.length) return { agents, source: 'hub-harbor' };
+    } catch (e) { /* 港湾不可达回退静态列表 */ }
+  }
+  return { agents: AGENTS.map(a => ({ ...a })), source: 'static' };
+}
+
 let SESSION = { cookie: '', at: 0 };
 
 function request(urlStr, opts) {
@@ -214,4 +236,4 @@ async function loginWith(account, password) {
   } catch (e) { return { ok: false, error: 'Hub 连接失败：' + e.message }; }
 }
 
-module.exports = { listAgents, openSession, listTodos, status, configured, loginWith, dailyQuestions, search, HUB_CONNECTED, conf };
+module.exports = { listAgents, listHarborAgents, openSession, listTodos, status, configured, loginWith, dailyQuestions, search, HUB_CONNECTED, conf };
